@@ -423,6 +423,9 @@
     <string name="receipt_gallery">Galeriden seç</string>
     <string name="receipt_replace">Değiştir</string>
     <string name="receipt_remove">Kaldır</string>
+    <string name="settings_auto_read_receipts">Fişi otomatik oku</string>
+    <string name="receipt_reading">Fiş okunuyor…</string>
+    <string name="receipt_filled">Fişten dolduruldu — kontrol et</string>
     <string name="receipt_importing">Fotoğraf hazırlanıyor…</string>
     <string name="receipt_failed">Fotoğraf eklenemedi. Tekrar dene veya fişi kaldır.</string>
     <string name="receipt_missing">Fiş fotoğrafı bulunamadı.</string>

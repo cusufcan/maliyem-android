@@ -72,6 +72,14 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
     private val _recurringReminders = MutableStateFlow(prefs.getBoolean(KEY_RECURRING_REMINDERS, true))
     val recurringReminders = _recurringReminders.asStateFlow()
 
+    private val _autoReadReceipts = MutableStateFlow(prefs.getBoolean(KEY_AUTO_READ_RECEIPTS, true))
+    val autoReadReceipts = _autoReadReceipts.asStateFlow()
+
+    fun setAutoReadReceipts(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_AUTO_READ_RECEIPTS, enabled) }
+        _autoReadReceipts.value = enabled
+    }
+
     var notificationPermissionRequested: Boolean
         get() = prefs.getBoolean(KEY_NOTIFICATION_PERMISSION_REQUESTED, false)
         set(requested) = prefs.edit { putBoolean(KEY_NOTIFICATION_PERMISSION_REQUESTED, requested) }
@@ -108,6 +116,7 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
     }
 
     private companion object {
+        const val KEY_AUTO_READ_RECEIPTS = "autoReadReceipts"
         const val KEY_BUDGET_ALERTS = "budgetAlerts"
         const val KEY_RECURRING_REMINDERS = "recurringReminders"
         const val KEY_NOTIFICATION_PERMISSION_REQUESTED = "notificationPermissionRequested"

@@ -1,6 +1,7 @@
 package com.mercan.maliyem.ui.components
 
 import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -27,6 +29,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
@@ -217,6 +220,24 @@ fun CardLabel(text: String) = Text(
     text, Modifier.semantics { heading() },
     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold),
 )
+
+@Composable
+internal fun SettingSwitch(
+    @StringRes title: Int,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
+) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 56.dp)
+            .toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        Text(stringResource(title), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Switch(checked, onCheckedChange = null, enabled = enabled)
+    }
+}
 
 /** Pano .rw: ikon, etiket ve sağda gri değer; tıklanabilirse sonda ›. */
 @Composable

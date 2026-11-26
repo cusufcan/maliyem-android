@@ -425,6 +425,9 @@
     <string name="receipt_gallery">Choose from gallery</string>
     <string name="receipt_replace">Replace</string>
     <string name="receipt_remove">Remove</string>
+    <string name="settings_auto_read_receipts">Read receipts automatically</string>
+    <string name="receipt_reading">Reading receipt…</string>
+    <string name="receipt_filled">Filled from receipt — review</string>
     <string name="receipt_importing">Preparing photo…</string>
     <string name="receipt_failed">Could not attach the photo. Try again or remove it.</string>
     <string name="receipt_missing">The receipt photo is unavailable.</string>

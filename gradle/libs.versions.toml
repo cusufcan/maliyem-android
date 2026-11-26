@@ -23,7 +23,10 @@ coroutines = "1.11.0"
 navigationCompose = "2.10.2"
 serializationJson = "1.13.0"
 
+mlkitTextRecognition = "16.0.1"
+
 [libraries]
+mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitTextRecognition" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }

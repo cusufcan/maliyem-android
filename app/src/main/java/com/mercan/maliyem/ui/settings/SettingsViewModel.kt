@@ -56,6 +56,9 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val theme: StateFlow<ThemeMode> = settings.theme
+    val autoReadReceipts = settings.autoReadReceipts
+
+    fun setAutoReadReceipts(enabled: Boolean) = settings.setAutoReadReceipts(enabled)
 
     // Dil değişince Activity yeniden kurulur ama ViewModel yaşar; değer bu yüzden durumda tutulur.
     private val _language = MutableStateFlow(settings.language())

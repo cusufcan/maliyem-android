@@ -51,6 +51,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -70,6 +71,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -115,6 +117,9 @@ fun AddTransactionSheet(
     editTransfer: Boolean = false,
     viewModel: AddTransactionViewModel = hiltViewModel(),
 ) {
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.cancelReceiptReading() }
+    }
     val canChangeSheet = remember(viewModel) {
         { target: SheetValue ->
             target != SheetValue.Hidden || (!viewModel.saving.value && !viewModel.receiptImporting.value) || viewModel.saved.value != null
@@ -171,6 +176,8 @@ private fun AddTransactionContent(
     val receipt by viewModel.receiptPath.collectAsStateWithLifecycle()
     val importing by viewModel.receiptImporting.collectAsStateWithLifecycle()
     val photoFailed by viewModel.receiptFailed.collectAsStateWithLifecycle()
+    val receiptReading by viewModel.receiptReading.collectAsStateWithLifecycle()
+    val receiptFilled by viewModel.receiptFilled.collectAsStateWithLifecycle()
     val futureRule = state.frequency != null && form.date > state.today
     val amountField = remember { BringIntoViewRequester() }
     val categoryField = remember { BringIntoViewRequester() }
@@ -264,6 +271,31 @@ private fun AddTransactionContent(
         }
         // Tutar geçerliyse düğme ne kaydedileceğini söyler: "Kaydet · 412,85 ₺".
         val amountMinor = state.amountMinor?.takeIf { it > 0 }
+        if (receiptReading) {
+            val reading = stringResource(R.string.receipt_reading)
+            SubText(
+                reading,
+                Modifier.clearAndSetSemantics {
+                    contentDescription = reading
+                    liveRegion = LiveRegionMode.Polite
+                },
+            )
+        }
+        if (receiptFilled != 0) {
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
+                SubText(
+                    stringResource(R.string.receipt_filled),
+                    Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+                TextButton(viewModel::undoReceiptSuggestion, enabled = !saving) {
+                    Text(stringResource(R.string.add_undo))
+                }
+            }
+        }
         if (writeFailed) WriteError()
         Button(
             onClick = {

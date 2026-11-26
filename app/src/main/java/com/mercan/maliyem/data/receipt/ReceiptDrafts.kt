@@ -37,6 +37,8 @@ class ReceiptDrafts @Inject constructor(@ApplicationContext context: Context) {
     fun discardCapture(name: String?) { camera.receiptFile(name)?.delete() }
     fun discardDraft(name: String?) { directory.receiptFile(name)?.delete() }
 
+    internal fun draftFile(name: String): File? = directory.existingReceipt(name)
+
     suspend fun hasPhoto(name: String?): Boolean = withContext(Dispatchers.IO) {
         directory.existingReceipt(name) != null || saved.existingReceipt(name) != null
     }

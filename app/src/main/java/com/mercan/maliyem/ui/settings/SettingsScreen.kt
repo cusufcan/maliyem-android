@@ -35,6 +35,7 @@ import com.mercan.maliyem.ui.components.ScreenTitle
 import com.mercan.maliyem.ui.components.SeyirCard
 import com.mercan.maliyem.ui.components.SeyirSegmented
 import com.mercan.maliyem.ui.components.SettingRow
+import com.mercan.maliyem.ui.components.SettingSwitch
 import com.mercan.maliyem.ui.theme.Spacing
 import java.time.LocalDate
 import com.mercan.maliyem.util.formatMoney
@@ -57,6 +58,7 @@ fun SettingsScreen(
     val count by viewModel.categoryCount.collectAsStateWithLifecycle()
     val accountCount by viewModel.accountCount.collectAsStateWithLifecycle()
     val recurringCount by viewModel.recurringCount.collectAsStateWithLifecycle()
+    val autoReadReceipts by viewModel.autoReadReceipts.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     val language by viewModel.language.collectAsStateWithLifecycle()
     val dataBusy by viewModel.dataBusy.collectAsStateWithLifecycle()
@@ -140,6 +142,9 @@ fun SettingsScreen(
                 { viewModel.setLanguage(AppLanguage.entries[it]) },
                 Modifier.padding(top = 10.dp),
             )
+        }
+        SeyirCard(padding = rows) {
+            SettingSwitch(R.string.settings_auto_read_receipts, autoReadReceipts, viewModel::setAutoReadReceipts)
         }
         notificationsCard()
         securityCard()

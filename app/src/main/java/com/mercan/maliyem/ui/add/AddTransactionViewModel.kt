@@ -10,6 +10,8 @@ import com.mercan.maliyem.data.local.CategoryEntity
 import com.mercan.maliyem.data.local.RecurringFrequency
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.receipt.ReceiptDrafts
+import com.mercan.maliyem.data.receipt.ReceiptSuggestion
+import com.mercan.maliyem.data.receipt.ReceiptTextReader
 import com.mercan.maliyem.data.repository.AccountRepository
 import com.mercan.maliyem.data.repository.CategoryRepository
 import com.mercan.maliyem.data.repository.RecurringRepository
@@ -25,6 +27,9 @@ import java.time.LocalDate
 import java.util.Locale
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -53,6 +58,11 @@ private const val KEY_CREATED = "created"
 private const val KEY_FREQUENCY = "frequency"
 private const val KEY_RECEIPT = "receipt"
 private const val KEY_CAMERA_CAPTURE = "receiptCapture"
+private const val KEY_RECEIPT_TOUCHED = "receiptTouched"
+private const val KEY_RECEIPT_FILLED = "receiptFilled"
+private const val RECEIPT_AMOUNT = 1
+private const val RECEIPT_DATE = 2
+private const val RECEIPT_NOTE = 4
 
 data class AddUiState(
     val form: AddForm,
@@ -98,6 +108,7 @@ class AddTransactionViewModel @Inject constructor(
     private val settings: AppSettings,
     private val clock: Clock,
     private val receiptDrafts: ReceiptDrafts,
+    private val receiptTextReader: ReceiptTextReader,
     calendar: CalendarDays,
 ) : ViewModel() {
 
@@ -145,6 +156,10 @@ class AddTransactionViewModel @Inject constructor(
     val receiptImporting = _receiptImporting.asStateFlow()
     private val _receiptFailed = MutableStateFlow(false)
     val receiptFailed = _receiptFailed.asStateFlow()
+    private var receiptReadJob: Job? = null
+    private val _receiptReading = MutableStateFlow(false)
+    val receiptReading = _receiptReading.asStateFlow()
+    val receiptFilled = savedState.getStateFlow(KEY_RECEIPT_FILLED, 0)
 
     fun startReceiptCapture(): Uri {
         receiptDrafts.discardCapture(savedState[KEY_CAMERA_CAPTURE])
@@ -171,6 +186,8 @@ class AddTransactionViewModel @Inject constructor(
             receiptDrafts.discardCapture(capture)
             return
         }
+        cancelReceiptReading()
+        val readOnImport = canReadReceipt()
         _receiptImporting.value = true
         _receiptFailed.value = false
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -178,6 +195,7 @@ class AddTransactionViewModel @Inject constructor(
             try {
                 receiptDrafts.importPhoto(uri, name)
                 setReceipt(name)
+                if (readOnImport && canReadReceipt()) readReceipt(name)
             } catch (_: IOException) {
                 _receiptFailed.value = true
             } catch (_: SecurityException) {
@@ -194,6 +212,7 @@ class AddTransactionViewModel @Inject constructor(
 
     fun removeReceipt() {
         if (_saving.value || _receiptImporting.value) return
+        cancelReceiptReading()
         setReceipt(null)
         _receiptFailed.value = false
     }
@@ -201,6 +220,73 @@ class AddTransactionViewModel @Inject constructor(
     private fun setReceipt(path: String?) {
         if (receiptPath.value != path) receiptDrafts.discardDraft(receiptPath.value)
         savedState[KEY_RECEIPT] = path
+    }
+
+    private fun canReadReceipt() =
+        type.value == TransactionType.EXPENSE.name && !transfer.value && settings.autoReadReceipts.value
+
+    private fun readReceipt(name: String) {
+        _receiptReading.value = true
+        receiptReadJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                val suggestion = withContext(Dispatchers.IO) {
+                    receiptDrafts.draftFile(name)?.let { receiptTextReader.read(it) }
+                }
+                if (suggestion != null && receiptPath.value == name && canReadReceipt() && !_saving.value) {
+                    applyReceiptSuggestion(suggestion)
+                }
+            } finally {
+                if (receiptReadJob == coroutineContext[Job]) {
+                    receiptReadJob = null
+                    _receiptReading.value = false
+                }
+            }
+        }
+        receiptReadJob?.start()
+    }
+
+    fun cancelReceiptReading() {
+        receiptReadJob?.cancel()
+        receiptReadJob = null
+        _receiptReading.value = false
+    }
+
+    private fun applyReceiptSuggestion(suggestion: ReceiptSuggestion) {
+        val touched = savedState.get<Int>(KEY_RECEIPT_TOUCHED) ?: 0
+        var filled = receiptFilled.value
+        if (suggestion.amountMinor != null && amount.value.isEmpty() && touched and RECEIPT_AMOUNT == 0) {
+            val locale = Locale.forLanguageTag(amountLocale.value)
+            savedState[KEY_AMOUNT] = amountInputText(suggestion.amountMinor, locale)
+            filled = filled or RECEIPT_AMOUNT
+        }
+        val today = LocalDate.now(clock)
+        // A new dated entry cannot be in the future when it has a receipt.
+        if (suggestion.date != null && suggestion.date < today && date.value == null &&
+            touched and RECEIPT_DATE == 0
+        ) {
+            savedState[KEY_DATE] = suggestion.date.toString()
+            filled = filled or RECEIPT_DATE
+        }
+        if (suggestion.merchant != null && note.value.isEmpty() && touched and RECEIPT_NOTE == 0) {
+            savedState[KEY_NOTE] = suggestion.merchant
+            filled = filled or RECEIPT_NOTE
+        }
+        savedState[KEY_RECEIPT_FILLED] = filled
+    }
+
+    fun undoReceiptSuggestion() {
+        if (_saving.value) return
+        val filled = receiptFilled.value
+        if (filled and RECEIPT_AMOUNT != 0) savedState[KEY_AMOUNT] = ""
+        if (filled and RECEIPT_DATE != 0) savedState[KEY_DATE] = null
+        if (filled and RECEIPT_NOTE != 0) savedState[KEY_NOTE] = ""
+        savedState[KEY_RECEIPT_FILLED] = 0
+    }
+
+    private fun touchReceiptField(field: Int) {
+        val touched = savedState.get<Int>(KEY_RECEIPT_TOUCHED) ?: 0
+        savedState[KEY_RECEIPT_TOUCHED] = touched or field
+        savedState[KEY_RECEIPT_FILLED] = receiptFilled.value and field.inv()
     }
 
     private fun resolveState(
@@ -235,21 +321,34 @@ class AddTransactionViewModel @Inject constructor(
 
     fun setType(value: TransactionType, fromQuickEntry: Boolean = false) {
         if (!fromQuickEntry) savedState[KEY_TYPE_CHANGED] = true
+        if (value != TransactionType.EXPENSE) cancelReceiptReading()
         savedState[KEY_TYPE] = value.name
         savedState[KEY_TRANSFER] = false
     }
 
-    fun selectTransfer() { savedState[KEY_TRANSFER] = true }
+    fun selectTransfer() {
+        cancelReceiptReading()
+        savedState[KEY_TRANSFER] = true
+    }
     fun setAccount(id: Long) { savedState[KEY_ACCOUNT] = id }
     fun setToAccount(id: Long) { savedState[KEY_TO] = id }
 
     fun setAmount(value: String, locale: Locale) {
+        touchReceiptField(RECEIPT_AMOUNT)
         savedState[KEY_AMOUNT_LOCALE] = locale.toLanguageTag()
         savedState[KEY_AMOUNT] = value
     }
     fun setCategory(id: Long) { savedState[KEY_CATEGORY] = id }
-    fun setDate(value: LocalDate) { savedState[KEY_DATE] = value.toString() }
-    fun setNote(value: String) { savedState[KEY_NOTE] = value }
+    fun setDate(value: LocalDate) {
+        touchReceiptField(RECEIPT_DATE)
+        savedState[KEY_DATE] = value.toString()
+    }
+
+    fun setNote(value: String) {
+        touchReceiptField(RECEIPT_NOTE)
+        savedState[KEY_NOTE] = value
+    }
+
     fun setFrequency(value: RecurringFrequency?) { savedState[KEY_FREQUENCY] = value?.name }
 
     /** "+ Yeni" çipinden: kategoriyi seçili türe ekler ve seçili getirir (ADR-0017). */
@@ -296,6 +395,7 @@ class AddTransactionViewModel @Inject constructor(
             }
             (result as Result.Valid).entity.copy(receiptPath = receiptPath.value)
         }
+        cancelReceiptReading()
         _saving.value = true
         _writeFailed.value = false
         viewModelScope.launch {
@@ -330,6 +430,9 @@ class AddTransactionViewModel @Inject constructor(
     suspend fun prepare(id: Long?, editTransfer: Boolean, locale: Locale): Boolean {
         if (id != null && (editId.value != id || transfer.value != editTransfer)) {
             try {
+                cancelReceiptReading()
+                savedState[KEY_RECEIPT_TOUCHED] = 0
+                savedState[KEY_RECEIPT_FILLED] = 0
                 if (editTransfer) {
                     val entity = transfers.get(id) ?: return false
                     loadDraft(entity.amountMinor, entity.date, entity.note, entity.createdAt, entity.fromAccountId, locale)
@@ -352,7 +455,9 @@ class AddTransactionViewModel @Inject constructor(
             if (sourceLocale == null) {
                 savedState[KEY_AMOUNT_LOCALE] = locale.toLanguageTag()
             } else if (sourceLocale != locale) {
-                parseAmount(amount.value, sourceLocale)?.let { setAmount(amountInputText(it, locale), locale) }
+                val minor = parseAmount(amount.value, sourceLocale)
+                if (minor != null) savedState[KEY_AMOUNT] = amountInputText(minor, locale)
+                if (minor != null || amount.value.isEmpty()) savedState[KEY_AMOUNT_LOCALE] = locale.toLanguageTag()
             }
         }
         val path = receiptPath.value
@@ -361,9 +466,10 @@ class AddTransactionViewModel @Inject constructor(
     }
 
     private fun loadDraft(minor: Long, date: LocalDate, note: String?, createdAt: Long, accountId: Long, locale: Locale) {
-        setAmount(amountInputText(minor, locale), locale)
-        setDate(date)
-        setNote(note.orEmpty())
+        savedState[KEY_AMOUNT_LOCALE] = locale.toLanguageTag()
+        savedState[KEY_AMOUNT] = amountInputText(minor, locale)
+        savedState[KEY_DATE] = date.toString()
+        savedState[KEY_NOTE] = note.orEmpty()
         savedState[KEY_TRIED] = false
         savedState[KEY_CREATED] = createdAt
         savedState[KEY_ACCOUNT] = accountId
@@ -383,6 +489,9 @@ class AddTransactionViewModel @Inject constructor(
 
     /** Sayfa kapanınca taslak atılır; tür seçimi bir sonraki kayıt için kalır. */
     fun reset() {
+        cancelReceiptReading()
+        savedState[KEY_RECEIPT_TOUCHED] = 0
+        savedState[KEY_RECEIPT_FILLED] = 0
         // remove() kullanılırsa getStateFlow akışları anahtardan kopar.
         savedState[KEY_TYPE_CHANGED] = false
         savedState[KEY_AMOUNT] = ""

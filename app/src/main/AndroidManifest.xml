@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
 
     <application
         android:name=".MaliyemApp"
@@ -16,6 +17,17 @@
         tools:ignore="UnusedAttribute"
         android:supportsRtl="true"
         android:theme="@style/Theme.Maliyem">
+
+        <!-- The bundled OCR model needs neither a network backend nor telemetry scheduling. -->
+        <service
+            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
+            tools:node="remove" />
+        <service
+            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService"
+            tools:node="remove" />
+        <receiver
+            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver"
+            tools:node="remove" />
 
         <activity
             android:name=".MainActivity"

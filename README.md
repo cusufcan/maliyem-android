@@ -11,7 +11,7 @@ A simple, private income and expense tracker for Android. Log what comes in and 
 - Monthly budgets per category and overall, with spending alerts
 - Savings goals with deposit and withdrawal tracking
 - Six-month trend chart and yearly reports
-- Receipt photos attached to transactions
+- Receipt photos with on-device text recognition (amount, date, merchant)
 - App shortcuts and a home screen widget
 - Optional biometric / device credential app lock
 - JSON backup and restore, CSV import and export (files you choose; no network access)
