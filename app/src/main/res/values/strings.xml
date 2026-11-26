@@ -19,4 +19,14 @@
     <string name="category_salary">Salary</string>
     <string name="category_freelance">Freelance</string>
     <string name="category_other_income">Other income</string>
+
+    <string name="summary_previous_month">Previous month</string>
+    <string name="summary_next_month">Next month</string>
+    <string name="summary_net">%1$s net</string>
+    <string name="summary_spent">%1$d%% of income spent</string>
+    <string name="summary_income">Income</string>
+    <string name="summary_expense">Expenses</string>
+    <string name="summary_recent">Recent</string>
+    <string name="summary_see_all">See all</string>
+    <string name="summary_empty">No entries this month yet.</string>
 </resources>

@@ -64,4 +64,11 @@ class MoneyTest {
             assertEquals(minor, parseMoney(formatMoney(minor, en), en))
         }
     }
+
+    @Test fun `split fraction for hero`() {
+        assertEquals("+9.623" to ",35 ₺", splitFraction("+9.623,35 ₺", tr))
+        assertEquals("−1.234.567" to ",89 ₺", splitFraction("−1.234.567,89 ₺", tr))
+        assertEquals("+₺9,623" to ".35", splitFraction("+₺9,623.35", en))
+        assertEquals("₺0" to ".00", splitFraction("₺0.00", en))
+    }
 }

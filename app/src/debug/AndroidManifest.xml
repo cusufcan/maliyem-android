@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <!--
+            Yalnız debug: adb shell am broadcast -n com.mercan.maliyem/.DebugSeedReceiver
+            Kabuk dışa kapalı alıcıya ulaşamaz; DUMP izni yalnız kabukta ve sistemde var,
+            başka uygulamalar tetikleyemez.
+        -->
+        <receiver
+            android:name=".DebugSeedReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP"
+            tools:ignore="ExportedReceiver" />
+    </application>
+</manifest>

@@ -17,4 +17,14 @@
     <string name="category_salary">Maaş</string>
     <string name="category_freelance">Serbest iş</string>
     <string name="category_other_income">Diğer gelir</string>
+
+    <string name="summary_previous_month">Önceki ay</string>
+    <string name="summary_next_month">Sonraki ay</string>
+    <string name="summary_net">%1$s neti</string>
+    <string name="summary_spent">Gelirin %%%1$d kadarı harcandı</string>
+    <string name="summary_income">Gelir</string>
+    <string name="summary_expense">Gider</string>
+    <string name="summary_recent">Son işlemler</string>
+    <string name="summary_see_all">Tümü</string>
+    <string name="summary_empty">Bu ay henüz kayıt yok.</string>
 </resources>

@@ -108,7 +108,7 @@ fun MaliyemNavHost() {
             enterTransition = { fadeIn(tween(TabTransitionMillis)) },
             exitTransition = { fadeOut(tween(TabTransitionMillis)) },
         ) {
-            composable<Summary> { SummaryScreen() }
+            composable<Summary> { SummaryScreen(onSeeAll = { openTab(Transactions) }) }
             composable<Transactions> { TransactionsScreen() }
             composable<Breakdown> { BreakdownScreen() }
             composable<Settings> { SettingsScreen() }

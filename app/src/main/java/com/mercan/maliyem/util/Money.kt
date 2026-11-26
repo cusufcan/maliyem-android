@@ -65,3 +65,12 @@ fun parseMoney(input: String, locale: Locale): Long? {
         null
     }
 }
+
+/**
+ * [formatMoney] çıktısını büyük ve küçük yazılacak iki parçaya ayırır:
+ * Türkçe "+9.623,35 ₺" → "+9.623" ve ",35 ₺"; İngilizce "+₺9,623.35" → "+₺9,623" ve ".35".
+ */
+fun splitFraction(formatted: String, locale: Locale): Pair<String, String> {
+    val at = formatted.lastIndexOf(if (locale.isTurkish()) ',' else '.')
+    return if (at < 0) formatted to "" else formatted.substring(0, at) to formatted.substring(at)
+}
