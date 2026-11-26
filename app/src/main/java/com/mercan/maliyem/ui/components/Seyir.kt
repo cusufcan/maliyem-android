@@ -100,10 +100,10 @@ private val SmallTitle @Composable get() =
 
 /** Alt ekran başlığı: geri düğmesi ve 22/28 başlık. */
 @Composable
-fun BackHeader(title: String, onBack: () -> Unit) {
+fun BackHeader(title: String, onBack: () -> Unit, enabled: Boolean = true) {
     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
         // İkon kenarla hizalansın diye 48 dp düğme 12 dp dışarı taşar (pano: margin −12).
-        IconButton(onBack, Modifier.offset(x = (-12).dp)) {
+        IconButton(onBack, Modifier.offset(x = (-12).dp), enabled = enabled) {
             SeyirIcon(R.drawable.ic_seyir_chevron_left, description = stringResource(R.string.back), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Text(title, Modifier.offset(x = (-12).dp).semantics { heading() }, style = SmallTitle)

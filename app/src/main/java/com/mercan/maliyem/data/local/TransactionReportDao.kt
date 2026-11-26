@@ -24,6 +24,12 @@ data class ReportCategoryTotal(
 
 @Dao
 interface TransactionReportDao {
+    @Query("SELECT * FROM transactions WHERE date IN (:dates)")
+    suspend fun transactionsOnDates(dates: List<LocalDate>): List<TransactionEntity>
+
+    @Query("SELECT * FROM transfers WHERE date IN (:dates)")
+    suspend fun transfersOnDates(dates: List<LocalDate>): List<TransferEntity>
+
     @Query("""
         SELECT MAX(latest) FROM (
             SELECT MAX(date) AS latest FROM transactions WHERE date < :before

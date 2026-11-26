@@ -8,6 +8,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class BudgetTransactions(val budgetCategoryId: Long)
 @Serializable data object Breakdown
 @Serializable data object Settings
+@Serializable data class CsvImport(val uri: String)
 @Serializable data object Budgets
 @Serializable data class TransactionDetail(val id: Long, val transfer: Boolean = false)
 @Serializable data object Categories

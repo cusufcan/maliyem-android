@@ -65,6 +65,7 @@ import com.mercan.maliyem.ui.goals.GoalDetailScreen
 import com.mercan.maliyem.ui.goals.GoalsScreen
 import com.mercan.maliyem.ui.recurring.RecurringRuleScreen
 import com.mercan.maliyem.ui.recurring.RecurringScreen
+import com.mercan.maliyem.ui.csvimport.CsvImportScreen
 import com.mercan.maliyem.ui.settings.SettingsScreen
 import com.mercan.maliyem.ui.summary.SummaryScreen
 import com.mercan.maliyem.ui.theme.SeyirIcon
@@ -209,7 +210,8 @@ fun MaliyemNavHost(
                 )
             }
         },
-        bottomBar = {
+        bottomBar = bottomBar@{
+            if (destination?.hasRoute(CsvImport::class) == true) return@bottomBar
             val colors = MaterialTheme.colorScheme
             Column(Modifier.background(colors.surfaceContainerHigh).navigationBarsPadding()) {
                 HorizontalDivider(color = colors.outlineVariant)
@@ -288,11 +290,15 @@ fun MaliyemNavHost(
                     onRecurring = { nav.navigate(Recurring) },
                     onBudgets = { nav.navigate(Budgets) },
                     onGoals = { nav.navigate(SavingsGoals(fromSettings = true)) },
+                    onImportCsv = { nav.navigate(CsvImport(it.toString())) { launchSingleTop = true } },
                     snackbar = snackbar,
                     beforeRestore = app::clearUndo,
                     securityCard = securityCard,
                     notificationsCard = notificationsCard,
                 )
+            }
+            composable<CsvImport> {
+                CsvImportScreen(onExit = { nav.popBackStack() })
             }
             composable<TransactionDetail> { entry ->
                 val route = entry.toRoute<TransactionDetail>()

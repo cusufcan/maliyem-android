@@ -1,5 +1,6 @@
 package com.mercan.maliyem.ui.settings
 
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +44,7 @@ fun SettingsScreen(
     onRecurring: () -> Unit,
     onBudgets: () -> Unit,
     onGoals: () -> Unit,
+    onImportCsv: (Uri) -> Unit,
     snackbar: SnackbarHostState,
     beforeRestore: suspend () -> Unit,
     securityCard: @Composable () -> Unit,
@@ -66,6 +68,9 @@ fun SettingsScreen(
     }
     val csvPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         uri?.let { viewModel.exportCsv(it, resources) }
+    }
+    val csvImportPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(onImportCsv)
     }
     LaunchedEffect(viewModel, resources, snackbar) {
         viewModel.dataMessages.collect { snackbar.showSnackbar(resources.getString(it)) }
@@ -155,6 +160,12 @@ fun SettingsScreen(
             SettingRow(
                 R.drawable.ic_seyir_note, stringResource(R.string.settings_csv),
                 onClick = { csvPicker.launch("maliyem-${LocalDate.now()}.csv") },
+                horizontalPadding = 0.dp, enabled = !dataBusy,
+            )
+            HorizontalDivider(color = divider)
+            SettingRow(
+                R.drawable.ic_seyir_arrow_in, stringResource(R.string.csv_import),
+                onClick = { csvImportPicker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain")) },
                 horizontalPadding = 0.dp, enabled = !dataBusy,
             )
             HorizontalDivider(color = divider)

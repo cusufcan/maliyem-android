@@ -15,8 +15,13 @@ data class CsvRow(
 /** Excel için UTF-8 BOM, alanlar ve satır sonları için RFC 4180. Tutar kuruştan tam sayıyla çevrilir. */
 object CsvExporter {
     private val formulaPrefixes = setOf('=', '+', '-', '@', '\t', '\r')
+    internal val columns = listOf("date", "type", "category", "amount", "note", "account")
+
+    internal fun unescapeText(value: String): String =
+        if (value.startsWith("'") && value.getOrNull(1) in formulaPrefixes) value.substring(1) else value
+
     fun encode(rows: List<CsvRow>): String = buildString {
-        append("\uFEFFdate,type,category,amount,note,account\r\n")
+        append('\uFEFF').append(columns.joinToString(",")).append("\r\n")
         for (row in rows.sortedBy { it.date }) {
             val minor = row.amountMinor.toBigInteger()
             val (lira, cents) = minor.abs().divideAndRemainder(BigInteger.valueOf(100))
