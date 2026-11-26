@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ yedek ve cihazdan cihaza aktarım kuralları. Hesap yok; kullanıcının tek güvencesi
+  bu yedek: işlem veritabanı yedeğe girer. Ayarlar (DataStore) gelince buraya eklenir.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="database" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="database" path="." />
+    </device-transfer>
+</data-extraction-rules>
