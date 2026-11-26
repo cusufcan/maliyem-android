@@ -27,6 +27,16 @@ class RoomTransactionRepositoryTest {
             range = from to to
             return emptyFlow()
         }
+        override fun observeFiltered(
+            from: LocalDate,
+            to: LocalDate,
+            type: TransactionType?,
+            categoryIds: List<Long>,
+            accountIds: List<Long>,
+            allCategories: Boolean,
+            allAccounts: Boolean,
+        ): Flow<List<TransactionWithCategory>> = emptyFlow()
+
         var dateEmissions: List<List<LocalDate>> = emptyList()
         override fun observeDates() = flowOf(*dateEmissions.toTypedArray())
         var inserted: TransactionEntity? = null

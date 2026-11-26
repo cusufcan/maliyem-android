@@ -18,6 +18,26 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE date BETWEEN :from AND :to ORDER BY date DESC, createdAt DESC, id DESC")
     fun observeRange(from: LocalDate, to: LocalDate): Flow<List<TransactionWithCategory>>
 
+    /** Tarih sınırları dahil; boş kimlik listeleri o alanın tüm değerlerini kapsar. */
+    @Transaction
+    @Query("""
+        SELECT * FROM transactions
+        WHERE date BETWEEN :from AND :to
+          AND (:type IS NULL OR type = :type)
+          AND (:allCategories OR categoryId IN (:categoryIds))
+          AND (:allAccounts OR accountId IN (:accountIds))
+        ORDER BY date DESC, createdAt DESC, id DESC
+    """)
+    fun observeFiltered(
+        from: LocalDate,
+        to: LocalDate,
+        type: TransactionType?,
+        categoryIds: List<Long>,
+        accountIds: List<Long>,
+        allCategories: Boolean,
+        allAccounts: Boolean,
+    ): Flow<List<TransactionWithCategory>>
+
     /** Kaydı olan günler; ay gezintisi boş ayları atlasın diye. */
     @Query("SELECT DISTINCT date FROM transactions")
     fun observeDates(): Flow<List<LocalDate>>

@@ -1,15 +1,10 @@
 package com.mercan.maliyem.ui.transactions
 
-import com.mercan.maliyem.data.local.AccountEntity
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.local.TransactionWithCategory
 import com.mercan.maliyem.data.local.TransferEntity
 import java.math.BigInteger
 import java.time.LocalDate
-import java.time.YearMonth
-
-/** Pano İşlemler süzgeci; sıra çiplerin sırasıdır. */
-enum class TransactionFilter { ALL, INCOME, EXPENSE }
 
 /** Bir günün başlığı (.dh) ve kayıtları; [netMinor] gelir − gider. */
 data class DayGroup(val date: LocalDate, val netMinor: BigInteger, val rows: List<DayRow>)
@@ -37,33 +32,19 @@ sealed interface DayRow {
     }
 }
 
-data class TransactionsUiState(
-    val month: YearMonth,
-    val filter: TransactionFilter,
-    val days: List<DayGroup>,
-    val accounts: List<AccountEntity>,
-) {
-    val count: Int = days.sumOf { it.rows.size }
+/** Sonuç sayısı transferleri de kapsar; gelir ve gider yalnız kayıt satırlarından hesaplanır. */
+data class TransactionsResult(val days: List<DayGroup>) {
+    val count = days.sumOf { it.rows.size }
+    val incomeMinor = days.sumOf { day -> day.rows.sumOf { it.netMinor.max(BigInteger.ZERO) } }
+    val expenseMinor = days.sumOf { day -> day.rows.sumOf { it.netMinor.min(BigInteger.ZERO).negate() } }
 }
 
-/** Günler yeniden eskiye; gün içinde son eklenen üstte. Transfer yalnız Tümü'nde görünür. */
+/** Günler yeniden eskiye; gün içinde son eklenen üstte. */
 fun groupByDay(
     rows: List<TransactionWithCategory>,
-    filter: TransactionFilter,
     transfers: List<TransferEntity> = emptyList(),
-): List<DayGroup> {
-    val records = rows.asSequence()
-        .filter {
-            when (filter) {
-                TransactionFilter.ALL -> true
-                TransactionFilter.INCOME -> it.transaction.type == TransactionType.INCOME
-                TransactionFilter.EXPENSE -> it.transaction.type == TransactionType.EXPENSE
-            }
-        }
-        .map(DayRow::Record)
-    val visibleTransfers = if (filter == TransactionFilter.ALL) transfers.asSequence().map(DayRow::Transfer) else emptySequence()
-    return (records + visibleTransfers)
+): List<DayGroup> =
+    (rows.asSequence().map(DayRow::Record) + transfers.asSequence().map(DayRow::Transfer))
         .sortedWith(compareByDescending(DayRow::date).thenByDescending(DayRow::createdAt).thenByDescending(DayRow::id))
         .groupBy(DayRow::date)
         .map { (date, items) -> DayGroup(date, items.sumOf(DayRow::netMinor), items) }
-}

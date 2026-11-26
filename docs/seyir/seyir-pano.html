@@ -78,6 +78,16 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .chips button svg{width:18px;height:18px}
 .chips [aria-pressed=true]{background:var(--sel);color:var(--osel);border-color:transparent}
 .chips.f button{padding:0 16px}
+.tx-search{display:flex;align-items:center;border:1px solid var(--olv);border-radius:12px;padding-left:12px;min-width:0}
+.tx-search input{flex:1;min-width:0;color:var(--on);font:inherit}
+.tx-results{display:flex;flex-direction:column;gap:12px}
+.tx-range{margin:0;font:700 22px/28px Inter,system-ui,sans-serif}
+.tx-summary{display:grid;gap:4px}
+.tx-filters{max-height:91%}
+.tx-filters .fields{display:grid;gap:8px;overflow-y:auto}
+.tx-amount{min-height:52px;border:1px solid var(--olv);border-radius:12px;padding:0 12px;color:var(--on);font:inherit}
+.tx-active{flex-wrap:nowrap;overflow:auto;scrollbar-width:none}
+.tx-active button{white-space:nowrap}
 .seg{display:flex;background:var(--h);border-radius:24px;padding:4px}
 .seg button{flex:1;min-height:40px;border-radius:20px;text-align:center;font-weight:500;color:var(--v);transition:background-color .15s,color .15s}
 .seg [aria-pressed=true]{background:var(--sel);color:var(--osel);font-weight:600}
@@ -151,11 +161,14 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 <symbol id="trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
 <symbol id="back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
 <symbol id="tag" viewBox="0 0 24 24"><path d="M3 12V4h8l9 9-8 8z"/><circle cx="7.500" cy="7.500" r="1.200"/></symbol>
+<symbol id="search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15 15 5 5"/></symbol>
+<symbol id="filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+<symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12m0-12L6 18"/></symbol>
 <symbol id="lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
 </svg>
 <div class="page">
 <h1>Maliyem</h1>
-<p class="intro">Seyir ile ilk sürüm panosu (sade kapsam: kayıt, kategori, aylık özet, dağılım). Veriler Kasım 2026 örneği; bütün toplamlar kuruş cinsinden tam sayılardan hesaplanır. Filtreler, Gider/Gelir seçicileri, kategori çipleri, “Kaydet”, “Sil”, “Geri al” ve ekran altındaki durum seçiciler çalışır; diğer düğmeler görüntüdür.</p>
+<p class="intro">Seyir ile ilk sürüm panosu (sade kapsam: kayıt, kategori, aylık özet, dağılım). Veriler Kasım 2026 örneği; bütün toplamlar kuruş cinsinden tam sayılardan hesaplanır. İşlemler araması, Gider/Gelir seçicileri, kategori çipleri, “Kaydet”, “Sil”, “Geri al” ve ekran altındaki durum seçiciler çalışır; diğer düğmeler görüntüdür.</p>
 <div class="ctls">
 <div class="grp" data-ctl="tema" role="group" aria-label="Tema"><button data-v="karma" aria-pressed="true">Karma</button><button data-v="acik" aria-pressed="false">Hepsi açık</button><button data-v="koyu" aria-pressed="false">Hepsi koyu</button></div>
 </div>
@@ -186,11 +199,37 @@ const ozet=(st=0)=>{const xs=live(),gi=sum(xs,inc),gd=sum(xs,t=>!inc(t));const l
  <div class="sec"><span class="eyebrow">Son işlemler</span><button class="lnk">Tümü</button></div>
  <div class="list">${last.map((t,k)=>row(t,st===1&&k===0)).join("")}</div></div>${fab}${nav(0)}
  ${st===1?`<div class="snk" role="status"><span>Gider kaydedildi</span><button data-undo>Geri al</button></div>`:""}`};
-const islem=(flt=0,del=0)=>{const xs=live(del).filter(t=>flt===0||(flt===1)===inc(t));const days=[...new Set(xs.map(t=>t[1]))].sort((a,b)=>b-a);
- return `<div class="scr"><div class="top"><div><h2>İşlemler</h2><div class="sub">Kasım 2026 · ${xs.length} kayıt</div></div></div>
- <div class="chips f" role="group" aria-label="Süz">${["Tümü","Gelir","Gider"].map((x,k)=>`<button data-flt="${k}" aria-pressed="${k===flt}">${x}</button>`).join("")}</div>
- ${days.map(d=>{const ds=xs.filter(t=>t[1]===d).reverse(),n=ds.reduce((a,t)=>a+(inc(t)?t[4]:-t[4]),0);return `<div class="dh"><span class="eyebrow">${d===26?"Bugün":d===25?"Dün":d+" Kasım "+wd(d)}</span><span class="sub num">${n<0?"−":"+"}${f(n)} ₺</span></div><div class="list">${ds.map(t=>row(t)).join("")}</div>`}).join("")}
- </div>${fab}${nav(1)}${del?`<div class="snk" role="status"><span>Kayıt silindi</span><button data-undo>Geri al</button></div>`:""}`};
+const searchText=s=>s.normalize("NFD").toLowerCase().replace(/\p{M}/gu,"").replace(/ı/g,"i");
+const txResults=(query=null,flt=0,del=0)=>{
+ const q=searchText(query?.trim()||"");
+ const xs=live(del).filter(t=>(flt===0||flt===1&&!inc(t)||flt===2&&inc(t))&&
+   (!q||[t[2],t[3],"Nakit"].some(x=>searchText(x).includes(q))||(t[4]/100).toFixed(2).startsWith(q.replace(",","."))));
+ const days=[...new Set(xs.map(t=>t[1]))].sort((a,b)=>b-a);
+ return `${query===null?mo("Kasım 2026",xs.length+" kayıt"):`<h3 class="tx-range">Kasım 2026</h3>
+ <div class="card sub tx-summary"><span>${xs.length} kayıt</span><span>Toplam gider: ${f(sum(xs,t=>!inc(t)))} ₺</span><span>Toplam gelir: ${f(sum(xs,inc))} ₺</span></div>`}
+ ${xs.length?"":`<div class="ctr"><h3>Eşleşen kayıt yok</h3><p>Başka bir arama deneyin veya filtreleri değiştirin.</p></div>`}
+ ${days.map(d=>{const ds=xs.filter(t=>t[1]===d).reverse(),n=ds.reduce((a,t)=>a+(inc(t)?t[4]:-t[4]),0);return `<div class="dh"><span class="eyebrow">${d===26?"Bugün":d===25?"Dün":d+" Kasım "+wd(d)}</span><span class="sub num">${n<0?"−":"+"}${f(n)} ₺</span></div><div class="list">${ds.map(t=>row(t)).join("")}</div>`}).join("")}`};
+const txTypes=["Tümü","Gider","Gelir","Transfer"];
+const islem=(flt=0,del=0,search=false)=>{
+ const query=search?"İzmirim":null;
+ return `<div class="scr" data-tx-type="${flt}"><div class="top">
+ ${search?`<div class="tx-search"><input data-tx-query aria-label="Ara" value="${query}"><button class="ib" data-tx-clear-search aria-label="Aramayı temizle ve kapat">${i("close")}</button></div>`:`<div><h2>İşlemler</h2></div><button class="ib" data-tx-search aria-label="Ara">${i("search")}</button>`}
+ <button class="ib" data-tx-sheet aria-label="Filtreler">${i("filter")}</button></div>
+ ${flt?`<div class="chips tx-active"><button aria-pressed="true" data-tx-clear-filter>${i("close")}${txTypes[flt]}</button><button data-tx-clear-filter>Temizle</button></div>`:""}
+ <div class="tx-results">${txResults(query,flt,del)}</div></div>${fab}${nav(1)}
+ ${del?`<div class="snk" role="status"><span>Kayıt silindi</span><button data-undo>Geri al</button></div>`:""}`};
+const txOptions=(name,values,selected,attr)=>`<div class="eyebrow">${name}</div>
+ <div class="chips" role="group" aria-label="${name}">${values.map((label,k)=>`<button ${attr}="${k}" aria-pressed="${k===selected}">${label}</button>`).join("")}</div>`;
+const txSheet=(flt=0)=>`${islem(flt)}<div class="scrim"></div><div class="sheet tx-filters" role="dialog" aria-label="Filtreler">
+ <div class="hd"></div><div class="fields"><h3>Filtreler</h3>
+ ${txOptions("Tür",txTypes,flt,"data-tx-draft")}
+ ${txOptions("Kategoriler",Object.keys(C),-1,"data-tx-multi")}
+ ${txOptions("Hesaplar",["Nakit","Birikim"],-1,"data-tx-multi")}
+ ${txOptions("Tarih aralığı",["Bu ay","Son 3 ay","Bu yıl","Tüm zamanlar","Özel aralık"],0,"data-tx-date")}
+ <div data-tx-custom hidden><label class="rw">Başlangıç tarihi <input type="date" value="2026-11-01"></label><label class="rw">Bitiş tarihi <input type="date" value="2026-11-30"></label></div>
+ <div class="eyebrow">Tutar</div><input class="tx-amount" inputmode="decimal" placeholder="En az tutar" aria-label="En az tutar">
+ <input class="tx-amount" inputmode="decimal" placeholder="En çok tutar" aria-label="En çok tutar"></div>
+ <div class="acts"><button class="btn x" data-tx-clear-filter>Temizle</button><button class="btn" data-tx-apply>Uygula</button></div></div>`;
 const ekle=(st=0,kind=0)=>st===1?ozet(1):`${ozet().replace(fab,"")}<div class="scrim"></div><div class="sheet" role="dialog" aria-label="Yeni kayıt"><div class="hd"></div><h3>Yeni kayıt</h3>
  <div class="seg" role="group" aria-label="Tür">${["Gider","Gelir"].map((x,k)=>`<button data-kind="${k}" aria-pressed="${k===kind}">${x}</button>`).join("")}</div>
  <label class="amt"><input inputmode="decimal" aria-label="Tutar" value="${kind?"3.200,00":"412,85"}"><span>₺</span></label>
@@ -230,7 +269,7 @@ const ayar=()=>`<div class="scr nf"><div class="top"><div><h2>Ayarlar</h2></div>
   <div class="rw"><div>Sürüm</div><span class="g">1.1.0</span></div>
  </div></div>${nav(3)}`;
 const S=[["1 · Özet","Ayın neti tek bakışta. Gelir yeşil ve +, gider nötr ve −; renk tek başına anlam taşımaz.",ozet],
-["2 · İşlemler","Gün gruplu liste, gün neti sağda. Süzgeç çalışır.",()=>islem()],
+["2 · İşlemler","Ay gezintisi, arama sonucu toplamları ve filtre alt sayfası. Örnek veri Kasım 2026 ile sınırlı.",k=>k===2?txSheet():islem(0,0,k===1),["Ay","Arama","Filtreler"],0],
 ["3 · Yeni kayıt","Alt sayfa. Gider/Gelir kategorileri değiştirir; “Kaydet” özete döner, yeni kayıt vurgulu ve geri alınabilir.",ekle,["Form","Kaydedildi"],0],
 ["4 · Dağılım","Kategori payları yatay çubukla: halkadan daha kolay okunur, etiketler doğrudan yazılı.",()=>dag()],
 ["5 · Kayıt ayrıntısı","Düzenle ve sil. Silme onay sormaz; “Geri al” ile döner.",ayr,["Ayrıntı","Silindi"],0],
@@ -248,7 +287,14 @@ document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)r
  const fg=b.closest("figure"),body=fg&&fg.querySelector(".body"),d=b.dataset;
  if(d.v){press(b);theme(d.v)}
  else if(d.st)setSt(fg,+d.st);
- else if(d.flt)body.innerHTML=islem(+d.flt);
+ else if("txSearch" in d){body.innerHTML=islem(+body.querySelector("[data-tx-type]").dataset.txType,0,true);const input=body.querySelector("[data-tx-query]");input.value="";input.dispatchEvent(new Event("input",{bubbles:true}));input.focus()}
+ else if("txClearSearch" in d)body.innerHTML=islem(+body.querySelector("[data-tx-type]").dataset.txType);
+ else if("txSheet" in d)body.innerHTML=txSheet(+body.querySelector("[data-tx-type]").dataset.txType);
+ else if("txClearFilter" in d)body.innerHTML=islem();
+ else if("txApply" in d)body.innerHTML=islem(+body.querySelector('[data-tx-draft][aria-pressed="true"]').dataset.txDraft);
+ else if("txDraft" in d)press(b);
+ else if("txDate" in d){press(b);body.querySelector("[data-tx-custom]").hidden=d.txDate!=="4"}
+ else if("txMulti" in d)b.setAttribute("aria-pressed",b.getAttribute("aria-pressed")!=="true");
  else if(d.kind)body.innerHTML=ekle(0,+d.kind);
  else if(d.dk)body.innerHTML=dag(+d.dk);
  else if(d.ck)body.innerHTML=kat(+d.ck);
@@ -256,6 +302,12 @@ document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)r
  else if("del" in d)setSt(fg,1);
  else if("undo" in d)setSt(fg,0);
  else if("chip" in d||"seg" in d)press(b);
+});
+document.addEventListener("input",e=>{
+ const field=e.target;
+ if(!field.matches("[data-tx-query]"))return;
+ const screen=field.closest("[data-tx-type]");
+ screen.querySelector(".tx-results").innerHTML=txResults(field.value,+screen.dataset.txType);
 });
 </script>
 </body>

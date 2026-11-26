@@ -1,26 +1,38 @@
 package com.mercan.maliyem.ui.transactions
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -30,22 +42,25 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
-import com.mercan.maliyem.ui.accounts.accountName
+import com.mercan.maliyem.data.local.DefaultCategories
 import com.mercan.maliyem.data.local.TransactionType
+import com.mercan.maliyem.ui.accounts.accountName
 import com.mercan.maliyem.ui.components.EmptyState
 import com.mercan.maliyem.ui.components.Eyebrow
-import com.mercan.maliyem.ui.components.FilterChips
-import com.mercan.maliyem.ui.components.ScreenTitle
+import com.mercan.maliyem.ui.components.MonthHeader
+import com.mercan.maliyem.ui.components.SeyirCard
 import com.mercan.maliyem.ui.components.SubText
 import com.mercan.maliyem.ui.components.TransactionRow
 import com.mercan.maliyem.ui.components.categoryName
-import com.mercan.maliyem.ui.components.monthTitle
 import com.mercan.maliyem.ui.theme.Motion
 import com.mercan.maliyem.ui.theme.Spacing
 import com.mercan.maliyem.util.formatMoney
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TransactionsScreen(
     highlightId: Long?,
@@ -54,52 +69,137 @@ fun TransactionsScreen(
     highlightTransferId: Long?,
     viewModel: TransactionsViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val today by viewModel.today.collectAsStateWithLifecycle()
-    val current = state ?: return
+    val result by viewModel.result.collectAsStateWithLifecycle()
+    val selection by viewModel.selection.collectAsStateWithLifecycle()
+    val period by viewModel.period.collectAsStateWithLifecycle()
+    val search by viewModel.search.collectAsStateWithLifecycle()
+    var sheetSession by rememberSaveable { mutableStateOf<String?>(null) }
+    val sheetOpen = sheetSession == transactionsSession
+    val keyboard = LocalSoftwareKeyboardController.current
+    val imeVisible = WindowInsets.isImeVisible
+    var imeWasVisible by remember { mutableStateOf(false) }
+    var keepSearchOnHide by remember { mutableStateOf(false) }
+    val resources = LocalResources.current
     val locale = LocalConfiguration.current.locales[0]
+    LaunchedEffect(resources, locale) {
+        val labels = DefaultCategories.all.map { it.nameRes } + R.string.account_cash
+        viewModel.setLocalizedNames(labels.associateWith { resources.getString(it) })
+    }
+    val (filters, options) = selection ?: return
+    val currentPeriod = period ?: return
     val dayFormat = remember(locale) { DateTimeFormatter.ofPattern("d MMMM EEEE", locale) }
-    val filters = listOf(R.string.filter_all, R.string.filter_income, R.string.filter_expense).map { stringResource(it) }
+    val rangeResults = search != null || filters.range != TransactionsRange.MONTH
 
+    fun setSearch(text: String?) {
+        if (text == null) keyboard?.hide()
+        viewModel.setSearch(text)
+    }
+    // Klavye açıkken ilk Geri olayını klavye alır; bu durumda alanı da kapatırız.
+    LaunchedEffect(imeVisible, search != null) {
+        val backFromKeyboard = search != null && imeWasVisible && !imeVisible && !keepSearchOnHide
+        imeWasVisible = search != null && imeVisible
+        if (!imeVisible || search == null) keepSearchOnHide = false
+        if (backFromKeyboard && !sheetOpen) setSearch(null)
+    }
+    BackHandler(enabled = search != null && !sheetOpen) { setSearch(null) }
+
+    Column(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxWidth().padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            TransactionsToolbar(
+                search, ::setSearch,
+                onSubmitSearch = {
+                    keepSearchOnHide = imeVisible
+                    keyboard?.hide()
+                },
+                onOpenFilters = {
+                    keepSearchOnHide = imeVisible
+                    keyboard?.hide()
+                    sheetSession = transactionsSession
+                },
+            )
+            ActiveTransactionFilters(filters, options, currentPeriod.month, locale, viewModel::setFilters)
+        }
+        TransactionsList(
+            result, filters, options, currentPeriod, rangeResults, locale, dayFormat,
+            viewModel::selectMonth, highlightId, highlightTransferId, onOpen, onOpenTransfer,
+        )
+    }
+    if (sheetOpen) {
+        key(transactionsSession) {
+            TransactionsFilterSheet(filters, options, currentPeriod, locale, onDismiss = { sheetSession = null }) {
+                viewModel.setFilters(it)
+                sheetSession = null
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransactionsList(
+    result: TransactionsResult?,
+    filters: TransactionsFilters,
+    options: TransactionsOptions,
+    period: TransactionsPeriod,
+    rangeResults: Boolean,
+    locale: Locale,
+    dayFormat: DateTimeFormatter,
+    onMonth: (YearMonth) -> Unit,
+    highlightId: Long?,
+    highlightTransferId: Long?,
+    onOpen: (Long) -> Unit,
+    onOpenTransfer: (Long) -> Unit,
+) {
+    val count = result?.let { pluralStringResource(R.plurals.records, it.count, it.count) }
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = 88.dp),
     ) {
         item {
-            ScreenTitle(
-                stringResource(R.string.nav_transactions),
-                stringResource(
-                    R.string.transactions_subtitle,
-                    monthTitle("LLLL yyyy", current.month, locale),
-                    pluralStringResource(R.plurals.records, current.count, current.count),
-                ),
-            )
+            if (rangeResults) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text(
+                        transactionRangeLabel(filters, period.month, locale),
+                        Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge,
+                    )
+                    if (result != null && count != null) {
+                        SeyirCard {
+                            SubText(count)
+                            SubText(stringResource(
+                                R.string.transactions_total, stringResource(R.string.breakdown_total_expense), formatMoney(result.expenseMinor, locale),
+                            ))
+                            SubText(stringResource(
+                                R.string.transactions_total, stringResource(R.string.breakdown_total_income), formatMoney(result.incomeMinor, locale),
+                            ))
+                        }
+                    }
+                }
+            } else {
+                MonthHeader(period.month, locale, period.previous?.let { { onMonth(it) } }, period.next?.let { { onMonth(it) } }, count)
+            }
         }
-        item {
-            FilterChips(
-                filters, current.filter.ordinal, { viewModel.setFilter(TransactionFilter.entries[it]) },
-                Modifier.padding(top = Spacing.md),
-            )
-        }
-        if (current.days.isEmpty()) {
+        if (result?.days?.isEmpty() == true) {
             item(key = "empty") {
+                val filtered = filters.isActive || rangeResults
                 EmptyState(
                     R.drawable.ic_seyir_calendar,
-                    stringResource(R.string.transactions_empty_title),
-                    stringResource(R.string.transactions_empty_body),
+                    stringResource(if (filtered) R.string.transactions_no_matches else R.string.transactions_empty_title),
+                    stringResource(if (filtered) R.string.transactions_no_matches_body else R.string.transactions_empty_body),
                     Modifier.animateItem(fadeInSpec = Motion.medium(), fadeOutSpec = Motion.fast()).padding(top = Spacing.xl),
                 )
             }
         }
-        current.days.forEach { day ->
-            item(key = "day-${current.filter}-${day.date.toEpochDay()}", contentType = "day") {
+        result?.days.orEmpty().forEach { day ->
+            item(key = "day-${day.date.toEpochDay()}", contentType = "day") {
                 Row(
                     Modifier.fillMaxWidth().animateItem(fadeInSpec = Motion.medium(), fadeOutSpec = Motion.fast())
                         .padding(start = Spacing.xs, end = Spacing.xs, top = Spacing.md + Spacing.sm, bottom = Spacing.md),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Eyebrow(dayLabel(day.date, today, dayFormat), Modifier.weight(1f).semantics { heading() })
+                    Eyebrow(dayLabel(day.date, period.today, dayFormat), Modifier.weight(1f).semantics { heading() })
                     if (day.rows.any { it is DayRow.Record }) SubText(formatMoney(day.netMinor, locale, signed = true))
                 }
             }
@@ -135,8 +235,8 @@ fun TransactionsScreen(
                             TransactionRow(
                                 title = stringResource(
                                     R.string.transfer_direction,
-                                    accountName(current.accounts, transfer.fromAccountId),
-                                    accountName(current.accounts, transfer.toAccountId),
+                                    accountName(options.accounts, transfer.fromAccountId),
+                                    accountName(options.accounts, transfer.toAccountId),
                                 ),
                                 subtitle = transfer.note ?: stringResource(R.string.add_transfer),
                                 icon = "transfer",

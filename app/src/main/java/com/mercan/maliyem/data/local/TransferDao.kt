@@ -13,6 +13,14 @@ interface TransferDao {
     @Query("SELECT * FROM transfers WHERE date BETWEEN :from AND :to")
     fun observeRange(from: LocalDate, to: LocalDate): Flow<List<TransferEntity>>
 
+    /** Seçili hesap transferin göndereni veya alıcısı olabilir. */
+    @Query("""
+        SELECT * FROM transfers
+        WHERE date BETWEEN :from AND :to
+          AND (:allAccounts OR fromAccountId IN (:accountIds) OR toAccountId IN (:accountIds))
+    """)
+    fun observeFiltered(from: LocalDate, to: LocalDate, accountIds: List<Long>, allAccounts: Boolean): Flow<List<TransferEntity>>
+
     @Query("SELECT DISTINCT date FROM transfers")
     fun observeDates(): Flow<List<LocalDate>>
 

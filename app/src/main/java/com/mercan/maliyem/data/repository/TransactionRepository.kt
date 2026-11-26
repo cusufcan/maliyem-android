@@ -2,6 +2,7 @@ package com.mercan.maliyem.data.repository
 
 import com.mercan.maliyem.data.local.TransactionDao
 import com.mercan.maliyem.data.local.TransactionEntity
+import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.local.TransactionWithCategory
 import java.time.LocalDate
 import java.time.YearMonth
@@ -14,6 +15,15 @@ import kotlinx.coroutines.flow.map
 interface TransactionRepository {
     /** [month] içindeki kayıtlar, en yeni başta. */
     fun observeMonth(month: YearMonth): Flow<List<TransactionWithCategory>>
+
+    /** Tarih, tür, kategori ve hesap süzgeçlerini veritabanında uygular. */
+    fun observeFiltered(
+        from: LocalDate,
+        to: LocalDate,
+        type: TransactionType?,
+        categoryIds: Set<Long>,
+        accountIds: Set<Long>,
+    ): Flow<List<TransactionWithCategory>>
 
     /** En az bir kaydı olan aylar. */
     fun observeMonthsWithData(): Flow<Set<YearMonth>>
@@ -43,6 +53,15 @@ class RoomTransactionRepository @Inject constructor(
     private val dao: TransactionDao,
 ) : TransactionRepository {
     override fun observeMonth(month: YearMonth) = dao.observeRange(month.atDay(1), month.atEndOfMonth()).distinctUntilChanged()
+
+    override fun observeFiltered(
+        from: LocalDate,
+        to: LocalDate,
+        type: TransactionType?,
+        categoryIds: Set<Long>,
+        accountIds: Set<Long>,
+    ) = dao.observeFiltered(from, to, type, categoryIds.toList(), accountIds.toList(), categoryIds.isEmpty(), accountIds.isEmpty())
+        .distinctUntilChanged()
 
     override fun observeMonthsWithData() = dao.observeDates().map { dates -> dates.mapTo(HashSet(), YearMonth::from) }.distinctUntilChanged()
 

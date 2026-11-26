@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -167,20 +165,6 @@ fun SeyirSegmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit
                     style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center,
                 )
             }
-        }
-    }
-}
-
-/** Pano .chips.f: çerçeveli süzgeç çipleri; seçili olan dolu. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun FilterChips(options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
-    val colors = MaterialTheme.colorScheme
-    val sel = LocalSelectionColors.current
-    val shape = RoundedCornerShape(12.dp)
-    FlowRow(modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        options.forEachIndexed { index, label ->
-            SeyirChip(label, index == selected, { onSelect(index) }, role = Role.RadioButton)
         }
     }
 }
