@@ -42,6 +42,7 @@ fun SettingsScreen(
     onAccounts: () -> Unit,
     onRecurring: () -> Unit,
     onBudgets: () -> Unit,
+    onGoals: () -> Unit,
     snackbar: SnackbarHostState,
     beforeRestore: suspend () -> Unit,
     securityCard: @Composable () -> Unit,
@@ -100,6 +101,11 @@ fun SettingsScreen(
             SettingRow(
                 R.drawable.ic_seyir_breakdown, stringResource(R.string.settings_budgets),
                 onClick = onBudgets, horizontalPadding = 0.dp,
+            )
+            HorizontalDivider(color = divider)
+            SettingRow(
+                R.drawable.ic_seyir_cat_piggy, stringResource(R.string.goals_title),
+                onClick = onGoals, horizontalPadding = 0.dp,
             )
             HorizontalDivider(color = divider)
             SettingRow(
@@ -169,6 +175,7 @@ fun SettingsScreen(
                         pending.backup.overallBudgetMinor?.let {
                             formatMoney(it, resources.configuration.locales[0])
                         } ?: stringResource(R.string.settings_restore_no_budget),
+                        pending.backup.savingsGoals.size, pending.backup.goalEntries.size,
                     ),
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                 )

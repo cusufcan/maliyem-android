@@ -33,11 +33,12 @@ class RoomBackupRepositoryTest {
     private var refreshes = 0
     private val repository = RoomBackupRepository(
         db, db.categoryDao(), db.transactionDao(), db.accountDao(), db.transferDao(), db.recurringRuleDao(), db.budgetDao(),
+        db.savingsGoalDao(),
     ) { refreshes++ }
 
     @After fun closeDatabase() = db.close()
 
-    @Test fun `seven tables round trip and all automatic sequences follow restored ids`() = runBlocking {
+    @Test fun `all tables round trip and automatic sequences follow restored ids`() = runBlocking {
         restore(backup())
         val before = repository.snapshot()
         assertEquals(backup(), before.copy(exportedAt = 0))
@@ -49,12 +50,20 @@ class RoomBackupRepositoryTest {
         assertEquals(mapOf(
             "accounts" to 2L, "budgets" to 12L, "categories" to 3L,
             "recurring_rules" to 8L, "transactions" to 9L, "transfers" to 10L,
+            "savings_goals" to 13L, "goal_entries" to 16L,
         ), sequences())
 
         val newId = db.transactionDao().insert(db.transactionDao().getAll().single().copy(id = 0))
         assertEquals(10L, newId)
-        restore(before.copy(transfers = emptyList()))
+        val goal = db.savingsGoalDao().getAll().first()
+        assertEquals(650L, db.savingsGoalDao().getBalance(goal.id)?.savedMinor)
+        restore(before.copy(version = 4, transfers = emptyList()))
         assertEquals(0L, sequences()["transfers"])
+        assertEquals(0L, sequences()["savings_goals"])
+        assertEquals(0L, sequences()["goal_entries"])
+        assertTrue(db.savingsGoalDao().getAll().isEmpty())
+        assertTrue(db.savingsGoalDao().getEntries().isEmpty())
+        assertEquals(before.budgets, repository.snapshot().budgets)
         assertEquals(3, refreshes)
     }
 
@@ -63,7 +72,7 @@ class RoomBackupRepositoryTest {
         val before = repository.snapshot().copy(exportedAt = 0)
         val oldSequences = sequences()
         db.openHelper.writableDatabase.execSQL(
-            "CREATE TRIGGER reject_restore BEFORE INSERT ON transfers BEGIN SELECT RAISE(ABORT, 'restore failed'); END",
+            "CREATE TRIGGER reject_restore BEFORE INSERT ON goal_entries BEGIN SELECT RAISE(ABORT, 'restore failed'); END",
         )
         val replacement = backup().copy(
             transactions = emptyList(), budgets = emptyList(), overallBudgetMinor = null,
@@ -137,5 +146,14 @@ class RoomBackupRepositoryTest {
         transfers = listOf(BackupTransfer(10, 1, 2, 200, "2026-01-31", createdAt = 100)),
         budgets = listOf(BackupBudget(12, 1, 990, 100)),
         overallBudgetMinor = 1990,
+        savingsGoals = listOf(
+            BackupSavingsGoal(12, "Trip", 2000, "2026-02-28", "plane", 100),
+            BackupSavingsGoal(13, "Books", 500, icon = "book", createdAt = 101, archived = true),
+        ),
+        goalEntries = listOf(
+            BackupGoalEntry(14, 12, 800, "2026-01-31", "First deposit"),
+            BackupGoalEntry(15, 12, -150, "2026-02-01"),
+            BackupGoalEntry(16, 13, 500, "2026-02-02"),
+        ),
     )
 }

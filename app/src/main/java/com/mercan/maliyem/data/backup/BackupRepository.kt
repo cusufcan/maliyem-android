@@ -7,10 +7,13 @@ import com.mercan.maliyem.data.local.BudgetDao
 import com.mercan.maliyem.data.local.BudgetEntity
 import com.mercan.maliyem.data.local.CategoryDao
 import com.mercan.maliyem.data.local.CategoryEntity
+import com.mercan.maliyem.data.local.GoalEntryEntity
 import com.mercan.maliyem.data.local.MaliyemDatabase
 import com.mercan.maliyem.data.local.OverallBudgetEntity
 import com.mercan.maliyem.data.local.RecurringRuleDao
 import com.mercan.maliyem.data.local.RecurringRuleEntity
+import com.mercan.maliyem.data.local.SavingsGoalDao
+import com.mercan.maliyem.data.local.SavingsGoalEntity
 import com.mercan.maliyem.data.local.TransactionDao
 import com.mercan.maliyem.data.local.TransactionEntity
 import com.mercan.maliyem.data.local.TransferDao
@@ -33,6 +36,7 @@ class RoomBackupRepository @Inject constructor(
     private val transfers: TransferDao,
     private val recurringRules: RecurringRuleDao,
     private val budgets: BudgetDao,
+    private val goals: SavingsGoalDao,
     private val widgetUpdater: WidgetUpdater,
 ) : BackupRepository {
     /** Tablolar aynı anlık görüntüden okunur; dışa aktarımda bağlantılar korunur. */
@@ -59,6 +63,12 @@ class RoomBackupRepository @Inject constructor(
             },
             budgets = budgets.getAll().map { BackupBudget(it.id, it.categoryId, it.limitMinor, it.createdAt) },
             overallBudgetMinor = budgets.getOverall()?.limitMinor,
+            savingsGoals = goals.getAll().map {
+                BackupSavingsGoal(it.id, it.name, it.targetMinor, it.deadline?.toString(), it.icon, it.createdAt, it.archived)
+            },
+            goalEntries = goals.getEntries().map {
+                BackupGoalEntry(it.id, it.goalId, it.amountMinor, it.date.toString(), it.note)
+            },
             transfers = transfers.getAll().map {
                 BackupTransfer(it.id, it.fromAccountId, it.toAccountId, it.amountMinor, it.date.toString(), it.note, it.createdAt)
             },
@@ -89,7 +99,14 @@ class RoomBackupRepository @Inject constructor(
             )
         }
         val budgetRows = backup.budgets.map { BudgetEntity(it.id, it.categoryId, it.limitMinor, it.createdAt) }
+        val goalRows = backup.savingsGoals.map {
+            SavingsGoalEntity(it.id, it.name, it.targetMinor, it.deadline?.let(LocalDate::parse), it.icon, it.createdAt, it.archived)
+        }
+        val goalEntryRows = backup.goalEntries.map {
+            GoalEntryEntity(it.id, it.goalId, it.amountMinor, LocalDate.parse(it.date), it.note)
+        }
         db.withTransaction {
+            goals.deleteAll()
             budgets.deleteAll()
             budgets.deleteOverall()
             transfers.deleteAll()
@@ -104,9 +121,14 @@ class RoomBackupRepository @Inject constructor(
             recurringRules.insertAll(ruleRows)
             transactions.insertAll(transactionRows)
             transfers.insertAll(transferRows)
+            goals.insertAll(goalRows)
+            goals.insertEntries(goalEntryRows)
             val sqlite = db.openHelper.writableDatabase
             // AUTOINCREMENT keeps previous high-water marks even after deleting all rows.
-            for (table in listOf("categories", "transactions", "accounts", "transfers", "recurring_rules", "budgets")) {
+            val automaticTables = listOf(
+                "categories", "transactions", "accounts", "transfers", "recurring_rules", "budgets", "savings_goals", "goal_entries",
+            )
+            for (table in automaticTables) {
                 sqlite.execSQL("DELETE FROM sqlite_sequence WHERE name = ?", arrayOf(table))
                 sqlite.execSQL(
                     "INSERT INTO sqlite_sequence (name, seq) SELECT ?, COALESCE(MAX(id), 0) FROM `$table`",

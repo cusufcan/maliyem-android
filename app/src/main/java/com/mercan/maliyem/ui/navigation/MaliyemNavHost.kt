@@ -61,6 +61,8 @@ import com.mercan.maliyem.ui.budgets.BudgetsScreen
 import com.mercan.maliyem.ui.budgets.OVERALL_BUDGET
 import com.mercan.maliyem.ui.categories.CategoriesScreen
 import com.mercan.maliyem.ui.detail.TransactionDetailScreen
+import com.mercan.maliyem.ui.goals.GoalDetailScreen
+import com.mercan.maliyem.ui.goals.GoalsScreen
 import com.mercan.maliyem.ui.recurring.RecurringRuleScreen
 import com.mercan.maliyem.ui.recurring.RecurringScreen
 import com.mercan.maliyem.ui.settings.SettingsScreen
@@ -107,6 +109,10 @@ fun MaliyemNavHost(
     val activeTab = when {
         destination?.hasRoute(Categories::class) == true || destination?.hasRoute(Accounts::class) == true ||
             destination?.hasRoute(Recurring::class) == true || destination?.hasRoute(Budgets::class) == true -> tabs.lastIndex
+        destination?.hasRoute(SavingsGoals::class) == true ->
+            if (backStackEntry?.toRoute<SavingsGoals>()?.fromSettings == true) tabs.lastIndex else 0
+        destination?.hasRoute(SavingsGoalDetail::class) == true ->
+            if (backStackEntry?.toRoute<SavingsGoalDetail>()?.fromSettings == true) tabs.lastIndex else 0
         destination?.hasRoute(RecurringRule::class) == true ->
             backStackEntry?.toRoute<RecurringRule>()?.tab?.takeIf { it in tabs.indices } ?: tabs.lastIndex
         destination?.hasRoute(TransactionDetail::class) == true ->
@@ -245,6 +251,7 @@ fun MaliyemNavHost(
                     firstLaunch = hasData == false,
                     onSeeAll = { openTab(Transactions) },
                     onOpenBudget = { nav.navigate(BudgetTransactions(it ?: OVERALL_BUDGET)) },
+                    onOpenGoals = { nav.navigate(SavingsGoals()) },
                     onOpen = { nav.navigate(TransactionDetail(it)) },
                     onAdd = { openSheet() },
                 )
@@ -272,6 +279,7 @@ fun MaliyemNavHost(
                     onAccounts = { nav.navigate(Accounts) },
                     onRecurring = { nav.navigate(Recurring) },
                     onBudgets = { nav.navigate(Budgets) },
+                    onGoals = { nav.navigate(SavingsGoals(fromSettings = true)) },
                     snackbar = snackbar,
                     beforeRestore = app::clearUndo,
                     securityCard = securityCard,
@@ -299,6 +307,16 @@ fun MaliyemNavHost(
             composable<Accounts> { AccountsScreen(onBack = { nav.popBackStack() }) }
             composable<Budgets> {
                 BudgetsScreen(onBack = { nav.popBackStack() }, onBudgetCreated = onBudgetCreated)
+            }
+            composable<SavingsGoals> { entry ->
+                val route = entry.toRoute<SavingsGoals>()
+                GoalsScreen(
+                    onBack = { nav.popBackStack() },
+                    onOpen = { nav.navigate(SavingsGoalDetail(it, route.fromSettings)) },
+                )
+            }
+            composable<SavingsGoalDetail> {
+                GoalDetailScreen(onBack = { nav.popBackStack() })
             }
             composable<Categories> { CategoriesScreen(onBack = { nav.popBackStack() }) }
         }

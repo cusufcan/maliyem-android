@@ -13,3 +13,5 @@ import kotlinx.serialization.Serializable
 @Serializable data object Accounts
 @Serializable data object Recurring
 @Serializable data class RecurringRule(val id: Long, val tab: Int = -1)
+@Serializable data class SavingsGoals(val fromSettings: Boolean = false)
+@Serializable data class SavingsGoalDetail(val id: Long, val fromSettings: Boolean = false)

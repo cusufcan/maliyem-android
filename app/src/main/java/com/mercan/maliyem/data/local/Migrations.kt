@@ -101,3 +101,23 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         """.trimIndent())
     }
 }
+
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE savings_goals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL,
+                targetMinor INTEGER NOT NULL, deadline INTEGER, icon TEXT NOT NULL,
+                createdAt INTEGER NOT NULL, archived INTEGER NOT NULL
+            )
+        """.trimIndent())
+        db.execSQL("""
+            CREATE TABLE goal_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, goalId INTEGER NOT NULL,
+                amountMinor INTEGER NOT NULL, date INTEGER NOT NULL, note TEXT,
+                FOREIGN KEY(goalId) REFERENCES savings_goals(id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX index_goal_entries_goalId ON goal_entries (goalId)")
+    }
+}

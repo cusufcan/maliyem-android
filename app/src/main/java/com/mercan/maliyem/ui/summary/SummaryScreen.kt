@@ -69,6 +69,7 @@ import com.mercan.maliyem.ui.accounts.AccountsCard
 import com.mercan.maliyem.data.local.DefaultCategories
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.ui.components.TransactionRow
+import com.mercan.maliyem.ui.goals.GoalsCard
 import com.mercan.maliyem.ui.theme.LocalMoneyColors
 import com.mercan.maliyem.ui.theme.MaliyemTheme
 import com.mercan.maliyem.ui.theme.MoneyHeroValue
@@ -93,10 +94,13 @@ fun SummaryScreen(
     onOpen: (Long) -> Unit,
     onAdd: () -> Unit,
     onOpenBudget: (Long?) -> Unit,
+    onOpenGoals: () -> Unit,
     viewModel: SummaryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val accounts by viewModel.activeAccounts.collectAsStateWithLifecycle()
+    val goals by viewModel.featuredGoals.collectAsStateWithLifecycle()
+    val goalsCard: @Composable () -> Unit = { GoalsCard(goals, onOpenGoals) }
     // İlk açılış, boş ay ve dolu ay arası solarak; ay değişimi yönlü kayarak geçer (ADR-0016).
     AnimatedContent(
         firstLaunch to state,
@@ -116,13 +120,14 @@ fun SummaryScreen(
         }
         when {
             shown == null -> ScreenLoading()
-            first && shown.budgets.isEmpty -> FirstLaunch(onAdd, accounts)
+            first && shown.budgets.isEmpty -> FirstLaunch(onAdd, accounts, goalsCard)
             shown.isEmpty -> EmptyMonth(
-                shown, viewModel::previousMonth, viewModel::nextMonth, viewModel::selectMonth, onAdd, onSeeAll, accounts, openBudget,
+                shown, viewModel::previousMonth, viewModel::nextMonth, viewModel::selectMonth, onAdd, onSeeAll, accounts, openBudget, goalsCard,
             )
             else -> SummaryContent(
                 shown, onPreviousMonth = viewModel::previousMonth, onNextMonth = viewModel::nextMonth, onSeeAll = onSeeAll,
                 highlightId = highlightId, onOpen = onOpen, accounts = accounts, onOpenBudget = openBudget, onSelectMonth = viewModel::selectMonth,
+                goalsCard = goalsCard,
             )
         }
     }
@@ -130,14 +135,17 @@ fun SummaryScreen(
 
 /** Pano 7 · İlk açılış. */
 @Composable
-private fun FirstLaunch(onAdd: () -> Unit, accounts: List<AccountBalance>) {
+private fun FirstLaunch(onAdd: () -> Unit, accounts: List<AccountBalance>, goalsCard: @Composable () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight)
                 .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.lg),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            Column { AccountsCard(accounts) }
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                AccountsCard(accounts)
+                goalsCard()
+            }
             EmptyState(
                 R.drawable.ic_seyir_wallet,
                 stringResource(R.string.empty_first_title),
@@ -162,6 +170,7 @@ private fun EmptyMonth(
     onSeeAll: () -> Unit,
     accounts: List<AccountBalance>,
     onOpenBudget: (Long?) -> Unit,
+    goalsCard: @Composable () -> Unit,
 ) {
     val locale = LocalConfiguration.current.locales[0]
     val monthsIn = stringArrayResource(R.array.month_in)
@@ -179,6 +188,7 @@ private fun EmptyMonth(
                 )
                 AccountsCard(accounts)
                 BudgetsCard(state.budgets, locale, onOpenBudget)
+                goalsCard()
             }
             EmptyState(
                 R.drawable.ic_seyir_calendar,
@@ -229,6 +239,7 @@ fun SummaryContent(
     accounts: List<AccountBalance> = emptyList(),
     onOpenBudget: (Long?) -> Unit = {},
     onSelectMonth: (YearMonth) -> Unit = {},
+    goalsCard: @Composable () -> Unit = {},
 ) {
     val locale = LocalConfiguration.current.locales[0]
     Column(
@@ -256,6 +267,7 @@ fun SummaryContent(
         }
         AccountsCard(accounts)
         BudgetsCard(state.budgets, locale, onOpenBudget)
+        goalsCard()
         SeyirTrendCard(state.trend, locale, onSelectMonth)
         RecentSection(state, locale, onSeeAll, highlightId, onOpen)
     }

@@ -35,10 +35,11 @@ object BackupCodec {
             val fields = json.parseToJsonElement(content.removePrefix("\uFEFF")).jsonObject
             val version = fields["version"]?.jsonPrimitive?.intOrNull
             // Eski dosyalar bu adlarla tanınmayan, farklı biçimde alanlar taşıyabilir.
-            val knownFields = if (version != null && version < 4) {
-                JsonObject(fields - setOf("budgets", "overallBudgetMinor"))
-            } else fields
-            json.decodeFromJsonElement(BackupFile.serializer(), knownFields)
+            val unknownLegacyFields = buildSet {
+                if (version != null && version < 4) addAll(listOf("budgets", "overallBudgetMinor"))
+                if (version != null && version < 5) addAll(listOf("savingsGoals", "goalEntries"))
+            }
+            json.decodeFromJsonElement(BackupFile.serializer(), JsonObject(fields - unknownLegacyFields))
         } catch (_: IllegalArgumentException) {
             return BackupDecodeResult.Invalid
         }
@@ -64,11 +65,16 @@ object BackupCodec {
             transactions = withAccounts.transactions.map { it.copy(recurringRuleId = null) },
         ) else withAccounts
 
-        val backup = if (file.version < 4) withRules.copy(
-            version = BackupFile.VERSION,
+        val withBudgets = if (file.version < 4) withRules.copy(
             budgets = emptyList(),
             overallBudgetMinor = null,
         ) else withRules
+
+        val backup = if (file.version < 5) withBudgets.copy(
+            version = BackupFile.VERSION,
+            savingsGoals = emptyList(),
+            goalEntries = emptyList(),
+        ) else withBudgets
 
         val ids = sequence {
             backup.accounts.forEach { yield(it.id) }
@@ -88,6 +94,11 @@ object BackupCodec {
                 yield(it.id)
                 yield(it.categoryId)
                 yield(it.accountId)
+            }
+            backup.savingsGoals.forEach { yield(it.id) }
+            backup.goalEntries.forEach {
+                yield(it.id)
+                yield(it.goalId)
             }
             backup.budgets.forEach {
                 yield(it.id)
@@ -128,6 +139,23 @@ object BackupCodec {
                 budget.limitMinor <= 0 || categoriesById[budget.categoryId]?.type != TransactionType.EXPENSE ||
                 !budgetCategories.add(budget.categoryId)
             ) return BackupDecodeResult.Invalid
+        }
+
+        val goalBalances = HashMap<Long, Long>()
+        for (goal in backup.savingsGoals) {
+            if (goal.id <= 0 || goalBalances.put(goal.id, 0L) != null ||
+                goal.name.isBlank() || goal.targetMinor <= 0 || goal.icon.isBlank() ||
+                goal.deadline?.let { !validDate(it) } == true
+            ) return BackupDecodeResult.Invalid
+        }
+        var previousEntryId = 0L
+        for (entry in backup.goalEntries.sortedBy { it.id }) {
+            val saved = goalBalances[entry.goalId] ?: return BackupDecodeResult.Invalid
+            if (entry.id <= previousEntryId || !validDate(entry.date) || entry.amountMinor == 0L ||
+                entry.amountMinor < -saved || entry.amountMinor > Long.MAX_VALUE - saved
+            ) return BackupDecodeResult.Invalid
+            goalBalances[entry.goalId] = saved + entry.amountMinor
+            previousEntryId = entry.id
         }
 
         val ruleIds = HashSet<Long>()
