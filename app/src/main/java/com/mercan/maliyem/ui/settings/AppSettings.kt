@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.edit
 import androidx.core.os.LocaleListCompat
+import com.mercan.maliyem.ui.lock.LockTimeout
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,8 +36,8 @@ enum class AppLanguage(val tag: String) {
 }
 
 /**
- * Tema SharedPreferences'ta, dil AppCompat'ta tutulur. Tema ilk karede gerekli olduğu için
- * eşzamanlı okunur (ADR-0013).
+ * Tema ve uygulama kilidi SharedPreferences'ta, dil AppCompat'ta tutulur. İlk karede gereken
+ * ayarlar eşzamanlı okunur (ADR-0013, ADR-0025).
  */
 @Singleton
 class AppSettings @Inject constructor(@ApplicationContext context: Context) {
@@ -46,6 +47,24 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
         prefs.getString(KEY_THEME, null)?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM,
     )
     val theme: StateFlow<ThemeMode> = _theme.asStateFlow()
+
+    private val _appLockEnabled = MutableStateFlow(prefs.getBoolean(KEY_APP_LOCK_ENABLED, false))
+    val appLockEnabled: StateFlow<Boolean> = _appLockEnabled.asStateFlow()
+
+    private val _appLockTimeout = MutableStateFlow(
+        LockTimeout.entries.firstOrNull { it.name == prefs.getString(KEY_APP_LOCK_TIMEOUT, null) } ?: LockTimeout.IMMEDIATE,
+    )
+    val appLockTimeout: StateFlow<LockTimeout> = _appLockTimeout.asStateFlow()
+
+    internal fun setAppLockEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_APP_LOCK_ENABLED, enabled) }
+        _appLockEnabled.value = enabled
+    }
+
+    internal fun setAppLockTimeout(timeout: LockTimeout) {
+        prefs.edit { putString(KEY_APP_LOCK_TIMEOUT, timeout.name) }
+        _appLockTimeout.value = timeout
+    }
 
     /** Uygulama açılırken kayıtlı temayı uygular. */
     fun applyTheme() = AppCompatDelegate.setDefaultNightMode(_theme.value.nightMode)
@@ -71,5 +90,7 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
     private companion object {
         const val KEY_THEME = "theme"
         const val KEY_LAST_ACCOUNT = "lastAccount"
+        const val KEY_APP_LOCK_ENABLED = "appLockEnabled"
+        const val KEY_APP_LOCK_TIMEOUT = "appLockTimeout"
     }
 }

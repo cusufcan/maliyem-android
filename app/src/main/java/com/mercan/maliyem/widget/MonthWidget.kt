@@ -47,6 +47,7 @@ import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.repository.TransactionRepository
 import com.mercan.maliyem.quickentry.mainActivityIntent
 import com.mercan.maliyem.ui.CalendarDays
+import com.mercan.maliyem.ui.settings.AppSettings
 import com.mercan.maliyem.ui.theme.DarkColors
 import com.mercan.maliyem.ui.theme.DarkMoneyColors
 import com.mercan.maliyem.ui.theme.LightColors
@@ -78,6 +79,7 @@ private val IncomeContent = ColorProvider(LightMoneyColors.onIncomeContainer, Da
 internal interface MonthWidgetEntryPoint {
     fun transactions(): TransactionRepository
     fun calendarDays(): CalendarDays
+    fun settings(): AppSettings
 }
 
 class MonthWidgetReceiver : GlanceAppWidgetReceiver() {
@@ -93,6 +95,7 @@ class MonthWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val dependencies = EntryPointAccessors.fromApplication<MonthWidgetEntryPoint>(context)
         val transactions = dependencies.transactions()
+        val appLockEnabled = dependencies.settings().appLockEnabled
         // Glance oturumu açıksa updateAll içerik sağlayıcısını yeniden başlatmaz.
         // Ayı ve Room sorgusunu izleyerek açık oturumda da yeni toplamları alırız.
         val totals = dependencies.calendarDays().days.map(YearMonth::from).distinctUntilChanged()
@@ -100,30 +103,32 @@ class MonthWidget : GlanceAppWidget() {
                 transactions.observeTrendEntries(month, month).map { rows -> buildTrend(listOf(month), rows).single() }
             }
         provideContent {
-            val current by totals.collectAsState(initial = null)
+            val locked by appLockEnabled.collectAsState()
+            val current = if (locked) null else totals.collectAsState(initial = null).value
             val localizedContext = remember(context) { ContextCompat.getContextForLanguage(context) }
             GlanceTheme(colors = SeyirWidgetColors) {
-                SeyirMonthWidget(localizedContext, current, LocalSize.current)
+                SeyirMonthWidget(localizedContext, current, LocalSize.current, locked)
             }
         }
     }
 }
 
 @Composable
-private fun SeyirMonthWidget(context: Context, totals: MonthlyTrend?, size: DpSize) {
-    val showDetails = size == ExpandedSize
-    val showNetLabel = size != MinimumSize
-    val buttonHeight = if (showNetLabel) 26.dp else 22.dp
+private fun SeyirMonthWidget(context: Context, totals: MonthlyTrend?, size: DpSize, locked: Boolean) {
+    val showDetails = !locked && size == ExpandedSize
+    val showNetLabel = !locked && size != MinimumSize
+    val buttonHeight = if (size != MinimumSize) 26.dp else 22.dp
     val colors = GlanceTheme.colors
     val locale = context.resources.configuration.locales[0]
     fun amount(minor: BigInteger?, signed: Boolean = false) =
         minor?.let { formatMoney(it, locale, signed) } ?: "—"
 
-    val netLabel = context.getString(R.string.widget_month_net)
-    val net = amount(totals?.netMinor, signed = true)
+    val netLabel = context.getString(if (locked) R.string.widget_amounts_hidden else R.string.widget_month_net)
+    val net = if (locked) "••••" else amount(totals?.netMinor, signed = true)
+    val openApp = if (locked) GlanceModifier else GlanceModifier.clickable(actionStartActivity(mainActivityIntent(context)))
     Column(
         modifier = GlanceModifier.fillMaxSize().appWidgetBackground().cornerRadius(20.dp)
-            .background(colors.primaryContainer).clickable(actionStartActivity(mainActivityIntent(context)))
+            .background(colors.primaryContainer).then(openApp)
             .padding(horizontal = Spacing.sm, vertical = if (showNetLabel) Spacing.xs else 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -133,7 +138,7 @@ private fun SeyirMonthWidget(context: Context, totals: MonthlyTrend?, size: DpSi
         Text(
             net,
             modifier = if (showNetLabel) GlanceModifier else GlanceModifier.semantics {
-                contentDescription = "$netLabel $net"
+                contentDescription = if (locked) netLabel else "$netLabel $net"
             },
             style = TextStyle(color = colors.onPrimaryContainer, fontSize = if (showDetails) 22.sp else 15.sp, fontWeight = FontWeight.Bold),
             maxLines = 1,

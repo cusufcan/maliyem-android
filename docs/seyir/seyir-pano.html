@@ -167,6 +167,15 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .widget-stage{position:absolute;inset:38px 0 16px;display:grid;align-content:center;justify-items:center;gap:16px;padding:12px}
 .widget-shortcuts{display:flex;gap:4px}
 .widget-card{width:156px;padding:4px 8px;border-radius:20px;background:var(--pc);color:var(--opc);cursor:pointer}
+.widget-card.masked{cursor:default}
+.lock-screen{align-items:center;text-align:center;padding:0 24px}
+.lock-screen .app-icon{width:72px;height:72px;border-radius:50%;background:#EDDCFF;color:#6200EE;display:grid;place-items:center}
+.lock-screen .app-icon svg{width:48px;height:48px}
+.lock-switch{flex:none;width:44px;height:26px;border-radius:20px;border:2px solid var(--v);padding:3px;display:flex;align-items:center}
+.lock-switch::after{content:"";width:16px;height:16px;border-radius:50%;background:var(--v)}
+.lock-switch.on{justify-content:flex-end;background:var(--p);border-color:var(--p)}
+.lock-switch.on::after{background:var(--op)}
+.lock-switch.disabled{opacity:.5}
 .widget-card.wide{width:204px;padding:12px 8px}
 .widget-label{font-size:11px}
 .widget-net{font-size:15px;font-weight:700}
@@ -358,10 +367,14 @@ const bos=(k=0,offset=1)=>k?`<div class="scr"><div class="ctr"><div class="ic">$
  ${(()=>{const prev=Object.keys(trendSample).map(Number).filter(m=>m<offset).sort((a,b)=>b-a)[0];if(prev===undefined)return "";const [gi,gd]=trendTotals(prev);return `<button class="card rw" data-trend-month="${prev}" style="min-height:64px"><div><div class="sub">Geçen ay</div><b class="num">${trendMonth(prev,{month:"long"})} ${signedMoney(gi-gd)} ile kapandı</b></div>${i("next")}</button>`})()}
  ${trendCard(offset)}</div>${nav(0)}`;
 const segs=(o,s)=>`<div class="seg">${o.map((x,k)=>`<button data-seg aria-pressed="${k===s}">${x}</button>`).join("")}</div>`;
-const ayar=()=>`<div class="scr nf"><div class="top"><div><h2>Ayarlar</h2></div></div>
+const ayar=(k=0)=>`<div class="scr nf"><div class="top"><div><h2>Ayarlar</h2></div></div>
  <div class="card" style="padding:0 16px"><button class="rw">${i("tag")}<div>Kategoriler</div><span class="g">10</span>${i("next")}</button><button class="rw" data-budget-settings>${i("chart")}<div>Bütçeler</div>${i("next")}</button><div class="rw">${i("wallet")}<div>Para birimi</div><span class="g">Türk lirası (₺)</span></div></div>
  <div class="card"><div class="lb">Tema</div>${segs(["Sistem","Açık","Koyu"],0)}</div>
  <div class="card"><div class="lb">Dil</div>${segs(["Sistem","English","Türkçe"],0)}</div>
+ <div class="card"><div class="lb">Güvenlik</div>
+  <div class="rw" style="padding:8px 0"><div>Uygulama kilidi<div class="sub">${k===2?"Bu cihazda biyometri veya ekran kilidi ayarla.":"Maliyem’i açmak için biyometri veya ekran kilidi kullanılır."}</div></div><span class="lock-switch ${k===1?"on":k===2?"disabled":""}" role="switch" aria-label="Uygulama kilidi" aria-checked="${k===1}" aria-disabled="${k===2}"></span></div>
+  ${k===1?`<div class="lb">Arka planda kilitlenme süresi</div>${segs(["Hemen","1 dakika","5 dakika"],0)}`:""}
+ </div>
  <div class="card" style="padding:0 16px">
   <div class="rw">${i("lock")}<div>Veriler<div class="sub">Yalnız bu cihazda, hesap yok</div></div></div>
   <button class="rw">${i("out")}<div>Verileri yedekle</div>${i("next")}</button>
@@ -381,16 +394,17 @@ const budgetSettings=(editing=null)=>{
  <div class="acts"><button class="btn x" data-budget-cancel>Vazgeç</button><button class="btn" data-budget-save="${editing}">Kaydet</button></div></div>`:""}`;
 };
 const widget=(wide=0)=>{
- const income=sum(T,inc),expense=sum(T,t=>!inc(t)),net=income-expense;
- return `<div class="widget-stage">
+ const locked=wide===2,income=sum(T,inc),expense=sum(T,t=>!inc(t)),net=income-expense;
+ return `<div class="widget-stage" ${locked?"data-masked-widget":""}>
  <div class="widget-shortcuts" aria-label="Başlatıcı kısayolları">
  <button class="btn x" data-kind="0">Yeni gider</button><button class="btn x" data-kind="1">Yeni gelir</button></div>
- <div class="widget-card ${wide?"wide":""}" data-widget-card>
- <div class="widget-label">Bu ayın neti</div><div class="widget-net">${net<0?"−":net>0?"+":""}${f(net)} ₺</div>
- ${wide?`<div class="widget-figures widget-label"><div>Gider<b>${f(expense)} ₺</b></div><div>Gelir<b>${f(income)} ₺</b></div></div>`:""}
+ <div class="widget-card ${wide?"wide":""} ${locked?"masked":""}" ${locked?"":"data-widget-card"}>
+ ${locked?`<div class="widget-net" aria-label="Tutarlar gizli">••••</div>`:`<div class="widget-label">Bu ayın neti</div><div class="widget-net">${net<0?"−":net>0?"+":""}${f(net)} ₺</div>`}
+ ${wide&&!locked?`<div class="widget-figures widget-label"><div>Gider<b>${f(expense)} ₺</b></div><div>Gelir<b>${f(income)} ₺</b></div></div>`:""}
  <div class="widget-actions"><button data-kind="0">− Gider</button><button data-kind="1">+ Gelir</button></div>
  </div></div>`;
 };
+const lockScreen=(entry=null)=>`<div class="scr"><div class="ctr lock-screen"><div class="app-icon" aria-hidden="true"><svg viewBox="24 24 60 60" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"><circle cx="54" cy="54" r="22"/><path d="M45 46h18m-18 8h18m-18 8h11"/></svg></div><h3>Maliyem kilitli</h3><button class="btn" data-unlock="${entry??""}">Kilidi aç</button></div></div>`;
 const S=[["1 · Özet","Ayın neti, bütçe kullanımı ve son altı ay. Çubuk çifti seçili ayı değiştirir.",ozet],
 ["2 · İşlemler","Ay gezintisi, arama sonucu toplamları ve filtre alt sayfası. Örnek veri Kasım 2026 ile sınırlı.",k=>k===2?txSheet():islem(0,0,k===1),["Ay","Arama","Filtreler"],0],
 ["3 · Yeni kayıt","Alt sayfa. Gider/Gelir kategorileri değiştirir; “Kaydet” özete döner, yeni kayıt vurgulu ve geri alınabilir.",ekle,["Form","Kaydedildi"],0],
@@ -398,10 +412,11 @@ const S=[["1 · Özet","Ayın neti, bütçe kullanımı ve son altı ay. Çubuk 
 ["5 · Kayıt ayrıntısı","Düzenle ve sil. Silme onay sormaz; “Geri al” ile döner.",ayr,["Ayrıntı","Silindi"],0],
 ["6 · Kategoriler","Ayarlar’dan açılır. “Diğer” silinemez, silinen kategorinin kayıtları oraya geçer.",()=>kat()],
 ["7 · Boş durumlar","Yeni ayın ilk günü ve uygulamanın ilk açılışı.",bos,["Yeni ay","İlk açılış"],0],
-["8 · Ayarlar","Kategoriler, bütçeler, tema, dil ve veri işlemleri.",ayar],
+["8 · Ayarlar","Kategoriler, bütçeler, tema, dil, güvenlik ve veri işlemleri.",ayar,["Kilit kapalı","Kilit açık","Doğrulama yok"],0],
 ["9 · Özet, koyu","Aynı ekran, koyu tema.",ozet],
 ["10 · Bütçeler","Genel aylık limit ve gider kategorileri. Satıra dokununca limit düzenlenir.",k=>budgetSettings(k?"Market":null),["Liste","Limit düzenle"],0],
-["11 · Hızlı kayıt","Başlatıcı kısayolları ve widget düğmeleri Yeni kayıt formunu seçilen türde açar.",widget,["2 × 1","Geniş"],0]];
+["11 · Hızlı kayıt","Kilit açıkken widget tutarları maskeler. Kısayol ve widget, Yeni kayıt formunu doğrulamadan sonra açar.",widget,["2 × 1","Geniş","Kilit açık"],0],
+["12 · Uygulama kilidi","Uygulama içeriğinin yerine bu ekran gelir. Kilidi aç, Android’in kimlik doğrulamasını başlatır.",()=>lockScreen()]];
 const B=document.getElementById("board");
 B.innerHTML=S.map((s,k)=>`<figure data-k="${k}"><figcaption><b>${s[0]}</b><span>${s[1]}</span></figcaption><div class="phone"><div class="in"><div class="status"><span>12.04</span><i></i></div><div class="body">${s[2](s[4])}</div><div class="gest"></div></div></div>${s[3]?`<div class="grp" role="group" aria-label="Durum">${s[3].map((x,j)=>`<button data-st="${j}" aria-pressed="${j===s[4]}">${x}</button>`).join("")}</div>`:""}</figure>`).join("");
 const press=b=>[...b.parentElement.children].forEach(x=>x.setAttribute("aria-pressed",x===b));
@@ -441,7 +456,8 @@ document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b){
  else if("txDraft" in d)press(b);
  else if("txDate" in d){press(b);body.querySelector("[data-tx-custom]").hidden=d.txDate!=="4"}
  else if("txMulti" in d)b.setAttribute("aria-pressed",b.getAttribute("aria-pressed")!=="true");
- else if(d.kind)body.innerHTML=ekle(0,+d.kind);
+ else if("unlock" in d)body.innerHTML=d.unlock?ekle(0,+d.unlock):ozet();
+ else if(d.kind)body.innerHTML=b.closest("[data-masked-widget]")?lockScreen(d.kind):ekle(0,+d.kind);
  else if(d.dk)body.innerHTML=dag(+d.dk);
  else if(d.ck)body.innerHTML=kat(+d.ck);
  else if("save" in d){if(+fg.dataset.k===10)body.innerHTML=ozet(1);else setSt(fg,1)}

@@ -43,6 +43,7 @@ fun SettingsScreen(
     onBudgets: () -> Unit,
     snackbar: SnackbarHostState,
     beforeRestore: suspend () -> Unit,
+    securityCard: @Composable () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val count by viewModel.categoryCount.collectAsStateWithLifecycle()
@@ -123,6 +124,7 @@ fun SettingsScreen(
                 Modifier.padding(top = 10.dp),
             )
         }
+        securityCard()
         SeyirCard(padding = rows) {
             SettingRow(
                 R.drawable.ic_seyir_lock, stringResource(R.string.settings_data),

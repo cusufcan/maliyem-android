@@ -95,6 +95,7 @@ private fun tabIndexOf(destination: androidx.navigation.NavDestination?): Int =
 fun MaliyemNavHost(
     quickEntry: TransactionType?,
     onQuickEntryConsumed: () -> Unit,
+    securityCard: @Composable () -> Unit,
     app: AppViewModel = hiltViewModel(),
 ) {
     val add: AddTransactionViewModel = hiltViewModel()
@@ -267,6 +268,7 @@ fun MaliyemNavHost(
                     onBudgets = { nav.navigate(Budgets) },
                     snackbar = snackbar,
                     beforeRestore = app::clearUndo,
+                    securityCard = securityCard,
                 )
             }
             composable<TransactionDetail> { entry ->
