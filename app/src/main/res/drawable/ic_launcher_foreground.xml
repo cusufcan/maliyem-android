@@ -1,0 +1,9 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Geçici ikon: madeni para ve üç çizgi. Gerçek ikon ayrı iş. -->
+    <path android:pathData="M54,32a22,22 0,1 1,0 44a22,22 0,1 1,0 -44Z"
+        android:strokeColor="#6200EE" android:strokeWidth="4" />
+    <path android:pathData="M45,46h18M45,54h18M45,62h11"
+        android:strokeColor="#6200EE" android:strokeWidth="4" android:strokeLineCap="round" />
+</vector>
