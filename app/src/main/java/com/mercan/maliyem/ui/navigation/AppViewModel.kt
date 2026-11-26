@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 private const val KEY_MONTH = "month"
 
@@ -55,6 +57,7 @@ class AppViewModel @Inject constructor(
 
     private val _undoActions = MutableStateFlow<List<UndoAction>>(emptyList())
     val undoActions = _undoActions.asStateFlow()
+    private val undoWrites = Mutex()
     private val _undoFailed = MutableStateFlow(false)
     val undoFailed = _undoFailed.asStateFlow()
 
@@ -69,14 +72,22 @@ class AppViewModel @Inject constructor(
         if (!perform) return
         viewModelScope.launch {
             try {
-                when (action) {
-                    is UndoAction.Added -> repository.delete(action.entry.id)
-                    is UndoAction.Deleted -> if (!repository.restore(action.entity)) _undoFailed.value = true
+                undoWrites.withLock {
+                    when (action) {
+                        is UndoAction.Added -> repository.delete(action.entry.id)
+                        is UndoAction.Deleted -> if (!repository.restore(action.entity)) _undoFailed.value = true
+                    }
                 }
             } catch (_: SQLiteException) {
                 _undoFailed.value = true
             }
         }
+    }
+
+    /** Yedekte aynı kimlikler başka kayıtlara ait olabilir; eski "Geri al" işlemlerini kapatır. */
+    suspend fun clearUndo() {
+        _undoActions.value = emptyList()
+        undoWrites.withLock { _undoFailed.value = false }
     }
 
     fun acknowledgeUndoFailure() { _undoFailed.value = false }

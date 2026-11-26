@@ -241,10 +241,13 @@ fun SettingRow(
     subtitle: String? = null,
     onClick: (() -> Unit)? = null,
     horizontalPadding: androidx.compose.ui.unit.Dp = Spacing.lg,
+    enabled: Boolean = true,
 ) {
     val colors = MaterialTheme.colorScheme
     Row(
-        modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+        modifier.fillMaxWidth().then(
+            if (onClick != null) Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick) else Modifier,
+        )
             .heightIn(min = 56.dp).padding(horizontal = horizontalPadding, vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),

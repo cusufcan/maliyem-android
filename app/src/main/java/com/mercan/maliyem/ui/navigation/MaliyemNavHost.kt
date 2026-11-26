@@ -206,7 +206,9 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
                 TransactionsScreen(highlightId = highlightId, onOpen = { nav.navigate(TransactionDetail(it)) })
             }
             composable<Breakdown> { BreakdownScreen() }
-            composable<Settings> { SettingsScreen(onCategories = { nav.navigate(Categories) }) }
+            composable<Settings> {
+                SettingsScreen(onCategories = { nav.navigate(Categories) }, snackbar = snackbar, beforeRestore = app::clearUndo)
+            }
             composable<TransactionDetail> {
                 TransactionDetailScreen(
                     onBack = { nav.popBackStack() },

@@ -1,5 +1,7 @@
 package com.mercan.maliyem.di
 
+import com.mercan.maliyem.data.backup.BackupRepository
+import com.mercan.maliyem.data.backup.RoomBackupRepository
 import com.mercan.maliyem.data.repository.CategoryRepository
 import com.mercan.maliyem.data.repository.RoomCategoryRepository
 import com.mercan.maliyem.data.repository.RoomTransactionRepository
@@ -15,4 +17,6 @@ abstract class RepositoryModule {
     @Binds abstract fun bindTransactionRepository(impl: RoomTransactionRepository): TransactionRepository
 
     @Binds abstract fun bindCategoryRepository(impl: RoomCategoryRepository): CategoryRepository
+
+    @Binds abstract fun bindBackupRepository(impl: RoomBackupRepository): BackupRepository
 }

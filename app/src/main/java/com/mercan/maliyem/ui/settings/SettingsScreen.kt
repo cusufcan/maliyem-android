@@ -1,5 +1,7 @@
 package com.mercan.maliyem.ui.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -7,13 +9,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -25,13 +33,34 @@ import com.mercan.maliyem.ui.components.SeyirCard
 import com.mercan.maliyem.ui.components.SeyirSegmented
 import com.mercan.maliyem.ui.components.SettingRow
 import com.mercan.maliyem.ui.theme.Spacing
+import java.time.LocalDate
 
 @Composable
-fun SettingsScreen(onCategories: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(
+    onCategories: () -> Unit,
+    snackbar: SnackbarHostState,
+    beforeRestore: suspend () -> Unit,
+    viewModel: SettingsViewModel = hiltViewModel(),
+) {
     val count by viewModel.categoryCount.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     val language by viewModel.language.collectAsStateWithLifecycle()
+    val dataBusy by viewModel.dataBusy.collectAsStateWithLifecycle()
+    val pendingBackup by viewModel.pendingBackup.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val resources = LocalResources.current
+    val backupPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri?.let(viewModel::saveBackup)
+    }
+    val restorePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(viewModel::openBackup)
+    }
+    val csvPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        uri?.let { viewModel.exportCsv(it, resources) }
+    }
+    LaunchedEffect(viewModel, resources, snackbar) {
+        viewModel.dataMessages.collect { snackbar.showSnackbar(resources.getString(it)) }
+    }
     val version = remember {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
     }
@@ -80,7 +109,42 @@ fun SettingsScreen(onCategories: () -> Unit, viewModel: SettingsViewModel = hilt
                 subtitle = stringResource(R.string.settings_data_body), horizontalPadding = 0.dp,
             )
             HorizontalDivider(color = divider)
+            SettingRow(
+                R.drawable.ic_seyir_arrow_out, stringResource(R.string.settings_backup),
+                onClick = { backupPicker.launch("maliyem-yedek-${LocalDate.now()}.json") },
+                horizontalPadding = 0.dp, enabled = !dataBusy,
+            )
+            HorizontalDivider(color = divider)
+            SettingRow(
+                R.drawable.ic_seyir_arrow_in, stringResource(R.string.settings_restore),
+                onClick = { restorePicker.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
+                horizontalPadding = 0.dp, enabled = !dataBusy,
+            )
+            HorizontalDivider(color = divider)
+            SettingRow(
+                R.drawable.ic_seyir_note, stringResource(R.string.settings_csv),
+                onClick = { csvPicker.launch("maliyem-${LocalDate.now()}.csv") },
+                horizontalPadding = 0.dp, enabled = !dataBusy,
+            )
+            HorizontalDivider(color = divider)
             SettingRow(null, stringResource(R.string.settings_version), value = version, horizontalPadding = 0.dp)
         }
+    }
+    pendingBackup?.let { pending ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissBackup,
+            title = { Text(stringResource(R.string.settings_restore)) },
+            text = {
+                Text(stringResource(R.string.settings_restore_body, pending.backup.transactions.size, pending.categoryCount))
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.restoreBackup(beforeRestore) }, enabled = !dataBusy) {
+                    Text(stringResource(if (dataBusy) R.string.settings_restoring else R.string.settings_restore_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissBackup, enabled = !dataBusy) { Text(stringResource(R.string.add_cancel)) }
+            },
+        )
     }
 }

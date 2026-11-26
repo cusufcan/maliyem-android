@@ -34,6 +34,7 @@ class RoomTransactionRepositoryTest {
         override suspend fun insert(transaction: TransactionEntity): Long { inserted = transaction; return 7L }
         override suspend fun insertAll(transactions: List<TransactionEntity>) = Unit
         override suspend fun deleteById(id: Long) { deleted = id }
+        override suspend fun deleteAll() = Unit
         var updateCount = 0
         override suspend fun update(transaction: TransactionEntity) = updateCount
         var existing: TransactionEntity? = null
@@ -45,6 +46,7 @@ class RoomTransactionRepositoryTest {
         }
         override fun observeDate(id: Long): Flow<LocalDate?> = emptyFlow()
         override suspend fun getById(id: Long): TransactionEntity? = existing?.takeIf { it.id == id }
+        override suspend fun getAll(): List<TransactionEntity> = listOfNotNull(existing)
         override fun observeCounts(): Flow<List<CategoryCount>> = flowOf(emptyList())
     }
 

@@ -29,6 +29,9 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun getById(id: Long): TransactionEntity?
 
+    @Query("SELECT * FROM transactions ORDER BY date, createdAt, id")
+    suspend fun getAll(): List<TransactionEntity>
+
     @Query("SELECT categoryId, COUNT(*) AS count FROM transactions GROUP BY categoryId")
     fun observeCounts(): Flow<List<CategoryCount>>
 
@@ -41,6 +44,9 @@ interface TransactionDao {
 
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM transactions")
+    suspend fun deleteAll()
 
     @Update
     suspend fun update(transaction: TransactionEntity): Int

@@ -222,7 +222,13 @@ const ayar=()=>`<div class="scr nf"><div class="top"><div><h2>Ayarlar</h2></div>
  <div class="card" style="padding:0 16px"><button class="rw">${i("tag")}<div>Kategoriler</div><span class="g">10</span>${i("next")}</button><div class="rw">${i("wallet")}<div>Para birimi</div><span class="g">Türk lirası (₺)</span></div></div>
  <div class="card"><div class="lb">Tema</div>${segs(["Sistem","Açık","Koyu"],0)}</div>
  <div class="card"><div class="lb">Dil</div>${segs(["Sistem","English","Türkçe"],0)}</div>
- <div class="card" style="padding:0 16px"><div class="rw">${i("lock")}<div>Veriler<div class="sub">Yalnız bu cihazda, hesap yok</div></div></div><div class="rw"><div>Sürüm</div><span class="g">1.1.0</span></div></div></div>${nav(3)}`;
+ <div class="card" style="padding:0 16px">
+  <div class="rw">${i("lock")}<div>Veriler<div class="sub">Yalnız bu cihazda, hesap yok</div></div></div>
+  <button class="rw">${i("out")}<div>Verileri yedekle</div>${i("next")}</button>
+  <button class="rw">${i("in")}<div>Yedekten geri yükle</div>${i("next")}</button>
+  <button class="rw">${i("note")}<div>CSV olarak dışa aktar</div>${i("next")}</button>
+  <div class="rw"><div>Sürüm</div><span class="g">1.1.0</span></div>
+ </div></div>${nav(3)}`;
 const S=[["1 · Özet","Ayın neti tek bakışta. Gelir yeşil ve +, gider nötr ve −; renk tek başına anlam taşımaz.",ozet],
 ["2 · İşlemler","Gün gruplu liste, gün neti sağda. Süzgeç çalışır.",()=>islem()],
 ["3 · Yeni kayıt","Alt sayfa. Gider/Gelir kategorileri değiştirir; “Kaydet” özete döner, yeni kayıt vurgulu ve geri alınabilir.",ekle,["Form","Kaydedildi"],0],
@@ -230,7 +236,7 @@ const S=[["1 · Özet","Ayın neti tek bakışta. Gelir yeşil ve +, gider nötr
 ["5 · Kayıt ayrıntısı","Düzenle ve sil. Silme onay sormaz; “Geri al” ile döner.",ayr,["Ayrıntı","Silindi"],0],
 ["6 · Kategoriler","Ayarlar’dan açılır. “Diğer” silinemez, silinen kategorinin kayıtları oraya geçer.",()=>kat()],
 ["7 · Boş durumlar","Yeni ayın ilk günü ve uygulamanın ilk açılışı.",bos,["Yeni ay","İlk açılış"],0],
-["8 · Ayarlar","Tema, dil, kategoriler. Para birimi ilk sürümde sabit.",ayar],
+["8 · Ayarlar","Tema, dil, kategoriler ve veri işlemleri. Para birimi sabit.",ayar],
 ["9 · Özet, koyu","Aynı ekran, koyu tema.",ozet]];
 const B=document.getElementById("board");
 B.innerHTML=S.map((s,k)=>`<figure data-k="${k}"><figcaption><b>${s[0]}</b><span>${s[1]}</span></figcaption><div class="phone"><div class="in"><div class="status"><span>12.04</span><i></i></div><div class="body">${s[2](s[4])}</div><div class="gest"></div></div></div>${s[3]?`<div class="grp" role="group" aria-label="Durum">${s[3].map((x,j)=>`<button data-st="${j}" aria-pressed="${j===s[4]}">${x}</button>`).join("")}</div>`:""}</figure>`).join("");

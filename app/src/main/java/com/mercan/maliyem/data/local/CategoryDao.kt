@@ -12,6 +12,9 @@ interface CategoryDao {
     @Query("SELECT * FROM categories ORDER BY type, sortOrder, id")
     fun observeAll(): Flow<List<CategoryEntity>>
 
+    @Query("SELECT * FROM categories ORDER BY type, sortOrder, id")
+    suspend fun getAll(): List<CategoryEntity>
+
     @Insert
     suspend fun insertAll(categories: List<CategoryEntity>)
 
@@ -36,6 +39,9 @@ interface CategoryDao {
 
     @Query("DELETE FROM categories WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM categories")
+    suspend fun deleteAll()
 
     /** Kayıtlar önce [fallbackKey] kategorisine taşınır, sonra kategori silinir; ikisi tek işlemde (ADR-0011). */
     @Transaction
