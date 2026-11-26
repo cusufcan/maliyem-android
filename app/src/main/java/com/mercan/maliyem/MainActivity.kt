@@ -1,10 +1,14 @@
 package com.mercan.maliyem
 
+import android.Manifest
 import android.content.Intent
+import android.os.Build
+import android.provider.Settings
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,12 +28,16 @@ import com.mercan.maliyem.ui.CalendarDays
 import com.mercan.maliyem.widget.GlanceWidgetUpdater
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.repository.RecurringRepository
+import com.mercan.maliyem.notifications.LocalNotifications
+import com.mercan.maliyem.notifications.RecurringWork
 import com.mercan.maliyem.quickentry.quickEntryType
 import com.mercan.maliyem.ui.lock.AppLockAuthentication
 import com.mercan.maliyem.ui.lock.AppLockViewModel
 import com.mercan.maliyem.ui.lock.SeyirLockedScreen
 import com.mercan.maliyem.ui.lock.SeyirSecurityCard
 import com.mercan.maliyem.ui.navigation.MaliyemNavHost
+import com.mercan.maliyem.ui.settings.AppSettings
+import com.mercan.maliyem.ui.settings.NotificationsCard
 import com.mercan.maliyem.ui.theme.MaliyemTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -40,6 +48,9 @@ import kotlinx.coroutines.launch
 class MainActivity : AppCompatActivity() {
     @Inject lateinit var recurring: RecurringRepository
     @Inject lateinit var calendar: CalendarDays
+    @Inject lateinit var settings: AppSettings
+    @Inject lateinit var notifications: LocalNotifications
+    @Inject lateinit var recurringWork: RecurringWork
     @Inject internal lateinit var widgets: GlanceWidgetUpdater
 
     private val appLock: AppLockViewModel by viewModels()
@@ -47,8 +58,20 @@ class MainActivity : AppCompatActivity() {
     private var authenticationAvailable by mutableStateOf(false)
     private var pendingQuickEntry by mutableStateOf<TransactionType?>(null)
 
+    private var notificationsAllowed by mutableStateOf(false)
+    private var notificationPermissionRequested by mutableStateOf(false)
+    private val canRequestNotificationPermission
+        get() = Build.VERSION.SDK_INT >= 33 && !notificationPermissionRequested
+
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        notificationsAllowed = notifications.hasPermission()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        notifications.createChannels()
+        notificationsAllowed = notifications.hasPermission()
+        notificationPermissionRequested = settings.notificationPermissionRequested
         updateSecureWindow()
         authentication = AppLockAuthentication(this) { success ->
             appLock.finishAuthentication(success)
@@ -82,6 +105,8 @@ class MainActivity : AppCompatActivity() {
                                 quickEntry = pendingQuickEntry,
                                 onQuickEntryConsumed = { pendingQuickEntry = null },
                                 securityCard = { SecurityCard(lockEnabled) },
+                                notificationsCard = { NotificationSettings() },
+                                onBudgetCreated = ::requestNotificationPermission,
                             )
                         }
                     }
@@ -107,6 +132,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPostResume() {
         super.onPostResume()
+        notificationsAllowed = notifications.hasPermission()
         authenticationAvailable = authentication.isAvailable()
         if (appLock.takeAutoPrompt()) authenticate()
     }
@@ -135,6 +161,34 @@ class MainActivity : AppCompatActivity() {
                 }
             },
             onTimeoutChange = appLock::setTimeout,
+        )
+    }
+
+    private fun requestNotificationPermission() {
+        if (notifications.hasPermission() || !canRequestNotificationPermission) return
+        notificationPermissionRequested = true
+        settings.notificationPermissionRequested = true
+        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    @Composable
+    private fun NotificationSettings() {
+        val budgetAlerts by settings.budgetAlerts.collectAsStateWithLifecycle()
+        val recurringReminders by settings.recurringReminders.collectAsStateWithLifecycle()
+        NotificationsCard(
+            budgetAlerts, recurringReminders, notificationsAllowed, canRequestNotificationPermission,
+            onBudgetAlertsChange = { enabled ->
+                settings.setBudgetAlerts(enabled)
+                if (enabled) requestNotificationPermission()
+            },
+            onRecurringRemindersChange = { enabled ->
+                settings.setRecurringReminders(enabled)
+                recurringWork.refreshSchedule()
+                if (enabled) requestNotificationPermission()
+            },
+            onOpenSystemSettings = {
+                startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
+            },
         )
     }
 

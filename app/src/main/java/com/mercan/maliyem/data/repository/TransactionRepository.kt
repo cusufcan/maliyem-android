@@ -5,6 +5,8 @@ import com.mercan.maliyem.data.local.TransactionEntity
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.local.TransactionWithCategory
 import com.mercan.maliyem.data.local.TrendEntry
+import com.mercan.maliyem.notifications.BudgetAlertTracker
+import com.mercan.maliyem.notifications.ExpenseWrite
 import com.mercan.maliyem.widget.WidgetUpdater
 import java.time.LocalDate
 import java.time.YearMonth
@@ -56,6 +58,7 @@ interface TransactionRepository {
 
 class RoomTransactionRepository @Inject constructor(
     private val dao: TransactionDao,
+    private val budgetAlerts: BudgetAlertTracker,
     private val widgetUpdater: WidgetUpdater,
 ) : TransactionRepository {
     override fun observeMonth(month: YearMonth) = dao.observeRange(month.atDay(1), month.atEndOfMonth()).distinctUntilChanged()
@@ -80,15 +83,23 @@ class RoomTransactionRepository @Inject constructor(
 
     override suspend fun get(id: Long) = dao.getById(id)
 
-    override suspend fun add(transaction: TransactionEntity) = dao.insert(transaction).also { widgetUpdater.refresh() }
+    override suspend fun add(transaction: TransactionEntity) = budgetAlerts.track {
+        ExpenseWrite(dao.insert(transaction), listOf(transaction))
+    }.also { widgetUpdater.refresh() }
 
-    override suspend fun update(transaction: TransactionEntity): Boolean =
-        (dao.updateKeepingRule(transaction) > 0).also { if (it) widgetUpdater.refresh() }
+    override suspend fun update(transaction: TransactionEntity): Boolean = budgetAlerts.track {
+        val current = dao.getById(transaction.id) ?: return@track ExpenseWrite(false)
+        // Düzenleme, kural silinmişse bağlantıyı geri getirmemeli.
+        val updated = dao.update(transaction.copy(recurringRuleId = current.recurringRuleId)) > 0
+        if (updated) ExpenseWrite(true, listOf(transaction), current) else ExpenseWrite(false)
+    }.also { if (it) widgetUpdater.refresh() }
 
     override suspend fun delete(id: Long) = dao.deleteById(id).also { widgetUpdater.refresh() }
 
     override suspend fun deleteAndGet(id: Long) = dao.deleteAndGet(id).also { if (it != null) widgetUpdater.refresh() }
 
-    override suspend fun restore(transaction: TransactionEntity) =
-        dao.restore(transaction, fallbackKey(transaction.type)).also { if (it) widgetUpdater.refresh() }
+    override suspend fun restore(transaction: TransactionEntity) = budgetAlerts.track {
+        val restored = dao.restore(transaction, fallbackKey(transaction.type))
+        ExpenseWrite(restored != null, listOfNotNull(restored))
+    }.also { if (it) widgetUpdater.refresh() }
 }

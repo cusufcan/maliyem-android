@@ -31,6 +31,12 @@ interface RecurringRuleDao {
     """)
     suspend fun dueIds(today: LocalDate): List<Long>
 
+    @Query("""
+        SELECT COUNT(*) FROM recurring_rules
+        WHERE paused = 0 AND nextDate = :date AND (endDate IS NULL OR nextDate <= endDate)
+    """)
+    suspend fun countDueOn(date: LocalDate): Int
+
     @Insert
     suspend fun insert(rule: RecurringRuleEntity): Long
 

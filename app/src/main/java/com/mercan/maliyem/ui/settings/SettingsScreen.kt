@@ -45,6 +45,7 @@ fun SettingsScreen(
     snackbar: SnackbarHostState,
     beforeRestore: suspend () -> Unit,
     securityCard: @Composable () -> Unit,
+    notificationsCard: @Composable () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val count by viewModel.categoryCount.collectAsStateWithLifecycle()
@@ -125,6 +126,7 @@ fun SettingsScreen(
                 Modifier.padding(top = 10.dp),
             )
         }
+        notificationsCard()
         securityCard()
         SeyirCard(padding = rows) {
             SettingRow(

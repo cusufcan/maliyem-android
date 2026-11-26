@@ -4,7 +4,10 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Upsert
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
+
+data class BudgetExpense(val categoryId: Long, val amountMinor: Long)
 
 @Dao
 interface BudgetDao {
@@ -22,6 +25,12 @@ interface BudgetDao {
 
     @Query("SELECT * FROM budgets WHERE categoryId = :categoryId")
     suspend fun getForCategory(categoryId: Long): BudgetEntity?
+
+    @Query("SELECT categoryId, amountMinor FROM transactions WHERE type = 'EXPENSE' AND date BETWEEN :from AND :to")
+    suspend fun expenses(from: LocalDate, to: LocalDate): List<BudgetExpense>
+
+    @Query("SELECT * FROM categories WHERE id = :id")
+    suspend fun getCategory(id: Long): CategoryEntity?
 
     @Query("SELECT type FROM categories WHERE id = :categoryId")
     suspend fun categoryType(categoryId: Long): TransactionType?

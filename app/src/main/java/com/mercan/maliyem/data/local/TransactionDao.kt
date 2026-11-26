@@ -85,13 +85,6 @@ interface TransactionDao {
         return transaction
     }
 
-    /** Düzenleme, kural silinmişse bağlantıyı geri getirmemeli. */
-    @Transaction
-    suspend fun updateKeepingRule(transaction: TransactionEntity): Int {
-        val current = getById(transaction.id) ?: return 0
-        return update(transaction.copy(recurringRuleId = current.recurringRuleId))
-    }
-
     @Query("SELECT id FROM recurring_rules WHERE id = :id")
     suspend fun existingRecurringRuleId(id: Long): Long?
 
@@ -99,10 +92,11 @@ interface TransactionDao {
     suspend fun categoryForRestore(id: Long, type: TransactionType, fallbackKey: String): Long?
 
     @Transaction
-    suspend fun restore(transaction: TransactionEntity, fallbackKey: String): Boolean {
-        val categoryId = categoryForRestore(transaction.categoryId, transaction.type, fallbackKey) ?: return false
+    suspend fun restore(transaction: TransactionEntity, fallbackKey: String): TransactionEntity? {
+        val categoryId = categoryForRestore(transaction.categoryId, transaction.type, fallbackKey) ?: return null
         val ruleId = transaction.recurringRuleId?.let { existingRecurringRuleId(it) }
-        insert(transaction.copy(categoryId = categoryId, recurringRuleId = ruleId))
-        return true
+        val restored = transaction.copy(categoryId = categoryId, recurringRuleId = ruleId)
+        insert(restored)
+        return restored
     }
 }

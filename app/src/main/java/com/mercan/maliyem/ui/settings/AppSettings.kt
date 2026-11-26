@@ -66,6 +66,26 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
         _appLockTimeout.value = timeout
     }
 
+    private val _budgetAlerts = MutableStateFlow(prefs.getBoolean(KEY_BUDGET_ALERTS, true))
+    val budgetAlerts = _budgetAlerts.asStateFlow()
+
+    private val _recurringReminders = MutableStateFlow(prefs.getBoolean(KEY_RECURRING_REMINDERS, true))
+    val recurringReminders = _recurringReminders.asStateFlow()
+
+    var notificationPermissionRequested: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFICATION_PERMISSION_REQUESTED, false)
+        set(requested) = prefs.edit { putBoolean(KEY_NOTIFICATION_PERMISSION_REQUESTED, requested) }
+
+    fun setBudgetAlerts(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_BUDGET_ALERTS, enabled) }
+        _budgetAlerts.value = enabled
+    }
+
+    fun setRecurringReminders(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_RECURRING_REMINDERS, enabled) }
+        _recurringReminders.value = enabled
+    }
+
     /** Uygulama açılırken kayıtlı temayı uygular. */
     fun applyTheme() = AppCompatDelegate.setDefaultNightMode(_theme.value.nightMode)
 
@@ -88,6 +108,9 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
     }
 
     private companion object {
+        const val KEY_BUDGET_ALERTS = "budgetAlerts"
+        const val KEY_RECURRING_REMINDERS = "recurringReminders"
+        const val KEY_NOTIFICATION_PERMISSION_REQUESTED = "notificationPermissionRequested"
         const val KEY_THEME = "theme"
         const val KEY_LAST_ACCOUNT = "lastAccount"
         const val KEY_APP_LOCK_ENABLED = "appLockEnabled"

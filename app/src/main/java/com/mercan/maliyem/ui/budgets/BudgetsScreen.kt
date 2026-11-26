@@ -17,6 +17,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -43,7 +44,18 @@ import com.mercan.maliyem.ui.theme.categoryIcon
 import com.mercan.maliyem.util.formatMoney
 
 @Composable
-fun BudgetsScreen(onBack: () -> Unit, viewModel: BudgetsViewModel = hiltViewModel()) {
+fun BudgetsScreen(
+    onBack: () -> Unit,
+    onBudgetCreated: () -> Unit,
+    viewModel: BudgetsViewModel = hiltViewModel(),
+) {
+    val budgetCreated by viewModel.budgetCreated.collectAsStateWithLifecycle()
+    LaunchedEffect(budgetCreated) {
+        if (budgetCreated) {
+            viewModel.acknowledgeBudgetCreated()
+            onBudgetCreated()
+        }
+    }
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val editing by viewModel.editing.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()

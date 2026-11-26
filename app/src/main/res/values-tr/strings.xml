@@ -306,4 +306,23 @@
         <item quantity="one">%d tekrar kuralı Diğer kategorisine taşınacak.</item>
         <item quantity="other">%d tekrar kuralı Diğer kategorisine taşınacak.</item>
     </plurals>
+
+    <string name="settings_notifications">Bildirimler</string>
+    <string name="settings_budget_alerts">Bütçe uyarıları</string>
+    <string name="settings_recurring_reminders">Tekrarlayan işlem hatırlatmaları</string>
+    <string name="notifications_permission_needed">Bildirimlere izin vermek için seçeneklerden birini aç.</string>
+    <string name="notifications_blocked">Bildirimler Android ayarlarında kapalı.</string>
+    <string name="notifications_open_settings">Bildirim ayarlarını aç</string>
+    <string name="notification_channel_budgets">Bütçe uyarıları</string>
+    <string name="notification_channel_recurring">Tekrarlayan işlem hatırlatmaları</string>
+    <string name="notification_budget_warning">%1$s harcamaları bütçenin %%80’ine ulaştı.</string>
+    <string name="notification_budget_limit">%1$s harcamaları bütçe sınırına ulaştı.</string>
+    <plurals name="notification_recurring_added">
+        <item quantity="one">Bugün %d tekrarlayan işlem eklendi.</item>
+        <item quantity="other">Bugün %d tekrarlayan işlem eklendi.</item>
+    </plurals>
+    <plurals name="notification_recurring_due">
+        <item quantity="one">Yarın %d tekrarlayan işlemin vadesi geliyor.</item>
+        <item quantity="other">Yarın %d tekrarlayan işlemin vadesi geliyor.</item>
+    </plurals>
 </resources>

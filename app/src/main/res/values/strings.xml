@@ -308,4 +308,23 @@
         <item quantity="one">%d recurring rule will move to Other.</item>
         <item quantity="other">%d recurring rules will move to Other.</item>
     </plurals>
+
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_budget_alerts">Budget alerts</string>
+    <string name="settings_recurring_reminders">Recurring reminders</string>
+    <string name="notifications_permission_needed">Turn on either option to allow notifications.</string>
+    <string name="notifications_blocked">Notifications are off in Android settings.</string>
+    <string name="notifications_open_settings">Open notification settings</string>
+    <string name="notification_channel_budgets">Budget alerts</string>
+    <string name="notification_channel_recurring">Recurring reminders</string>
+    <string name="notification_budget_warning">%1$s spending reached 80%% of the budget.</string>
+    <string name="notification_budget_limit">%1$s spending reached the budget limit.</string>
+    <plurals name="notification_recurring_added">
+        <item quantity="one">%d recurring transaction was added today.</item>
+        <item quantity="other">%d recurring transactions were added today.</item>
+    </plurals>
+    <plurals name="notification_recurring_due">
+        <item quantity="one">%d recurring transaction is due tomorrow.</item>
+        <item quantity="other">%d recurring transactions are due tomorrow.</item>
+    </plurals>
 </resources>

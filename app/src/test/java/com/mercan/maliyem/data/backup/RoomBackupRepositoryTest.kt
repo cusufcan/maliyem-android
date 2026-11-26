@@ -9,6 +9,9 @@ import com.mercan.maliyem.data.local.TransactionType.EXPENSE
 import com.mercan.maliyem.data.local.TransactionType.INCOME
 import com.mercan.maliyem.data.local.RecurringFrequency.WEEKLY
 import com.mercan.maliyem.data.repository.RecurringRepository
+import com.mercan.maliyem.notifications.BudgetAlerts
+import com.mercan.maliyem.notifications.LocalNotifications
+import com.mercan.maliyem.ui.settings.AppSettings
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -80,15 +83,19 @@ class RoomBackupRepositoryTest {
             frequency = WEEKLY, startDate = start.toString(), nextDate = start.toString(),
         )
         restore(backup().copy(transactions = emptyList(), recurringRules = listOf(weekly)))
+        val context = RuntimeEnvironment.getApplication()
+        val settings = AppSettings(context).also { it.setBudgetAlerts(false) }
+        val alerts = BudgetAlerts(context, db, db.budgetDao(), LocalNotifications(context, settings))
         fun recurringAt(date: LocalDate) = RecurringRepository(
-            db, db.recurringRuleDao(), db.transactionDao(),
+            db.recurringRuleDao(), db.transactionDao(),
             Clock.fixed(date.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC),
+            alerts,
         ) { }
 
         val recurring = recurringAt(today)
-        recurring.generateDue()
+        assertEquals(406, recurring.generateDue())
         assertEquals(406, db.transactionDao().getAll().size)
-        recurring.generateDue()
+        assertEquals(0, recurring.generateDue())
         assertEquals(406, db.transactionDao().getAll().size)
 
         recurring.setPaused(weekly.id, true)

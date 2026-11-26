@@ -96,6 +96,8 @@ fun MaliyemNavHost(
     quickEntry: TransactionType?,
     onQuickEntryConsumed: () -> Unit,
     securityCard: @Composable () -> Unit,
+    notificationsCard: @Composable () -> Unit,
+    onBudgetCreated: () -> Unit,
     app: AppViewModel = hiltViewModel(),
 ) {
     val add: AddTransactionViewModel = hiltViewModel()
@@ -273,6 +275,7 @@ fun MaliyemNavHost(
                     snackbar = snackbar,
                     beforeRestore = app::clearUndo,
                     securityCard = securityCard,
+                    notificationsCard = notificationsCard,
                 )
             }
             composable<TransactionDetail> { entry ->
@@ -294,7 +297,9 @@ fun MaliyemNavHost(
                 RecurringRuleScreen(entry.toRoute<RecurringRule>().id, onBack = { nav.popBackStack() })
             }
             composable<Accounts> { AccountsScreen(onBack = { nav.popBackStack() }) }
-            composable<Budgets> { BudgetsScreen(onBack = { nav.popBackStack() }) }
+            composable<Budgets> {
+                BudgetsScreen(onBack = { nav.popBackStack() }, onBudgetCreated = onBudgetCreated)
+            }
             composable<Categories> { CategoriesScreen(onBack = { nav.popBackStack() }) }
         }
     }
