@@ -17,6 +17,7 @@ import androidx.room.TypeConverters
 abstract class MaliyemDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun transactionDao(): TransactionDao
+    abstract fun transactionReportDao(): TransactionReportDao
 
     abstract fun accountDao(): AccountDao
     abstract fun transferDao(): TransferDao

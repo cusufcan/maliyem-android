@@ -3,6 +3,7 @@ package com.mercan.maliyem.ui.navigation
 import kotlinx.serialization.Serializable
 
 @Serializable data object Summary
+@Serializable data object YearlyReport
 @Serializable data object Transactions
 @Serializable data class BudgetTransactions(val budgetCategoryId: Long)
 @Serializable data object Breakdown

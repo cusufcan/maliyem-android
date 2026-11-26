@@ -73,6 +73,7 @@ import com.mercan.maliyem.ui.theme.SeyirTabIndicatorHeight
 import com.mercan.maliyem.ui.theme.SeyirTabIndicatorWidth
 import com.mercan.maliyem.ui.theme.SeyirTabVerticalPadding
 import com.mercan.maliyem.ui.transactions.TransactionsScreen
+import com.mercan.maliyem.ui.yearly.YearlyReportScreen
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -252,8 +253,15 @@ fun MaliyemNavHost(
                     onSeeAll = { openTab(Transactions) },
                     onOpenBudget = { nav.navigate(BudgetTransactions(it ?: OVERALL_BUDGET)) },
                     onOpenGoals = { nav.navigate(SavingsGoals()) },
+                    onOpenYearlyReport = { nav.navigate(YearlyReport) { launchSingleTop = true } },
                     onOpen = { nav.navigate(TransactionDetail(it)) },
                     onAdd = { openSheet() },
+                )
+            }
+            composable<YearlyReport> {
+                YearlyReportScreen(
+                    onBack = { nav.popBackStack() },
+                    showMessage = { snackbar.showSnackbar(it) },
                 )
             }
             composable<Transactions> {

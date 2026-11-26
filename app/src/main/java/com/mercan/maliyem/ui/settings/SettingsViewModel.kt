@@ -10,11 +10,7 @@ import com.mercan.maliyem.R
 import com.mercan.maliyem.data.backup.BackupCodec
 import com.mercan.maliyem.data.backup.BackupDecodeResult
 import com.mercan.maliyem.data.backup.BackupRepository
-import com.mercan.maliyem.data.backup.CsvExporter
-import com.mercan.maliyem.data.backup.CsvRow
-import com.mercan.maliyem.data.local.DefaultAccounts
-import com.mercan.maliyem.data.local.DefaultCategories
-import com.mercan.maliyem.data.local.TransactionType
+import com.mercan.maliyem.data.backup.TransactionCsvExport
 import com.mercan.maliyem.data.repository.AccountRepository
 import com.mercan.maliyem.data.repository.RecurringRepository
 import com.mercan.maliyem.data.repository.CategoryRepository
@@ -24,7 +20,6 @@ import java.io.IOException
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.nio.ByteBuffer
-import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +41,7 @@ class SettingsViewModel @Inject constructor(
     accounts: AccountRepository,
     private val recurring: RecurringRepository,
     private val backupRepository: BackupRepository,
+    private val csvExport: TransactionCsvExport,
     @ApplicationContext context: Context,
 ) : ViewModel() {
     private val resolver = context.contentResolver
@@ -120,36 +116,7 @@ class SettingsViewModel @Inject constructor(
 
     /** Ekranın kaynakları, CSV'deki tür ve kategori adlarının seçili dili izlemesini sağlar. */
     fun exportCsv(uri: Uri, resources: Resources) = runDataAction(R.string.settings_csv_failed) {
-        withContext(Dispatchers.IO) {
-            val snapshot = backupRepository.snapshot()
-            val categories = snapshot.categories.associate { category ->
-                category.id to (category.name ?: DefaultCategories.nameRes(category.key)?.let(resources::getString).orEmpty())
-            }
-            val accounts = snapshot.accounts.associate { account ->
-                account.id to (account.name ?: DefaultAccounts.nameRes(account.key)?.let(resources::getString).orEmpty())
-            }
-            val expense = resources.getString(R.string.add_expense)
-            val income = resources.getString(R.string.add_income)
-            val rows = snapshot.transactions.map { transaction ->
-                CsvRow(
-                    LocalDate.parse(transaction.date),
-                    if (transaction.type == TransactionType.EXPENSE) expense else income,
-                    categories.getValue(transaction.categoryId),
-                    transaction.amountMinor,
-                    transaction.note,
-                    accounts.getValue(transaction.accountId),
-                )
-            }
-            val transfers = snapshot.transfers.map { transfer ->
-                CsvRow(
-                    LocalDate.parse(transfer.date), resources.getString(R.string.add_transfer), "", transfer.amountMinor,
-                    transfer.note, resources.getString(
-                        R.string.transfer_direction, accounts.getValue(transfer.fromAccountId), accounts.getValue(transfer.toAccountId),
-                    ),
-                )
-            }
-            writeDocument(uri, CsvExporter.encode(rows + transfers))
-        }
+        csvExport.save(uri, resources)
         _dataMessages.send(R.string.settings_csv_saved)
     }
 

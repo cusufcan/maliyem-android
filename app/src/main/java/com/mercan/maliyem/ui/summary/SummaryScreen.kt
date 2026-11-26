@@ -95,6 +95,7 @@ fun SummaryScreen(
     onAdd: () -> Unit,
     onOpenBudget: (Long?) -> Unit,
     onOpenGoals: () -> Unit,
+    onOpenYearlyReport: () -> Unit,
     viewModel: SummaryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -120,14 +121,14 @@ fun SummaryScreen(
         }
         when {
             shown == null -> ScreenLoading()
-            first && shown.budgets.isEmpty -> FirstLaunch(onAdd, accounts, goalsCard)
+            first && shown.budgets.isEmpty -> FirstLaunch(onAdd, accounts, goalsCard, onOpenYearlyReport)
             shown.isEmpty -> EmptyMonth(
-                shown, viewModel::previousMonth, viewModel::nextMonth, viewModel::selectMonth, onAdd, onSeeAll, accounts, openBudget, goalsCard,
+                shown, viewModel::previousMonth, viewModel::nextMonth, viewModel::selectMonth, onAdd, onSeeAll, accounts, openBudget, goalsCard, onOpenYearlyReport,
             )
             else -> SummaryContent(
                 shown, onPreviousMonth = viewModel::previousMonth, onNextMonth = viewModel::nextMonth, onSeeAll = onSeeAll,
                 highlightId = highlightId, onOpen = onOpen, accounts = accounts, onOpenBudget = openBudget, onSelectMonth = viewModel::selectMonth,
-                goalsCard = goalsCard,
+                goalsCard = goalsCard, onOpenYearlyReport = onOpenYearlyReport,
             )
         }
     }
@@ -135,7 +136,12 @@ fun SummaryScreen(
 
 /** Pano 7 · İlk açılış. */
 @Composable
-private fun FirstLaunch(onAdd: () -> Unit, accounts: List<AccountBalance>, goalsCard: @Composable () -> Unit) {
+private fun FirstLaunch(
+    onAdd: () -> Unit,
+    accounts: List<AccountBalance>,
+    goalsCard: @Composable () -> Unit,
+    onOpenYearlyReport: () -> Unit,
+) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight)
@@ -143,6 +149,7 @@ private fun FirstLaunch(onAdd: () -> Unit, accounts: List<AccountBalance>, goals
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                YearlyReportAction(onOpenYearlyReport)
                 AccountsCard(accounts)
                 goalsCard()
             }
@@ -171,6 +178,7 @@ private fun EmptyMonth(
     accounts: List<AccountBalance>,
     onOpenBudget: (Long?) -> Unit,
     goalsCard: @Composable () -> Unit,
+    onOpenYearlyReport: () -> Unit,
 ) {
     val locale = LocalConfiguration.current.locales[0]
     val monthsIn = stringArrayResource(R.array.month_in)
@@ -186,6 +194,7 @@ private fun EmptyMonth(
                     onPrevious = onPreviousMonth.takeIf { state.previousMonth != null },
                     onNext = onNextMonth.takeIf { state.nextMonth != null },
                 )
+                YearlyReportAction(onOpenYearlyReport)
                 AccountsCard(accounts)
                 BudgetsCard(state.budgets, locale, onOpenBudget)
                 goalsCard()
@@ -221,7 +230,7 @@ private fun EmptyMonth(
                         SeyirIcon(R.drawable.ic_seyir_chevron_right, tint = colors.onSurfaceVariant)
                     }
                 }
-                SeyirTrendCard(state.trend, locale, onSelectMonth)
+                SeyirTrendCard(state.trend, locale, onSelectMonth, onOpenYearlyReport)
             }
         }
     }
@@ -240,6 +249,7 @@ fun SummaryContent(
     onOpenBudget: (Long?) -> Unit = {},
     onSelectMonth: (YearMonth) -> Unit = {},
     goalsCard: @Composable () -> Unit = {},
+    onOpenYearlyReport: (() -> Unit)? = null,
 ) {
     val locale = LocalConfiguration.current.locales[0]
     Column(
@@ -265,12 +275,18 @@ fun SummaryContent(
                 MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.colorScheme.onSurface, Modifier.weight(1f),
             )
         }
+        onOpenYearlyReport?.let { YearlyReportAction(it) }
         AccountsCard(accounts)
         BudgetsCard(state.budgets, locale, onOpenBudget)
         goalsCard()
-        SeyirTrendCard(state.trend, locale, onSelectMonth)
+        SeyirTrendCard(state.trend, locale, onSelectMonth, onOpenYearlyReport)
         RecentSection(state, locale, onSeeAll, highlightId, onOpen)
     }
+}
+
+@Composable
+private fun YearlyReportAction(onClick: () -> Unit) {
+    SeyirButton(stringResource(R.string.yearly_report), onClick, icon = R.drawable.ic_seyir_breakdown, tonal = true)
 }
 
 @Composable
