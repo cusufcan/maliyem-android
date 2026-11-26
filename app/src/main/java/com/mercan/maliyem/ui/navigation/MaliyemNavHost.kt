@@ -29,10 +29,11 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -48,6 +49,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.mercan.maliyem.R
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.ui.add.AddTransactionSheet
@@ -62,7 +64,6 @@ import com.mercan.maliyem.ui.theme.SeyirTabIndicatorHeight
 import com.mercan.maliyem.ui.theme.SeyirTabIndicatorWidth
 import com.mercan.maliyem.ui.theme.SeyirTabVerticalPadding
 import com.mercan.maliyem.ui.transactions.TransactionsScreen
-import kotlinx.coroutines.launch
 
 private class TopLevelItem(val route: Any, val labelRes: Int, val icon: Int)
 
@@ -70,10 +71,10 @@ private const val TabTransitionMillis = 150
 private val TabBarMinHeight = 60.dp
 
 private val tabs = listOf(
-    TopLevelItem(Summary, R.string.nav_summary, R.drawable.ic_seyir_home),
-    TopLevelItem(Transactions, R.string.nav_transactions, R.drawable.ic_seyir_history),
+    TopLevelItem(Summary, R.string.nav_summary, R.drawable.ic_seyir_nav_summary),
+    TopLevelItem(Transactions, R.string.nav_transactions, R.drawable.ic_seyir_nav_list),
     TopLevelItem(Breakdown, R.string.nav_breakdown, R.drawable.ic_seyir_breakdown),
-    TopLevelItem(Settings, R.string.nav_settings, R.drawable.ic_seyir_settings),
+    TopLevelItem(Settings, R.string.nav_settings, R.drawable.ic_seyir_nav_settings),
 )
 
 /** Alt ekranın hangi sekmeye ait sayıldığı: Kategoriler Ayarlar'a, Detay açıldığı sekmeye. */
@@ -96,15 +97,33 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
     val hasData by app.hasData.collectAsStateWithLifecycle()
     val monthHasData by app.monthHasData.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
     // Ekle/Düzenle alt sayfası ve snackbar uygulama düzeyinde; her sekme aynısını kullanır (ADR-0010).
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var editId by rememberSaveable { mutableStateOf<Long?>(null) }
-    var highlightId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val undoActions by app.undoActions.collectAsStateWithLifecycle()
+    val pendingUndo = undoActions.firstOrNull()
+    val highlightId by rememberUpdatedState((pendingUndo as? UndoAction.Added)?.entry?.id)
+    val undoFailed by app.undoFailed.collectAsStateWithLifecycle()
     val savedExpense = stringResource(R.string.add_saved_expense)
     val savedIncome = stringResource(R.string.add_saved_income)
     val deletedLabel = stringResource(R.string.deleted)
     val undoLabel = stringResource(R.string.add_undo)
+    val undoError = stringResource(R.string.undo_failed)
+    LaunchedEffect(pendingUndo) {
+        val message = when (pendingUndo) {
+            null -> return@LaunchedEffect
+            is UndoAction.Added -> if (pendingUndo.entry.type == TransactionType.INCOME) savedIncome else savedExpense
+            is UndoAction.Deleted -> deletedLabel
+        }
+        val result = snackbar.showSnackbar(message, actionLabel = undoLabel, duration = SnackbarDuration.Short)
+        app.finishUndo(pendingUndo, perform = result == SnackbarResult.ActionPerformed)
+    }
+    LaunchedEffect(undoFailed) {
+        if (undoFailed) {
+            snackbar.showSnackbar(undoError)
+            app.acknowledgeUndoFailure()
+        }
+    }
 
     val showFab = when {
         destination?.hasRoute(Transactions::class) == true -> true
@@ -132,6 +151,8 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
                     icon = { SeyirIcon(R.drawable.ic_seyir_plus) },
                     text = { Text(stringResource(R.string.add_open), fontWeight = FontWeight.SemiBold) },
                     shape = MaterialTheme.shapes.medium,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                 )
             }
         },
@@ -191,11 +212,11 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
                     onBack = { nav.popBackStack() },
                     onEdit = { openSheet(it) },
                     onDeleted = { entity ->
-                        nav.popBackStack()
-                        scope.launch {
-                            val result = snackbar.showSnackbar(deletedLabel, actionLabel = undoLabel, duration = SnackbarDuration.Short)
-                            if (result == SnackbarResult.ActionPerformed) app.restore(entity)
-                        }
+                        val activeEntry = nav.currentBackStackEntry
+                        if (activeEntry?.destination?.hasRoute(TransactionDetail::class) == true &&
+                            activeEntry.toRoute<TransactionDetail>().id == entity.id
+                        ) nav.popBackStack()
+                        app.offerUndo(UndoAction.Deleted(entity))
                     },
                 )
             }
@@ -209,15 +230,7 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
             editId = editId,
             onSaved = { entry ->
                 sheetOpen = false
-                if (entry.edited) return@AddTransactionSheet
-                app.showMonth(entry.date)
-                highlightId = entry.id
-                scope.launch {
-                    val message = if (entry.type == TransactionType.INCOME) savedIncome else savedExpense
-                    val result = snackbar.showSnackbar(message, actionLabel = undoLabel, duration = SnackbarDuration.Short)
-                    if (result == SnackbarResult.ActionPerformed) app.removeAdded(entry.id)
-                    highlightId = null
-                }
+                if (!entry.edited) app.offerUndo(UndoAction.Added(entry))
             },
         )
     }

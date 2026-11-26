@@ -3,6 +3,7 @@ package com.mercan.maliyem
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.database.sqlite.SQLiteException
 import android.util.Log
 import com.mercan.maliyem.data.local.CategoryDao
 import com.mercan.maliyem.data.local.TransactionDao
@@ -30,23 +31,24 @@ class DebugSeedReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val byKey = categories.observeAll().first { it.isNotEmpty() }.associateBy { it.key }
+                val byKey = categories.observeAll().first().associateBy { it.key }
                 val month = YearMonth.now(clock).plusMonths(intent.getIntExtra("monthOffset", 0).toLong())
                 val now = clock.millis()
-                SAMPLE.forEachIndexed { index, (day, key, note, amount) ->
-                    val category = byKey.getValue(key)
-                    transactions.insert(
-                        TransactionEntity(
-                            type = category.type,
-                            amountMinor = amount,
-                            categoryId = category.id,
-                            date = month.atDay(day.coerceAtMost(month.lengthOfMonth())),
-                            note = note,
-                            createdAt = now + index,
-                        ),
+                val rows = SAMPLE.mapIndexedNotNull { index, (day, key, note, amount) ->
+                    val category = byKey[key] ?: return@mapIndexedNotNull null
+                    TransactionEntity(
+                        type = category.type,
+                        amountMinor = amount,
+                        categoryId = category.id,
+                        date = month.atDay(day.coerceAtMost(month.lengthOfMonth())),
+                        note = note,
+                        createdAt = now + index,
                     )
                 }
-                Log.i("DebugSeed", "${SAMPLE.size} kayıt eklendi: $month")
+                transactions.insertAll(rows)
+                Log.i("DebugSeed", "${rows.size} kayıt eklendi: $month")
+            } catch (error: SQLiteException) {
+                Log.e("DebugSeed", "Örnek kayıtlar eklenemedi", error)
             } finally {
                 pending.finish()
             }

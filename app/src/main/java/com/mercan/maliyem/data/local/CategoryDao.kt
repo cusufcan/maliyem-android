@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CategoryDao {
-    @Query("SELECT * FROM categories ORDER BY type, sortOrder")
+    @Query("SELECT * FROM categories ORDER BY type, sortOrder, id")
     fun observeAll(): Flow<List<CategoryEntity>>
 
     @Insert
@@ -23,6 +23,10 @@ interface CategoryDao {
 
     @Query("SELECT COALESCE(MAX(sortOrder), -1) + 1 FROM categories WHERE type = :type")
     suspend fun nextSortOrder(type: TransactionType): Int
+
+    @Transaction
+    suspend fun append(category: CategoryEntity): Long =
+        insert(category.copy(sortOrder = nextSortOrder(category.type)))
 
     @Query("SELECT id FROM categories WHERE `key` = :key")
     suspend fun idOfKey(key: String): Long?

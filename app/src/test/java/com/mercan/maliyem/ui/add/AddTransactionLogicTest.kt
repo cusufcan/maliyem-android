@@ -72,4 +72,20 @@ class AddTransactionLogicTest {
         assertEquals("120.05", amountInputText(12005, Locale.US))
         assertEquals("75", amountInputText(7500, tr))
     }
+
+    @Test fun `alternate decimal handles pasted currency and localized digits`() {
+        assertEquals(12_050L, parseAmount("120.50 ₺", tr))
+        assertEquals(12_050L, parseAmount("₺١٢٠,٥٠", en))
+        assertNull(parseAmount("-120.50", tr))
+        assertNull(parseAmount("12..50", tr))
+        assertNull(parseAmount("12.34,56", tr))
+    }
+
+    @Test fun `edit text round trips even with an unsupported device locale`() {
+        val ar = Locale.forLanguageTag("ar")
+        for (locale in listOf(tr, en, ar)) {
+            assertEquals(12_050L, parseAmount(amountInputText(12_050, locale), locale))
+            assertEquals(Long.MAX_VALUE, parseAmount(amountInputText(Long.MAX_VALUE, locale), locale))
+        }
+    }
 }

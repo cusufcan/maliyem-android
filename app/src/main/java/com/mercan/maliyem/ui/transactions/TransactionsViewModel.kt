@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mercan.maliyem.data.repository.TransactionRepository
+import com.mercan.maliyem.ui.CalendarDays
 import com.mercan.maliyem.ui.MonthSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -22,7 +23,10 @@ class TransactionsViewModel @Inject constructor(
     private val savedState: SavedStateHandle,
     months: MonthSelection,
     repository: TransactionRepository,
+    calendar: CalendarDays,
 ) : ViewModel() {
+
+    val today = calendar.days.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val filter = savedState.getStateFlow(KEY_FILTER, TransactionFilter.ALL.name)
 

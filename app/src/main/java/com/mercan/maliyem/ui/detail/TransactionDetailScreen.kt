@@ -15,7 +15,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -44,7 +45,6 @@ import com.mercan.maliyem.ui.theme.categoryIcon
 import com.mercan.maliyem.util.formatMoney
 import com.mercan.maliyem.util.splitFraction
 import java.time.format.DateTimeFormatter
-import kotlinx.coroutines.launch
 
 @Composable
 fun TransactionDetailScreen(
@@ -54,7 +54,15 @@ fun TransactionDetailScreen(
     viewModel: TransactionDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val scope = rememberCoroutineScope()
+    val deleted by viewModel.deleted.collectAsStateWithLifecycle()
+    val deleting by viewModel.deleting.collectAsStateWithLifecycle()
+    val deleteFailed by viewModel.deleteFailed.collectAsStateWithLifecycle()
+    LaunchedEffect(deleted) {
+        deleted?.let {
+            viewModel.acknowledgeDeleted()
+            onDeleted(it)
+        }
+    }
     val locale = LocalConfiguration.current.locales[0]
     val colors = MaterialTheme.colorScheme
 
@@ -63,7 +71,14 @@ fun TransactionDetailScreen(
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         BackHeader(stringResource(R.string.detail_title), onBack)
-        val current = state ?: return@Column
+        val current = when (val shown = state) {
+            null -> return@Column
+            DetailUiState.Missing -> {
+                if (deleted == null) SubText(stringResource(R.string.detail_missing))
+                return@Column
+            }
+            is DetailUiState.Record -> shown
+        }
         val t = current.item.transaction
         val income = t.type == TransactionType.INCOME
         val category = categoryName(current.item.category.key, current.item.category.name)
@@ -92,7 +107,7 @@ fun TransactionDetailScreen(
         SeyirCard(padding = PaddingValues(horizontal = Spacing.lg)) {
             SettingRow(R.drawable.ic_seyir_tag, stringResource(R.string.detail_category), value = category, horizontalPadding = 0.dp)
             HorizontalDivider(color = colors.outlineVariant)
-            SettingRow(R.drawable.ic_seyir_calendar, stringResource(R.string.detail_date), value = t.date.format(DateTimeFormatter.ofPattern("d MMMM yyyy", locale)), horizontalPadding = 0.dp)
+            SettingRow(R.drawable.ic_seyir_calendar, stringResource(R.string.detail_date), value = t.date.format(remember(locale) { DateTimeFormatter.ofPattern("d MMMM yyyy", locale) }), horizontalPadding = 0.dp)
             t.note?.let {
                 HorizontalDivider(color = colors.outlineVariant)
                 SettingRow(R.drawable.ic_seyir_note, stringResource(R.string.add_note), value = it, horizontalPadding = 0.dp)
@@ -103,13 +118,14 @@ fun TransactionDetailScreen(
             Modifier.padding(horizontal = Spacing.xs),
         )
         }
+        if (deleteFailed) SubText(stringResource(R.string.detail_delete_failed))
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
             SeyirButton(
                 stringResource(R.string.detail_delete),
-                { scope.launch { viewModel.delete()?.let(onDeleted) } },
-                Modifier.weight(1f), icon = R.drawable.ic_seyir_trash, tonal = true,
+                viewModel::delete,
+                Modifier.weight(1f), icon = R.drawable.ic_seyir_trash, tonal = true, enabled = !deleting,
             )
-            SeyirButton(stringResource(R.string.detail_edit), { onEdit(t.id) }, Modifier.weight(1f), icon = R.drawable.ic_seyir_edit)
+            SeyirButton(stringResource(R.string.detail_edit), { onEdit(t.id) }, Modifier.weight(1f), icon = R.drawable.ic_seyir_edit, enabled = !deleting)
         }
     }
 }

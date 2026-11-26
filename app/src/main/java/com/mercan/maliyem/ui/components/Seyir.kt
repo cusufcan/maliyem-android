@@ -156,7 +156,7 @@ fun SeyirSegmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit
             val on = index == selected
             val content by animateColorAsState(if (on) sel.content else colors.onSurfaceVariant, Motion.fast(), label = "segmentText")
             Box(
-                Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(20.dp))
+                Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(20.dp))
                     .selectable(on, role = Role.Tab) { onSelect(index) }
                     .padding(horizontal = Spacing.sm),
                 contentAlignment = Alignment.Center,
@@ -201,27 +201,17 @@ fun SeyirChip(
     val background by animateColorAsState(if (selected) sel.container else Color.Transparent, Motion.fast(), label = "chipBg")
     val border by animateColorAsState(if (selected) sel.container else colors.outlineVariant, Motion.fast(), label = "chipBorder")
     val content by animateColorAsState(if (selected) sel.content else colors.onSurfaceVariant, Motion.fast(), label = "chipText")
+    val action = if (role == Role.Button) Modifier.clickable(role = role, onClick = onClick)
+        else Modifier.selectable(selected, role = role, onClick = onClick)
     Row(
-        modifier.heightIn(min = 40.dp).clip(shape).background(background).border(1.dp, border, shape)
-            .selectable(selected, role = role, onClick = onClick)
+        modifier.heightIn(min = 48.dp).clip(shape).background(background).border(1.dp, border, shape)
+            .then(action)
             .padding(start = if (icon != null) Spacing.md else Spacing.lg, end = Spacing.lg),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         icon?.let { SeyirIcon(it, size = 18.dp, tint = content) }
         Text(label, color = content, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyMedium)
-    }
-}
-
-/** Pano .list/.card: surfaceContainer kart; [rows] arasına ayraç çizilir. */
-@Composable
-fun <T> ListCard(items: List<T>, modifier: Modifier = Modifier, row: @Composable (T) -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    Column(modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(colors.surfaceContainer)) {
-        items.forEachIndexed { index, item ->
-            if (index > 0) HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = colors.outlineVariant)
-            row(item)
-        }
     }
 }
 
@@ -254,7 +244,7 @@ fun SettingRow(
 ) {
     val colors = MaterialTheme.colorScheme
     Row(
-        modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+        modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
             .heightIn(min = 56.dp).padding(horizontal = horizontalPadding, vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
@@ -279,10 +269,12 @@ fun SeyirButton(
     modifier: Modifier = Modifier,
     @DrawableRes icon: Int? = null,
     tonal: Boolean = false,
+    enabled: Boolean = true,
 ) {
     val colors = MaterialTheme.colorScheme
     Button(
         onClick, modifier.heightIn(min = 48.dp),
+        enabled = enabled,
         shape = RoundedCornerShape(24.dp),
         colors = if (tonal) ButtonDefaults.buttonColors(colors.secondaryContainer, colors.onSecondaryContainer) else ButtonDefaults.buttonColors(),
         contentPadding = PaddingValues(horizontal = Spacing.xl),

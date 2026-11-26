@@ -27,15 +27,23 @@ class TransactionsLogicTest {
     @Test fun groupsByDayNewestFirstWithNet() {
         val days = groupByDay(rows, TransactionFilter.ALL)
         assertEquals(listOf(26, 24), days.map { it.date.dayOfMonth })
-        assertEquals(95_000L, days[0].netMinor)
+        assertEquals(95_000.toBigInteger(), days[0].netMinor)
         assertEquals(listOf(3L, 2L), days[0].rows.map { it.id })
-        assertEquals(-10_000L, days[1].netMinor)
+        assertEquals((-10_000).toBigInteger(), days[1].netMinor)
     }
 
     @Test fun filterKeepsOnlyMatchingType() {
         val days = groupByDay(rows, TransactionFilter.EXPENSE)
         assertEquals(listOf(listOf(2L), listOf(1L)), days.map { d -> d.rows.map { it.id } })
-        assertEquals(-5_000L, days[0].netMinor)
+        assertEquals((-5_000).toBigInteger(), days[0].netMinor)
         assertEquals(1, groupByDay(rows, TransactionFilter.INCOME).size)
+    }
+
+    @Test fun sameDayTotalsCanExceedLongAndTiesUseId() {
+        val max = Long.MAX_VALUE
+        val items = listOf(tx(1, 26, max, market, 1), tx(2, 26, max, market, 1))
+        val day = groupByDay(items, TransactionFilter.ALL).single()
+        assertEquals(max.toBigInteger() * (-2).toBigInteger(), day.netMinor)
+        assertEquals(listOf(2L, 1L), day.rows.map { it.id })
     }
 }

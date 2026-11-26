@@ -1,7 +1,6 @@
 package com.mercan.maliyem.data.local
 
 import androidx.room.Dao
-import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
@@ -16,17 +15,16 @@ data class CategoryCount(val categoryId: Long, val count: Int)
 interface TransactionDao {
     /** [from] ve [to] dahil; ay görünümü için ayın ilk ve son günü verilir. */
     @Transaction
-    @Query("SELECT * FROM transactions WHERE date BETWEEN :from AND :to ORDER BY date DESC, createdAt DESC")
+    @Query("SELECT * FROM transactions WHERE date BETWEEN :from AND :to ORDER BY date DESC, createdAt DESC, id DESC")
     fun observeRange(from: LocalDate, to: LocalDate): Flow<List<TransactionWithCategory>>
 
     /** Kaydı olan günler; ay gezintisi boş ayları atlasın diye. */
     @Query("SELECT DISTINCT date FROM transactions")
     fun observeDates(): Flow<List<LocalDate>>
 
-    /** Kayıt silinince null yayar; ayrıntı ekranı o an geri döner. */
-    @Transaction
-    @Query("SELECT * FROM transactions WHERE id = :id")
-    fun observeById(id: Long): Flow<TransactionWithCategory?>
+    /** Ayrıntı ekranının izleyeceği ayı belirler; kayıt silinince null yayar. */
+    @Query("SELECT date FROM transactions WHERE id = :id")
+    fun observeDate(id: Long): Flow<LocalDate?>
 
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun getById(id: Long): TransactionEntity?
@@ -38,12 +36,29 @@ interface TransactionDao {
     @Insert
     suspend fun insert(transaction: TransactionEntity): Long
 
+    @Insert
+    suspend fun insertAll(transactions: List<TransactionEntity>)
+
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun deleteById(id: Long)
 
     @Update
-    suspend fun update(transaction: TransactionEntity)
+    suspend fun update(transaction: TransactionEntity): Int
 
-    @Delete
-    suspend fun delete(transaction: TransactionEntity)
+    @Transaction
+    suspend fun deleteAndGet(id: Long): TransactionEntity? {
+        val transaction = getById(id) ?: return null
+        deleteById(id)
+        return transaction
+    }
+
+    @Query("SELECT id FROM categories WHERE type = :type AND (id = :id OR `key` = :fallbackKey) ORDER BY (id = :id) DESC LIMIT 1")
+    suspend fun categoryForRestore(id: Long, type: TransactionType, fallbackKey: String): Long?
+
+    @Transaction
+    suspend fun restore(transaction: TransactionEntity, fallbackKey: String): Boolean {
+        val categoryId = categoryForRestore(transaction.categoryId, transaction.type, fallbackKey) ?: return false
+        insert(transaction.copy(categoryId = categoryId))
+        return true
+    }
 }

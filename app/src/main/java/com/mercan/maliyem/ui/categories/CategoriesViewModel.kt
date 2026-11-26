@@ -1,5 +1,6 @@
 package com.mercan.maliyem.ui.categories
 
+import android.database.sqlite.SQLiteException
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,8 +11,10 @@ import com.mercan.maliyem.data.repository.TransactionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -43,15 +46,27 @@ class CategoriesViewModel @Inject constructor(
 
     fun setType(value: TransactionType) { savedState[KEY_TYPE] = value.name }
 
-    fun add(type: TransactionType, name: String, icon: String) {
-        viewModelScope.launch { categories.add(type, name.trim(), icon) }
+    private val _writeFailed = MutableStateFlow(false)
+    val writeFailed = _writeFailed.asStateFlow()
+
+    fun add(type: TransactionType, name: String, icon: String) = write {
+        categories.add(type, name.trim(), icon)
     }
 
-    fun update(category: CategoryEntity, name: String, icon: String) {
-        viewModelScope.launch { categories.update(category.copy(name = name.trim(), icon = icon)) }
+    fun update(category: CategoryEntity, name: String, icon: String) = write {
+        categories.update(category.copy(name = name.trim(), icon = icon))
     }
 
-    fun delete(category: CategoryEntity) {
-        viewModelScope.launch { categories.delete(category) }
+    fun delete(category: CategoryEntity) = write { categories.delete(category) }
+
+    private fun write(operation: suspend () -> Unit) {
+        viewModelScope.launch {
+            _writeFailed.value = false
+            try {
+                operation()
+            } catch (_: SQLiteException) {
+                _writeFailed.value = true
+            }
+        }
     }
 }

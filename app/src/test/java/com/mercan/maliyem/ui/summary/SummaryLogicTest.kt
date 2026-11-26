@@ -25,16 +25,22 @@ class SummaryLogicTest {
 
     @Test fun `totals and net`() {
         val s = buildSummary(listOf(row(1, INCOME, 2_850_000, 1), row(2, EXPENSE, 1_100_000, 1), row(3, EXPENSE, 116_420, 3)), november)
-        assertEquals(2_850_000, s.incomeMinor)
-        assertEquals(1_216_420, s.expenseMinor)
-        assertEquals(1_633_580, s.netMinor)
-        assertEquals(43, s.spentPercent)
+        assertEquals(2_850_000.toBigInteger(), s.incomeMinor)
+        assertEquals(1_216_420.toBigInteger(), s.expenseMinor)
+        assertEquals(1_633_580.toBigInteger(), s.netMinor)
+        assertEquals(43.toBigInteger(), s.spentPercent)
     }
 
     @Test fun `negative net and over hundred percent`() {
         val s = buildSummary(listOf(row(1, INCOME, 10_000, 1), row(2, EXPENSE, 25_000, 2)), november)
-        assertEquals(-15_000, s.netMinor)
-        assertEquals(250, s.spentPercent)
+        assertEquals((-15_000).toBigInteger(), s.netMinor)
+        assertEquals(250.toBigInteger(), s.spentPercent)
+    }
+
+    @Test fun `one minor unit over income still counts as overspent`() {
+        val summary = buildSummary(listOf(row(1, INCOME, 100_000, 1), row(2, EXPENSE, 100_001, 1)), november)
+        assertEquals(100.toBigInteger(), summary.spentPercent)
+        assertTrue(summary.overspent)
     }
 
     @Test fun `no income hides spent percent`() {
@@ -43,14 +49,14 @@ class SummaryLogicTest {
 
     @Test fun `percent rounds half up`() {
         // 2/3 = %66,67 → 67; 1/8 = %12,5 → 13
-        assertEquals(67, buildSummary(listOf(row(1, INCOME, 300, 1), row(2, EXPENSE, 200, 1)), november).spentPercent)
-        assertEquals(13, buildSummary(listOf(row(1, INCOME, 800, 1), row(2, EXPENSE, 100, 1)), november).spentPercent)
+        assertEquals(67.toBigInteger(), buildSummary(listOf(row(1, INCOME, 300, 1), row(2, EXPENSE, 200, 1)), november).spentPercent)
+        assertEquals(13.toBigInteger(), buildSummary(listOf(row(1, INCOME, 800, 1), row(2, EXPENSE, 100, 1)), november).spentPercent)
     }
 
     @Test fun `empty month`() {
         val s = buildSummary(emptyList(), november)
         assertTrue(s.isEmpty)
-        assertEquals(0, s.netMinor)
+        assertEquals(0.toBigInteger(), s.netMinor)
         assertNull(s.spentPercent)
     }
 
@@ -90,5 +96,27 @@ class SummaryLogicTest {
         val jan = YearMonth.of(2027, 1)
         assertEquals(null to jan, adjacentMonths(nov, setOf(jan), nov))
         assertEquals(nov to null, adjacentMonths(jan, setOf(jan), nov))
+    }
+
+    @Test fun `totals and percentage stay exact above long and int limits`() {
+        val max = Long.MAX_VALUE
+        val summary = buildSummary(listOf(row(1, INCOME, 1, 1), row(2, EXPENSE, max, 1), row(3, EXPENSE, max, 1)), november)
+        val total = max.toBigInteger() * 2.toBigInteger()
+        assertEquals(total, summary.expenseMinor)
+        assertEquals(1.toBigInteger() - total, summary.netMinor)
+        assertEquals(total * 100.toBigInteger(), summary.spentPercent)
+    }
+
+    @Test fun `same date and creation timestamp use newest id first`() {
+        val recent = buildSummary(listOf(row(1, EXPENSE, 100, 1, 10), row(2, EXPENSE, 100, 1, 10)), november).recent
+        assertEquals(listOf(2L, 1L), recent.map { it.id })
+    }
+
+    @Test fun `current empty month remains reachable across the year boundary`() {
+        val december = YearMonth.of(2026, 12)
+        val january = december.plusMonths(1)
+        assertEquals(null to null, adjacentMonths(december, setOf(december), december))
+        assertEquals(null to january, adjacentMonths(december, setOf(december), january))
+        assertEquals(december to null, adjacentMonths(january, setOf(december), january))
     }
 }

@@ -2,6 +2,8 @@ package com.mercan.maliyem.ui.summary
 
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.local.TransactionWithCategory
+import com.mercan.maliyem.util.roundedPercent
+import java.math.BigInteger
 import java.time.YearMonth
 
 /** Listede gösterilen tek kayıt; ad çözümü (key → strings.xml) ekranda yapılır. */
@@ -17,37 +19,37 @@ data class SummaryRow(
 
 data class SummaryUiState(
     val month: YearMonth,
-    val incomeMinor: Long = 0,
-    val expenseMinor: Long = 0,
+    val incomeMinor: BigInteger = BigInteger.ZERO,
+    val expenseMinor: BigInteger = BigInteger.ZERO,
     val recent: List<SummaryRow> = emptyList(),
     /** ‹ › hedefleri; gidilecek ay yoksa null ve düğme pasif. */
     val previousMonth: YearMonth? = null,
     val nextMonth: YearMonth? = null,
     /** Boş ay kartı: kaydı olan bir önceki ayın neti. */
-    val previousNet: Long? = null,
+    val previousNet: Pair<YearMonth, BigInteger>? = null,
 ) {
-    val netMinor: Long get() = incomeMinor - expenseMinor
+    val netMinor: BigInteger = incomeMinor - expenseMinor
     val isEmpty: Boolean get() = recent.isEmpty()
+    val overspent: Boolean get() = expenseMinor > incomeMinor
 
     /** Giderin gelire oranı (%); gelir yoksa null ve satır gizlenir. */
-    val spentPercent: Int?
-        get() = if (incomeMinor <= 0) null else Math.round(expenseMinor * 100.0 / incomeMinor).toInt()
+    val spentPercent: BigInteger? = if (incomeMinor.signum() == 0) null else roundedPercent(expenseMinor, incomeMinor)
 }
 
 const val RECENT_COUNT = 4
 
 /** [rows] DAO'dan en yeni başta gelir; sıra yine de burada garanti edilir. */
 fun buildSummary(rows: List<TransactionWithCategory>, month: YearMonth): SummaryUiState {
-    var income = 0L
-    var expense = 0L
+    var income = BigInteger.ZERO
+    var expense = BigInteger.ZERO
     rows.forEach {
         when (it.transaction.type) {
-            TransactionType.INCOME -> income += it.transaction.amountMinor
-            TransactionType.EXPENSE -> expense += it.transaction.amountMinor
+            TransactionType.INCOME -> income += it.transaction.amountMinor.toBigInteger()
+            TransactionType.EXPENSE -> expense += it.transaction.amountMinor.toBigInteger()
         }
     }
     val recent = rows
-        .sortedWith(compareByDescending<TransactionWithCategory> { it.transaction.date }.thenByDescending { it.transaction.createdAt })
+        .sortedWith(compareByDescending<TransactionWithCategory> { it.transaction.date }.thenByDescending { it.transaction.createdAt }.thenByDescending { it.transaction.id })
         .take(RECENT_COUNT)
         .map { (t, c) -> SummaryRow(t.id, t.type, t.amountMinor, t.note, c.key, c.name, c.icon) }
     return SummaryUiState(month, income, expense, recent)

@@ -44,9 +44,11 @@
     <string name="add_error_amount_invalid">Enter a valid amount</string>
     <string name="add_error_amount_zero">Amount must be greater than zero</string>
     <string name="add_error_category">Choose a category</string>
+    <string name="add_error_write">Could not complete the operation. Check the record and category and try again.</string>
     <string name="add_saved_expense">Expense saved</string>
     <string name="add_saved_income">Income saved</string>
     <string name="add_undo">Undo</string>
+    <string name="undo_failed">Could not undo the operation.</string>
     <string name="add_just_now">just now</string>
     <string name="add_pick">OK</string>
     <string name="add_cancel">Cancel</string>
@@ -69,6 +71,8 @@
     <string name="detail_share">%1$s this month: %2$s. This record is %3$d%% of it.</string>
     <string name="detail_delete">Delete</string>
     <string name="detail_edit">Edit</string>
+    <string name="detail_missing">This record no longer exists.</string>
+    <string name="detail_delete_failed">Could not delete the record. Try again.</string>
     <string name="deleted">Record deleted</string>
     <string name="percent">%1$d%%</string>
     <string name="breakdown_total_expense">Total expense</string>
@@ -95,6 +99,7 @@
     <string name="categories_no_records">No records</string>
     <string name="categories_fixed">" · can't be deleted"</string>
     <string name="categories_add">Add category</string>
+    <string name="categories_write_failed">Could not save the category change. Try again.</string>
     <string name="categories_new">New category</string>
     <string name="categories_edit">Edit category</string>
     <string name="categories_name">Name</string>

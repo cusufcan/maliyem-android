@@ -20,8 +20,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -29,6 +31,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -59,7 +65,9 @@ fun CategoriesScreen(onBack: () -> Unit, viewModel: CategoriesViewModel = hiltVi
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val current = state ?: return
     var editing by rememberSaveable { mutableLongStateOf(NONE) }
+    var newType by rememberSaveable { mutableStateOf<TransactionType?>(null) }
     var confirmDelete by rememberSaveable { mutableLongStateOf(NONE) }
+    val writeFailed by viewModel.writeFailed.collectAsStateWithLifecycle()
     val colors = MaterialTheme.colorScheme
 
     Column(
@@ -73,6 +81,14 @@ fun CategoriesScreen(onBack: () -> Unit, viewModel: CategoriesViewModel = hiltVi
                 types.indexOf(current.type),
                 { viewModel.setType(types[it]) },
             )
+            if (writeFailed) {
+                Text(
+                    stringResource(R.string.categories_write_failed),
+                    Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    color = colors.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
         // Tür değişince liste yönlü kayar; aynı tür içinde ekleme/silme satır animasyonuyla olur (ADR-0016).
         AnimatedContent(
@@ -102,7 +118,7 @@ fun CategoriesScreen(onBack: () -> Unit, viewModel: CategoriesViewModel = hiltVi
                     ) {
                         if (index > 0) HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = colors.outlineVariant)
                         Row(
-                            Modifier.fillMaxWidth().clickable { editing = c.id }.heightIn(min = 64.dp)
+                            Modifier.fillMaxWidth().clickable(enabled = shown.type == current.type, role = Role.Button) { editing = c.id }.heightIn(min = 64.dp)
                                 .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(Spacing.md),
@@ -121,8 +137,10 @@ fun CategoriesScreen(onBack: () -> Unit, viewModel: CategoriesViewModel = hiltVi
                 }
                 item(key = "add") {
                     SeyirButton(
-                        stringResource(R.string.categories_add), { editing = 0L },
+                        stringResource(R.string.categories_add),
+                        { newType = shown.type; editing = 0L },
                         Modifier.animateItem().fillMaxWidth().padding(top = Spacing.md), icon = R.drawable.ic_seyir_plus, tonal = true,
+                        enabled = shown.type == current.type,
                     )
                 }
                 item(key = "note") {
@@ -135,21 +153,25 @@ fun CategoriesScreen(onBack: () -> Unit, viewModel: CategoriesViewModel = hiltVi
         }
     }
 
-    if (editing != NONE) {
-        val category = current.items.firstOrNull { it.category.id == editing }?.category
+    val category = current.items.firstOrNull { it.category.id == editing }?.category
+    if (editing == 0L || category != null) {
         CategoryDialog(
             category = category,
             onDismiss = { editing = NONE },
             onSave = { name, icon ->
-                if (category == null) viewModel.add(current.type, name, icon) else viewModel.update(category, name, icon)
+                if (category == null) viewModel.add(newType ?: current.type, name, icon) else viewModel.update(category, name, icon)
                 editing = NONE
             },
             onDelete = category?.takeUnless { it.isFallback() }?.let { { confirmDelete = it.id; editing = NONE } },
         )
+    } else if (editing != NONE) {
+        LaunchedEffect(editing) { editing = NONE }
     }
     if (confirmDelete != NONE) {
         val item = current.items.firstOrNull { it.category.id == confirmDelete }
-        if (item == null) confirmDelete = NONE else {
+        if (item == null) {
+            LaunchedEffect(confirmDelete) { confirmDelete = NONE }
+        } else {
             AlertDialog(
                 onDismissRequest = { confirmDelete = NONE },
                 title = { Text(stringResource(R.string.categories_delete_title, categoryName(item.category.key, item.category.name))) },

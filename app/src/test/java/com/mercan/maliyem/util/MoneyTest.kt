@@ -59,7 +59,7 @@ class MoneyTest {
     }
 
     @Test fun `format then parse round trips`() {
-        listOf(0L, 5L, 99L, 100L, 1_245_000L, 123_456_789L).forEach { minor ->
+        listOf(0L, 5L, 99L, 100L, 1_245_000L, 123_456_789L, Long.MAX_VALUE).forEach { minor ->
             assertEquals(minor, parseMoney(formatMoney(minor, tr), tr))
             assertEquals(minor, parseMoney(formatMoney(minor, en), en))
         }
@@ -70,5 +70,19 @@ class MoneyTest {
         assertEquals("−1.234.567" to ",89 ₺", splitFraction("−1.234.567,89 ₺", tr))
         assertEquals("+₺9,623" to ".35", splitFraction("+₺9,623.35", en))
         assertEquals("₺0" to ".00", splitFraction("₺0.00", en))
+    }
+
+    @Test fun `malformed grouping and embedded currency are rejected`() {
+        listOf("1..234,56", ".123,00", "1234.567,00", "1.2.345", "1 2,00", "1₺2,00").forEach {
+            assertNull(it, parseMoney(it, tr))
+        }
+        assertNull(parseMoney("1,2.34", en))
+        assertNull(parseMoney("1,234,.56", en))
+    }
+
+    @Test fun `totals above long still format exact minor units`() {
+        val minor = Long.MAX_VALUE.toBigInteger() * 2.toBigInteger()
+        assertEquals("184.467.440.737.095.516,14 ₺", formatMoney(minor, tr))
+        assertEquals("−₺184,467,440,737,095,516.14", formatMoney(-minor, en))
     }
 }

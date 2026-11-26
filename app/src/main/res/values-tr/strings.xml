@@ -42,9 +42,11 @@
     <string name="add_error_amount_invalid">Geçerli bir tutar girin</string>
     <string name="add_error_amount_zero">Tutar sıfırdan büyük olmalı</string>
     <string name="add_error_category">Kategori seçin</string>
+    <string name="add_error_write">İşlem tamamlanamadı. Kaydı ve kategoriyi kontrol edip tekrar deneyin.</string>
     <string name="add_saved_expense">Gider kaydedildi</string>
     <string name="add_saved_income">Gelir kaydedildi</string>
     <string name="add_undo">Geri al</string>
+    <string name="undo_failed">İşlem geri alınamadı.</string>
     <string name="add_just_now">az önce</string>
     <string name="add_pick">Tamam</string>
     <string name="add_cancel">Vazgeç</string>
@@ -67,6 +69,8 @@
     <string name="detail_share">%1$s bu ay %2$s; bu kaydın payı %%%3$d.</string>
     <string name="detail_delete">Sil</string>
     <string name="detail_edit">Düzenle</string>
+    <string name="detail_missing">Bu kayıt artık mevcut değil.</string>
+    <string name="detail_delete_failed">Kayıt silinemedi. Tekrar deneyin.</string>
     <string name="deleted">Kayıt silindi</string>
     <string name="percent">%%%1$d</string>
     <string name="breakdown_total_expense">Toplam gider</string>
@@ -93,6 +97,7 @@
     <string name="categories_no_records">Kayıt yok</string>
     <string name="categories_fixed">" · silinemez"</string>
     <string name="categories_add">Kategori ekle</string>
+    <string name="categories_write_failed">Kategori değişikliği kaydedilemedi. Tekrar deneyin.</string>
     <string name="categories_new">Yeni kategori</string>
     <string name="categories_edit">Kategoriyi düzenle</string>
     <string name="categories_name">Ad</string>

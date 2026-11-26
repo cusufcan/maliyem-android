@@ -20,10 +20,12 @@ import com.mercan.maliyem.util.formatMoney
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -42,6 +44,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -51,6 +54,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -61,7 +65,10 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -74,11 +81,13 @@ import com.mercan.maliyem.ui.components.SeyirSegmented
 import com.mercan.maliyem.ui.components.categoryName
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
+import com.mercan.maliyem.data.local.CategoryEntity
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.ui.theme.MoneyInputValue
 import com.mercan.maliyem.ui.theme.SeyirIcon
 import com.mercan.maliyem.ui.theme.Spacing
 import com.mercan.maliyem.ui.theme.categoryIcon
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -93,32 +102,56 @@ fun AddTransactionSheet(
     editId: Long? = null,
     viewModel: AddTransactionViewModel = hiltViewModel(),
 ) {
-    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val canChangeSheet = remember(viewModel) {
+        { target: SheetValue ->
+            target != SheetValue.Hidden || !viewModel.saving.value || viewModel.saved.value != null
+        }
+    }
+    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = canChangeSheet)
     val locale = LocalConfiguration.current.locales[0]
-    LaunchedEffect(locale) { viewModel.setLocale(locale) }
-    LaunchedEffect(editId) { editId?.let(viewModel::startEdit) }
-    LaunchedEffect(viewModel) {
-        viewModel.saved.collect { entry ->
+    var ready by remember(editId, locale) { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(viewModel, editId, locale) { ready = viewModel.prepare(editId, locale) }
+    val onSavedCurrent by rememberUpdatedState(onSaved)
+    val saved by viewModel.saved.collectAsStateWithLifecycle()
+    LaunchedEffect(saved) {
+        saved?.let { entry ->
             sheet.hide()
-            onSaved(entry)
+            onSavedCurrent(entry)
+            viewModel.reset()
         }
     }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val saving by viewModel.saving.collectAsStateWithLifecycle()
+    val writeFailed by viewModel.writeFailed.collectAsStateWithLifecycle()
     ModalBottomSheet(
         onDismissRequest = {
-            viewModel.reset()
-            onDismiss()
+            if (!viewModel.saving.value) {
+                viewModel.reset()
+                onDismiss()
+            }
         },
         sheetState = sheet,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
-        state?.let { AddTransactionContent(it, locale, viewModel) }
+        when (ready) {
+            false -> WriteError(Modifier.padding(Spacing.lg))
+            true -> state?.takeIf { it.editId == editId }?.let {
+                AddTransactionContent(it, locale, viewModel, saving, writeFailed)
+            }
+            null -> Unit
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddTransactionContent(state: AddUiState, locale: Locale, viewModel: AddTransactionViewModel) {
+private fun AddTransactionContent(
+    state: AddUiState,
+    locale: Locale,
+    viewModel: AddTransactionViewModel,
+    saving: Boolean,
+    writeFailed: Boolean,
+) {
     val form = state.form
     Column(
         Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState())
@@ -126,7 +159,8 @@ private fun AddTransactionContent(state: AddUiState, locale: Locale, viewModel: 
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         Text(
-            stringResource(if (state.editing) R.string.edit_title else R.string.add_title),
+            stringResource(if (state.editId != null) R.string.edit_title else R.string.add_title),
+            Modifier.semantics { heading() },
             style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp, lineHeight = 28.sp),
             fontWeight = FontWeight.Bold,
         )
@@ -134,10 +168,13 @@ private fun AddTransactionContent(state: AddUiState, locale: Locale, viewModel: 
         AmountField(
             form.amountText,
             form.type,
-            viewModel::setAmount,
+            { viewModel.setAmount(it, locale) },
             error = state.error?.takeIf { it != AddFormError.CATEGORY_MISSING },
         )
-        CategoryChips(state, viewModel::setCategory, viewModel::addCategory)
+        CategoryChips(
+            form.type, form.categoryId, state.categories, state.error == AddFormError.CATEGORY_MISSING,
+            viewModel::setCategory, viewModel::addCategory,
+        )
         Column {
             DateRow(form.date, state.today, locale, viewModel::setDate)
             QuickDates(form.date, state.today, viewModel::setDate)
@@ -145,8 +182,9 @@ private fun AddTransactionContent(state: AddUiState, locale: Locale, viewModel: 
             NoteRow(form.note, viewModel::setNote)
         }
         // Tutar geçerliyse düğme ne kaydedileceğini söyler: "Kaydet · 412,85 ₺".
-        val amountMinor = parseAmount(form.amountText, locale)?.takeIf { it > 0 }
-        Button(viewModel::save, Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+        val amountMinor = state.amountMinor?.takeIf { it > 0 }
+        if (writeFailed) WriteError()
+        Button(viewModel::save, Modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = !saving) {
             AnimatedContent(amountMinor, transitionSpec = { crossFade() }, label = "saveLabel") { minor ->
                 Text(
                     if (minor != null) stringResource(R.string.add_save_amount, formatMoney(minor, locale)) else stringResource(R.string.add_save),
@@ -188,12 +226,10 @@ private fun AmountField(text: String, type: TransactionType, onChange: (String) 
         Motion.fast(), label = "amountLine",
     )
     val signColor by animateColorAsState(if (income) incomeColor else colors.onSurfaceVariant, Motion.fast(), label = "amountSign")
-    var lastError by remember { mutableStateOf(errorText) }
-    if (errorText != null) lastError = errorText
     Column {
         BasicTextField(
             value = text,
-            onValueChange = { value -> onChange(value.filter { it.isDigit() || it == ',' || it == '.' }) },
+            onValueChange = onChange,
             modifier = Modifier.fillMaxWidth().focusRequester(focus).semantics {
                 contentDescription = label
                 if (errorText != null) error(errorText)
@@ -208,7 +244,7 @@ private fun AmountField(text: String, type: TransactionType, onChange: (String) 
                         AnimatedContent(income, transitionSpec = { countSlide(targetState) }, label = "amountSign") { inc ->
                             Text(if (inc) "+" else "−", style = MoneyInputValue, color = signColor, modifier = Modifier.padding(end = Spacing.xs))
                         }
-                        Column(Modifier.weight(1f)) {
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                             if (text.isEmpty()) {
                                 Text("0", style = MoneyInputValue, color = colors.onSurfaceVariant.copy(alpha = .5f))
                             }
@@ -221,8 +257,10 @@ private fun AmountField(text: String, type: TransactionType, onChange: (String) 
                 }
             },
         )
-        AnimatedVisibility(errorText != null, enter = fadeIn(Motion.fast()) + expandVertically(Motion.fast()), exit = fadeOut(Motion.fast()) + shrinkVertically(Motion.fast())) {
-            Text(lastError.orEmpty(), color = colors.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = Spacing.xs))
+        AnimatedContent(errorText, transitionSpec = { crossFade() }, label = "amountError") { message ->
+            if (message != null) {
+                Text(message, color = colors.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = Spacing.xs))
+            }
         }
     }
 }
@@ -235,24 +273,43 @@ private fun errorRes(error: AddFormError) = when (error) {
 }
 
 @Composable
-private fun CategoryChips(state: AddUiState, onSelect: (Long) -> Unit, onCreate: (name: String, icon: String) -> Unit) {
+private fun WriteError(modifier: Modifier = Modifier) {
+    Text(
+        stringResource(R.string.add_error_write),
+        modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        color = MaterialTheme.colorScheme.error,
+        style = MaterialTheme.typography.bodySmall,
+    )
+}
+
+private data class CategoryChoices(val type: TransactionType, val selectedId: Long?, val categories: List<CategoryEntity>)
+
+@Composable
+private fun CategoryChips(
+    type: TransactionType,
+    selectedId: Long?,
+    categories: List<CategoryEntity>,
+    missing: Boolean,
+    onSelect: (Long) -> Unit,
+    onCreate: (name: String, icon: String) -> Unit,
+) {
     var creating by rememberSaveable { mutableStateOf(false) }
     // Gider/Gelir değişince çipler kayarak değişir; aynı türde seçim yalnız renkle geçer.
     AnimatedContent(
-        state,
-        transitionSpec = { slideFade(targetState.form.type == TransactionType.INCOME) },
-        contentKey = { it.form.type },
+        CategoryChoices(type, selectedId, categories),
+        transitionSpec = { slideFade(targetState.type == TransactionType.INCOME) },
+        contentKey = { it.type },
         label = "addCategories",
     ) { shown ->
         FlowRow(
-            Modifier.fillMaxWidth().animateContentSize(Motion.enter()),
+            Modifier.fillMaxWidth().selectableGroup().animateContentSize(Motion.enter()),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             shown.categories.forEach { category ->
                 SeyirChip(
                     categoryName(category.key, category.name),
-                    selected = category.id == shown.form.categoryId,
+                    selected = category.id == shown.selectedId,
                     onClick = { onSelect(category.id) },
                     icon = categoryIcon(category.icon),
                 )
@@ -266,8 +323,13 @@ private fun CategoryChips(state: AddUiState, onSelect: (Long) -> Unit, onCreate:
             )
         }
     }
-    AnimatedVisibility(state.error == AddFormError.CATEGORY_MISSING, enter = fadeIn(Motion.fast()) + expandVertically(Motion.fast()), exit = fadeOut(Motion.fast()) + shrinkVertically(Motion.fast())) {
-        Text(stringResource(R.string.add_error_category), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+    AnimatedVisibility(missing, enter = fadeIn(Motion.fast()) + expandVertically(Motion.fast()), exit = fadeOut(Motion.fast()) + shrinkVertically(Motion.fast())) {
+        Text(
+            stringResource(R.string.add_error_category),
+            Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
     if (creating) {
         CategoryDialog(
@@ -285,9 +347,10 @@ private fun CategoryChips(state: AddUiState, onSelect: (Long) -> Unit, onCreate:
 @Composable
 private fun QuickDates(date: LocalDate, today: LocalDate, onPick: (LocalDate) -> Unit) {
     val yesterday = today.minusDays(1)
-    Row(
-        Modifier.fillMaxWidth().padding(start = 24.dp + Spacing.md, bottom = Spacing.sm),
+    FlowRow(
+        Modifier.fillMaxWidth().selectableGroup().padding(start = 24.dp + Spacing.md, bottom = Spacing.sm),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         SeyirChip(stringResource(R.string.add_today), date == today, { onPick(today) })
         SeyirChip(stringResource(R.string.add_yesterday), date == yesterday, { onPick(yesterday) })
@@ -312,9 +375,13 @@ private fun DateRow(date: LocalDate, today: LocalDate, locale: Locale, onPick: (
     var open by rememberSaveable { mutableStateOf(false) }
     // Bugünse sol "Bugün", sağ tam tarih; değilse sol tarih, sağ yalnız haftanın günü (tekrar olmasın).
     val isToday = date == today
-    val title = if (isToday) stringResource(R.string.add_today) else DateTimeFormatter.ofPattern("d MMMM yyyy", locale).format(date)
-    val full = DateTimeFormatter.ofPattern(if (isToday) "d MMMM EEEE" else "EEEE", locale).format(date)
-    SheetRow(R.drawable.ic_seyir_calendar, Modifier.clickable { open = true }) {
+    val title = if (isToday) stringResource(R.string.add_today) else remember(date, locale) {
+        DateTimeFormatter.ofPattern("d MMMM yyyy", locale).format(date)
+    }
+    val full = remember(date, isToday, locale) {
+        DateTimeFormatter.ofPattern(if (isToday) "d MMMM EEEE" else "EEEE", locale).format(date)
+    }
+    SheetRow(R.drawable.ic_seyir_calendar, Modifier.clickable(role = Role.Button) { open = true }) {
         Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         Text(full, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
     }
@@ -323,20 +390,25 @@ private fun DateRow(date: LocalDate, today: LocalDate, locale: Locale, onPick: (
         val todayMillis = today.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         val picker = rememberDatePickerState(
             initialSelectedDateMillis = date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
-            selectableDates = object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis <= todayMillis
-                override fun isSelectableYear(year: Int) = year <= today.year
+            yearRange = minOf(1900, date.year, today.year)..maxOf(2100, date.year, today.year),
+            selectableDates = remember(today) {
+                object : SelectableDates {
+                    override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis <= todayMillis
+                    override fun isSelectableYear(year: Int) = year <= today.year
+                }
             },
         )
         DatePickerDialog(
             onDismissRequest = { open = false },
             confirmButton = {
-                TextButton({
-                    picker.selectedDateMillis?.let {
-                        onPick(java.time.Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate())
-                    }
-                    open = false
-                }) { Text(stringResource(R.string.add_pick)) }
+                val selected = picker.selectedDateMillis?.takeIf { it <= todayMillis }
+                TextButton(
+                    onClick = {
+                        selected?.let { onPick(Instant.ofEpochMilli(it).atOffset(ZoneOffset.UTC).toLocalDate()) }
+                        open = false
+                    },
+                    enabled = selected != null,
+                ) { Text(stringResource(R.string.add_pick)) }
             },
             dismissButton = { TextButton({ open = false }) { Text(stringResource(R.string.add_cancel)) } },
         ) { DatePicker(picker) }

@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -101,7 +102,7 @@ fun SummaryScreen(
         when {
             first -> FirstLaunch(onAdd)
             shown == null -> Unit
-            shown.isEmpty -> EmptyMonth(shown, onPreviousMonth = viewModel::previousMonth, onNextMonth = viewModel::nextMonth, onAdd = onAdd)
+            shown.isEmpty -> EmptyMonth(shown, viewModel::previousMonth, viewModel::nextMonth, viewModel::selectMonth, onAdd)
             else -> SummaryContent(
                 shown, onPreviousMonth = viewModel::previousMonth, onNextMonth = viewModel::nextMonth, onSeeAll = onSeeAll,
                 highlightId = highlightId, onOpen = onOpen,
@@ -131,7 +132,13 @@ private fun FirstLaunch(onAdd: () -> Unit) {
 
 /** Pano 7 · Yeni ay: kayıt yokken ay başlığı, çağrı ve geçen ayın kapanışı. */
 @Composable
-private fun EmptyMonth(state: SummaryUiState, onPreviousMonth: () -> Unit, onNextMonth: () -> Unit, onAdd: () -> Unit) {
+private fun EmptyMonth(
+    state: SummaryUiState,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onSelectMonth: (YearMonth) -> Unit,
+    onAdd: () -> Unit,
+) {
     val locale = LocalConfiguration.current.locales[0]
     val monthsIn = stringArrayResource(R.array.month_in)
     Column(
@@ -152,13 +159,11 @@ private fun EmptyMonth(state: SummaryUiState, onPreviousMonth: () -> Unit, onNex
         ) {
             SeyirButton(stringResource(R.string.add_open), onAdd, icon = R.drawable.ic_seyir_plus)
         }
-        val previous = state.previousMonth
-        val net = state.previousNet
-        if (previous != null && net != null) {
+        state.previousNet?.let { (previous, net) ->
             val colors = MaterialTheme.colorScheme
             Row(
                 Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(MaterialTheme.shapes.large)
-                    .background(colors.surfaceContainer).clickable(onClick = onPreviousMonth)
+                    .background(colors.surfaceContainer).clickable(role = Role.Button) { onSelectMonth(previous) }
                     .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -234,7 +239,7 @@ private fun Hero(state: SummaryUiState, locale: Locale) {
         state.spentPercent?.let {
             Text(
                 // %100'ü geçen oran okunmaz; o zaman yalnız aşıldığı söylenir.
-                if (it > 100) stringResource(R.string.summary_overspent) else stringResource(R.string.summary_spent, it),
+                if (state.overspent) stringResource(R.string.summary_overspent) else stringResource(R.string.summary_spent, it),
                 color = colors.onPrimaryContainer,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Normal,
@@ -303,7 +308,7 @@ private fun RecentSection(state: SummaryUiState, locale: Locale, onSeeAll: () ->
                 income = income,
                 modifier = Modifier
                     .graphicsLayer { alpha = appear.value; translationY = (appear.value - 1f) * 6.dp.toPx() }
-                    .clickable { onOpen(row.id) },
+                    .clickable(role = Role.Button) { onOpen(row.id) },
                 highlighted = row.id == highlightId,
                 horizontalPadding = Spacing.lg,
             )
@@ -318,8 +323,8 @@ private fun SummaryPreview() = MaliyemTheme {
         SummaryUiState(
             month = YearMonth.of(2026, 11),
             previousMonth = YearMonth.of(2026, 9),
-            incomeMinor = 3_170_000,
-            expenseMinor = 2_207_665,
+            incomeMinor = 3_170_000.toBigInteger(),
+            expenseMinor = 2_207_665.toBigInteger(),
             recent = listOf(
                 SummaryRow(21, TransactionType.EXPENSE, 41_285, "Migros", "groceries", null, "cart"),
                 SummaryRow(20, TransactionType.EXPENSE, 60_000, "Berber", DefaultCategories.OTHER_EXPENSE, null, "dots"),
