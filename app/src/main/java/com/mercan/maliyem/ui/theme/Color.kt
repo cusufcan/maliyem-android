@@ -74,3 +74,12 @@ val DarkMoneyColors = MoneyColors(
 )
 
 val LocalMoneyColors = staticCompositionLocalOf { LightMoneyColors }
+
+/** Seçili segment ve çip (pano --sel/--osel); şemada tam karşılığı yok. */
+@Immutable
+data class SelectionColors(val container: Color, val content: Color)
+
+val LightSelectionColors = SelectionColors(Color(0xFF644789), Color(0xFFFFFFFF))
+val DarkSelectionColors = SelectionColors(Color(0xFFDBB8FF), Color(0xFF381E72))
+
+val LocalSelectionColors = staticCompositionLocalOf { LightSelectionColors }

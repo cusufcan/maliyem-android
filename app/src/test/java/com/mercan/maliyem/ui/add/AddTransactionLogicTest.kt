@@ -65,4 +65,11 @@ class AddTransactionLogicTest {
     }
 
     private fun cat(id: Long) = CategoryEntity(id = id, type = TransactionType.INCOME, icon = "dots", sortOrder = 0)
+
+    @Test fun `edit text shows the stored amount`() {
+        val tr = Locale.forLanguageTag("tr")
+        assertEquals("120,50", amountInputText(12050, tr))
+        assertEquals("120.05", amountInputText(12005, Locale.US))
+        assertEquals("75", amountInputText(7500, tr))
+    }
 }

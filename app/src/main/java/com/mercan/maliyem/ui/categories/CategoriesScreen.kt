@@ -1,0 +1,169 @@
+package com.mercan.maliyem.ui.categories
+
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mercan.maliyem.R
+import com.mercan.maliyem.data.local.TransactionType
+import com.mercan.maliyem.data.repository.isFallback
+import com.mercan.maliyem.ui.components.BackHeader
+import com.mercan.maliyem.ui.components.CategoryCircle
+import com.mercan.maliyem.ui.components.SeyirButton
+import com.mercan.maliyem.ui.components.SeyirSegmented
+import com.mercan.maliyem.ui.components.SubText
+import com.mercan.maliyem.ui.components.categoryName
+import com.mercan.maliyem.ui.theme.Motion
+import com.mercan.maliyem.ui.theme.SeyirIcon
+import com.mercan.maliyem.ui.theme.Spacing
+import com.mercan.maliyem.ui.theme.categoryIcon
+import com.mercan.maliyem.ui.theme.slideFade
+
+private val types = listOf(TransactionType.EXPENSE, TransactionType.INCOME)
+
+/** Açık iletişim kutusu: yeni kategori (id 0) ya da düzenlenen kategori. */
+private const val NONE = -1L
+
+@Composable
+fun CategoriesScreen(onBack: () -> Unit, viewModel: CategoriesViewModel = hiltViewModel()) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val current = state ?: return
+    var editing by rememberSaveable { mutableLongStateOf(NONE) }
+    var confirmDelete by rememberSaveable { mutableLongStateOf(NONE) }
+    val colors = MaterialTheme.colorScheme
+
+    Column(
+        Modifier.fillMaxSize().padding(top = Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        Column(Modifier.padding(horizontal = Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            BackHeader(stringResource(R.string.settings_categories), onBack)
+            SeyirSegmented(
+                listOf(stringResource(R.string.add_expense), stringResource(R.string.add_income)),
+                types.indexOf(current.type),
+                { viewModel.setType(types[it]) },
+            )
+        }
+        // Tür değişince liste yönlü kayar; aynı tür içinde ekleme/silme satır animasyonuyla olur (ADR-0016).
+        AnimatedContent(
+            current,
+            Modifier.weight(1f),
+            transitionSpec = { slideFade(types.indexOf(targetState.type) > types.indexOf(initialState.type)) },
+            contentKey = { it.type },
+            label = "categoriesType",
+        ) { shown ->
+            val items = shown.items
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.lg),
+            ) {
+                itemsIndexed(items, key = { _, item -> item.category.id }) { index, item ->
+                    val c = item.category
+                    val records = if (item.count > 0) pluralStringResource(R.plurals.records, item.count, item.count)
+                    else stringResource(R.string.categories_no_records)
+                    val sub = if (c.isFallback()) records + stringResource(R.string.categories_fixed) else records
+                    val top = if (index == 0) 20.dp else 0.dp
+                    val bottom = if (index == items.lastIndex) 20.dp else 0.dp
+                    Column(
+                        Modifier.animateItem(fadeInSpec = Motion.enter(), fadeOutSpec = Motion.fast())
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(top, top, bottom, bottom))
+                            .background(colors.surfaceContainer),
+                    ) {
+                        if (index > 0) HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = colors.outlineVariant)
+                        Row(
+                            Modifier.fillMaxWidth().clickable { editing = c.id }.heightIn(min = 64.dp)
+                                .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                        ) {
+                            CategoryCircle(categoryIcon(c.icon))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    categoryName(c.key, c.name), style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                                SubText(sub)
+                            }
+                            SeyirIcon(R.drawable.ic_seyir_chevron_right, tint = colors.onSurfaceVariant)
+                        }
+                    }
+                }
+                item(key = "add") {
+                    SeyirButton(
+                        stringResource(R.string.categories_add), { editing = 0L },
+                        Modifier.animateItem().fillMaxWidth().padding(top = Spacing.md), icon = R.drawable.ic_seyir_plus, tonal = true,
+                    )
+                }
+                item(key = "note") {
+                    SubText(
+                        stringResource(R.string.categories_note),
+                        Modifier.animateItem().padding(top = Spacing.md, start = Spacing.xs, end = Spacing.xs),
+                    )
+                }
+            }
+        }
+    }
+
+    if (editing != NONE) {
+        val category = current.items.firstOrNull { it.category.id == editing }?.category
+        CategoryDialog(
+            category = category,
+            onDismiss = { editing = NONE },
+            onSave = { name, icon ->
+                if (category == null) viewModel.add(current.type, name, icon) else viewModel.update(category, name, icon)
+                editing = NONE
+            },
+            onDelete = category?.takeUnless { it.isFallback() }?.let { { confirmDelete = it.id; editing = NONE } },
+        )
+    }
+    if (confirmDelete != NONE) {
+        val item = current.items.firstOrNull { it.category.id == confirmDelete }
+        if (item == null) confirmDelete = NONE else {
+            AlertDialog(
+                onDismissRequest = { confirmDelete = NONE },
+                title = { Text(stringResource(R.string.categories_delete_title, categoryName(item.category.key, item.category.name))) },
+                text = {
+                    Text(
+                        if (item.count > 0) pluralStringResource(R.plurals.categories_delete_body, item.count, item.count)
+                        else stringResource(R.string.categories_delete_empty),
+                    )
+                },
+                confirmButton = {
+                    TextButton({ viewModel.delete(item.category); confirmDelete = NONE }) { Text(stringResource(R.string.detail_delete)) }
+                },
+                dismissButton = { TextButton({ confirmDelete = NONE }) { Text(stringResource(R.string.add_cancel)) } },
+            )
+        }
+    }
+}

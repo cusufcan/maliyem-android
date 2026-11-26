@@ -1,5 +1,6 @@
 package com.mercan.maliyem.data.repository
 
+import com.mercan.maliyem.data.local.CategoryCount
 import com.mercan.maliyem.data.local.TransactionDao
 import com.mercan.maliyem.data.local.TransactionEntity
 import com.mercan.maliyem.data.local.TransactionType
@@ -29,6 +30,9 @@ class RoomTransactionRepositoryTest {
         override suspend fun deleteById(id: Long) { deleted = id }
         override suspend fun update(transaction: TransactionEntity) = Unit
         override suspend fun delete(transaction: TransactionEntity) = Unit
+        override fun observeById(id: Long): Flow<TransactionWithCategory?> = emptyFlow()
+        override suspend fun getById(id: Long): TransactionEntity? = null
+        override fun observeCounts(): Flow<List<CategoryCount>> = flowOf(emptyList())
     }
 
     private fun rangeOf(month: YearMonth) = RangeDao().also { RoomTransactionRepository(it).observeMonth(month) }.range

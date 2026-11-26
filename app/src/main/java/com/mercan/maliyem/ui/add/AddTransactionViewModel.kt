@@ -29,6 +29,8 @@ private const val KEY_CATEGORY = "category"
 private const val KEY_DATE = "date"
 private const val KEY_NOTE = "note"
 private const val KEY_TRIED = "tried"
+private const val KEY_EDIT = "edit"
+private const val KEY_CREATED = "created"
 
 data class AddUiState(
     val form: AddForm,
@@ -36,16 +38,18 @@ data class AddUiState(
     val today: LocalDate,
     /** İlk Kaydet denemesinden önce hata gösterilmez. */
     val error: AddFormError?,
+    /** Düzenleme kipinde başlık "Kaydı düzenle" olur. */
+    val editing: Boolean = false,
 )
 
 /** Kaydedilen kaydın Özet'e dönüşte vurgulanması ve geri alınması için. */
-data class SavedEntry(val id: Long, val type: TransactionType, val date: LocalDate)
+data class SavedEntry(val id: Long, val type: TransactionType, val date: LocalDate, val edited: Boolean = false)
 
 @HiltViewModel
 class AddTransactionViewModel @Inject constructor(
     private val savedState: SavedStateHandle,
     private val transactions: TransactionRepository,
-    categories: CategoryRepository,
+    private val categories: CategoryRepository,
     private val clock: Clock,
 ) : ViewModel() {
 
@@ -56,6 +60,7 @@ class AddTransactionViewModel @Inject constructor(
     private val date = savedState.getStateFlow<String?>(KEY_DATE, null)
     private val note = savedState.getStateFlow(KEY_NOTE, "")
     private val tried = savedState.getStateFlow(KEY_TRIED, false)
+    private val editId = savedState.getStateFlow<Long?>(KEY_EDIT, null)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val typeCategories = type.flatMapLatest { categories.observeByType(TransactionType.valueOf(it)) }
@@ -66,9 +71,9 @@ class AddTransactionViewModel @Inject constructor(
 
     private var locale: Locale = Locale.getDefault()
 
-    val uiState: StateFlow<AddUiState?> = combine(form, typeCategories, tried) { f, list, t ->
+    val uiState: StateFlow<AddUiState?> = combine(form, typeCategories, tried, editId) { f, list, t, edit ->
         val resolved = f.copy(categoryId = pickCategory(f.categoryId, list))
-        AddUiState(resolved, list, LocalDate.now(clock), if (t) firstError(resolved) else null)
+        AddUiState(resolved, list, LocalDate.now(clock), if (t) firstError(resolved) else null, edit != null)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val savedEvents = Channel<SavedEntry>(Channel.BUFFERED)
@@ -83,15 +88,44 @@ class AddTransactionViewModel @Inject constructor(
     fun setDate(value: LocalDate) { savedState[KEY_DATE] = value.toString() }
     fun setNote(value: String) { savedState[KEY_NOTE] = value }
 
+    /** "+ Yeni" çipinden: kategoriyi seçili türe ekler ve seçili getirir (ADR-0017). */
+    fun addCategory(name: String, icon: String) {
+        val t = TransactionType.valueOf(type.value)
+        viewModelScope.launch { setCategory(categories.add(t, name, icon)) }
+    }
+
     fun save() {
         val form = uiState.value?.form ?: return
         when (val result = buildEntity(form, locale, clock.millis())) {
             is Result.Invalid -> savedState[KEY_TRIED] = true
             is Result.Valid -> viewModelScope.launch {
-                val id = transactions.add(result.entity)
+                val edit = editId.value
+                val id = if (edit != null) {
+                    // Düzenlemede kimlik ve ilk oluşturulma anı korunur; sıralama bozulmaz.
+                    transactions.update(result.entity.copy(id = edit, createdAt = savedState[KEY_CREATED] ?: result.entity.createdAt))
+                    edit
+                } else {
+                    transactions.add(result.entity)
+                }
                 reset()
-                savedEvents.send(SavedEntry(id, result.entity.type, result.entity.date))
+                savedEvents.send(SavedEntry(id, result.entity.type, result.entity.date, edited = edit != null))
             }
+        }
+    }
+
+    /** Kaydı forma yükler; aynı kayıt zaten açıksa (ekran dönünce) yazılanlar korunur. */
+    fun startEdit(id: Long) {
+        if (editId.value == id) return
+        viewModelScope.launch {
+            val entity = transactions.get(id) ?: return@launch
+            savedState[KEY_TYPE] = entity.type.name
+            savedState[KEY_AMOUNT] = amountInputText(entity.amountMinor, locale)
+            savedState[KEY_CATEGORY] = entity.categoryId
+            savedState[KEY_DATE] = entity.date.toString()
+            savedState[KEY_NOTE] = entity.note.orEmpty()
+            savedState[KEY_TRIED] = false
+            savedState[KEY_CREATED] = entity.createdAt
+            savedState[KEY_EDIT] = id
         }
     }
 
@@ -103,5 +137,6 @@ class AddTransactionViewModel @Inject constructor(
         savedState[KEY_DATE] = null
         savedState[KEY_NOTE] = ""
         savedState[KEY_TRIED] = false
+        savedState[KEY_EDIT] = null
     }
 }

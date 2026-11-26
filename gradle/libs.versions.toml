@@ -8,6 +8,7 @@ composeBom = "2026.11.01"
 activityCompose = "1.13.0"
 lifecycle = "2.11.1"
 coreKtx = "1.19.1"
+appcompat = "1.8.0"
 hiltNavigationCompose = "1.4.0"
 room = "2.8.5"
 junit = "4.13.2"
@@ -16,6 +17,7 @@ navigationCompose = "2.10.2"
 serializationJson = "1.13.0"
 
 [libraries]
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }

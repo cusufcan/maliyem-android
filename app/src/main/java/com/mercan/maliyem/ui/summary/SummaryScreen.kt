@@ -1,38 +1,43 @@
 package com.mercan.maliyem.ui.summary
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
+import com.mercan.maliyem.ui.theme.Motion
+import com.mercan.maliyem.ui.theme.countSlide
+import com.mercan.maliyem.ui.theme.crossFade
+import com.mercan.maliyem.ui.theme.slideFade
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.res.stringArrayResource
+import com.mercan.maliyem.ui.components.EmptyState
+import com.mercan.maliyem.ui.components.Eyebrow
+import com.mercan.maliyem.ui.components.MonthHeader
+import com.mercan.maliyem.ui.components.SeyirButton
+import com.mercan.maliyem.ui.components.SubText
+import com.mercan.maliyem.ui.components.categoryName
+import com.mercan.maliyem.ui.components.monthTitle
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,7 +50,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -56,7 +60,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
 import com.mercan.maliyem.data.local.DefaultCategories
 import com.mercan.maliyem.data.local.TransactionType
-import com.mercan.maliyem.ui.add.AddTransactionSheet
 import com.mercan.maliyem.ui.components.TransactionRow
 import com.mercan.maliyem.ui.theme.LocalMoneyColors
 import com.mercan.maliyem.ui.theme.MaliyemTheme
@@ -66,56 +69,109 @@ import com.mercan.maliyem.ui.theme.Spacing
 import com.mercan.maliyem.util.formatMoney
 import com.mercan.maliyem.util.splitFraction
 import java.time.YearMonth
-import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlinx.coroutines.launch
 
+/**
+ * Özet sekmesi. Ekle düğmesi, alt sayfa ve snackbar uygulama düzeyinde (ADR-0010); burada yalnız içerik çizilir.
+ * [firstLaunch] hiç kayıt yokken ilk açılış boş durumunu gösterir.
+ */
 @Composable
-fun SummaryScreen(onSeeAll: () -> Unit, viewModel: SummaryViewModel = hiltViewModel()) {
+fun SummaryScreen(
+    highlightId: Long?,
+    firstLaunch: Boolean,
+    onSeeAll: () -> Unit,
+    onOpen: (Long) -> Unit,
+    onAdd: () -> Unit,
+    viewModel: SummaryViewModel = hiltViewModel(),
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val snackbar = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    // Alt sayfa ayrı rota değil, bu ekranın durumu (ADR-0008).
-    var sheetOpen by rememberSaveable { mutableStateOf(false) }
-    var highlightId by rememberSaveable { mutableStateOf<Long?>(null) }
-    val savedExpense = stringResource(R.string.add_saved_expense)
-    val savedIncome = stringResource(R.string.add_saved_income)
-    val undoLabel = stringResource(R.string.add_undo)
-    Scaffold(
-        containerColor = Color.Transparent,
-        contentWindowInsets = WindowInsets(0),
-        snackbarHost = { SnackbarHost(snackbar) },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { sheetOpen = true },
-                icon = { SeyirIcon(R.drawable.ic_seyir_plus) },
-                text = { Text(stringResource(R.string.add_open), fontWeight = FontWeight.SemiBold) },
-                shape = MaterialTheme.shapes.medium,
-            )
+    // İlk açılış, boş ay ve dolu ay arası solarak; ay değişimi yönlü kayarak geçer (ADR-0016).
+    AnimatedContent(
+        firstLaunch to state,
+        Modifier.fillMaxSize(),
+        transitionSpec = {
+            val from = initialState.second
+            val to = targetState.second
+            if (!initialState.first && !targetState.first && from != null && to != null && from.month != to.month) slideFade(to.month > from.month)
+            else crossFade()
         },
-    ) { padding ->
-        state?.let {
-            SummaryContent(
-                it, onPreviousMonth = viewModel::previousMonth, onNextMonth = viewModel::nextMonth, onSeeAll = onSeeAll,
-                modifier = Modifier.padding(padding), highlightId = highlightId,
+        contentKey = { (first, s) -> if (first) "first" else s?.let { it.month to it.isEmpty } },
+        label = "summary",
+    ) { (first, shown) ->
+        when {
+            first -> FirstLaunch(onAdd)
+            shown == null -> Unit
+            shown.isEmpty -> EmptyMonth(shown, onPreviousMonth = viewModel::previousMonth, onNextMonth = viewModel::nextMonth, onAdd = onAdd)
+            else -> SummaryContent(
+                shown, onPreviousMonth = viewModel::previousMonth, onNextMonth = viewModel::nextMonth, onSeeAll = onSeeAll,
+                highlightId = highlightId, onOpen = onOpen,
             )
         }
     }
-    if (sheetOpen) {
-        AddTransactionSheet(
-            onDismiss = { sheetOpen = false },
-            onSaved = { entry ->
-                sheetOpen = false
-                viewModel.showMonth(entry.date)
-                highlightId = entry.id
-                scope.launch {
-                    val message = if (entry.type == TransactionType.INCOME) savedIncome else savedExpense
-                    val result = snackbar.showSnackbar(message, actionLabel = undoLabel, duration = SnackbarDuration.Short)
-                    if (result == SnackbarResult.ActionPerformed) viewModel.undo(entry.id)
-                    highlightId = null
-                }
-            },
+}
+
+/** Pano 7 · İlk açılış. */
+@Composable
+private fun FirstLaunch(onAdd: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.lg),
+    ) {
+        EmptyState(
+            R.drawable.ic_seyir_wallet,
+            stringResource(R.string.empty_first_title),
+            stringResource(R.string.empty_first_body),
+            Modifier.weight(1f),
+        ) {
+            SubText(stringResource(R.string.empty_first_note), Modifier.padding(top = 0.dp))
+            SeyirButton(stringResource(R.string.empty_first_add), onAdd, icon = R.drawable.ic_seyir_plus)
+        }
+    }
+}
+
+/** Pano 7 · Yeni ay: kayıt yokken ay başlığı, çağrı ve geçen ayın kapanışı. */
+@Composable
+private fun EmptyMonth(state: SummaryUiState, onPreviousMonth: () -> Unit, onNextMonth: () -> Unit, onAdd: () -> Unit) {
+    val locale = LocalConfiguration.current.locales[0]
+    val monthsIn = stringArrayResource(R.array.month_in)
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        MonthHeader(
+            state.month, locale,
+            onPrevious = onPreviousMonth.takeIf { state.previousMonth != null },
+            onNext = onNextMonth.takeIf { state.nextMonth != null },
         )
+        EmptyState(
+            R.drawable.ic_seyir_calendar,
+            stringResource(R.string.empty_month_title, monthsIn[state.month.monthValue - 1]),
+            stringResource(R.string.empty_month_body),
+            Modifier.weight(1f),
+        ) {
+            SeyirButton(stringResource(R.string.add_open), onAdd, icon = R.drawable.ic_seyir_plus)
+        }
+        val previous = state.previousMonth
+        val net = state.previousNet
+        if (previous != null && net != null) {
+            val colors = MaterialTheme.colorScheme
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(MaterialTheme.shapes.large)
+                    .background(colors.surfaceContainer).clickable(onClick = onPreviousMonth)
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    SubText(stringResource(R.string.empty_month_last))
+                    Text(
+                        stringResource(R.string.empty_month_closed, monthTitle("LLLL", previous, locale), formatMoney(net, locale, signed = true)),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"),
+                    )
+                }
+                SeyirIcon(R.drawable.ic_seyir_chevron_right, tint = colors.onSurfaceVariant)
+            }
+        }
     }
 }
 
@@ -127,12 +183,13 @@ fun SummaryContent(
     onSeeAll: () -> Unit,
     modifier: Modifier = Modifier,
     highlightId: Long? = null,
+    onOpen: (Long) -> Unit = {},
 ) {
     val locale = LocalConfiguration.current.locales[0]
     Column(
         modifier.fillMaxSize().verticalScroll(rememberScrollState())
-            // Alttaki ek boşluk son satırın Ekle düğmesinin altında kalmaması için.
-            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.lg + 72.dp),
+            // Alttaki 88 dp (pano .scr) son satırın Ekle düğmesinin altında kalmaması için.
+            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         MonthHeader(
@@ -152,40 +209,9 @@ fun SummaryContent(
                 MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.colorScheme.onSurface, Modifier.weight(1f),
             )
         }
-        RecentSection(state, locale, onSeeAll, highlightId)
+        RecentSection(state, locale, onSeeAll, highlightId, onOpen)
     }
 }
-
-private fun monthTitle(pattern: String, month: YearMonth, locale: Locale) =
-    DateTimeFormatter.ofPattern(pattern, locale).format(month).replaceFirstChar { it.titlecase(locale) }
-
-@Composable
-private fun MonthHeader(month: YearMonth, locale: Locale, onPrevious: (() -> Unit)?, onNext: (() -> Unit)?) {
-    val tint = MaterialTheme.colorScheme.onSurfaceVariant
-    // Gidilecek ay yoksa düğme pasif; M3'ün pasif içerik saydamlığı (%38).
-    fun tintFor(action: (() -> Unit)?) = if (action != null) tint else tint.copy(alpha = .38f)
-    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-        // İkon kenarla hizalansın diye 48 dp düğme 12 dp dışarı taşar (pano: margin −12).
-        IconButton(onPrevious ?: {}, Modifier.offset(x = (-12).dp), enabled = onPrevious != null) {
-            SeyirIcon(R.drawable.ic_seyir_chevron_left, description = stringResource(R.string.summary_previous_month), tint = tintFor(onPrevious))
-        }
-        Text(
-            monthTitle("LLLL yyyy", month, locale),
-            Modifier.weight(1f).semantics { heading() },
-            style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp, lineHeight = 28.sp),
-            textAlign = TextAlign.Center,
-        )
-        IconButton(onNext ?: {}, Modifier.offset(x = 12.dp), enabled = onNext != null) {
-            SeyirIcon(R.drawable.ic_seyir_chevron_right, description = stringResource(R.string.summary_next_month), tint = tintFor(onNext))
-        }
-    }
-}
-
-@Composable
-private fun Eyebrow(text: String, modifier: Modifier = Modifier, color: Color = Color.Unspecified) = Text(
-    text, modifier, color = color,
-    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = .02.em),
-)
 
 @Composable
 private fun Hero(state: SummaryUiState, locale: Locale) {
@@ -195,16 +221,20 @@ private fun Hero(state: SummaryUiState, locale: Locale) {
         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
         Eyebrow(stringResource(R.string.summary_net, monthTitle("LLLL", state.month, locale)), color = colors.onPrimaryContainer)
-        BasicText(
-            heroAmount(formatMoney(state.netMinor, locale, signed = true), locale),
-            style = MoneyHeroValue.copy(color = colors.onPrimaryContainer),
-            maxLines = 1,
-            // Uzun tutar ve büyük yazı boyunda taşmak yerine küçülür.
-            autoSize = TextAutoSize.StepBased(minFontSize = 24.sp, maxFontSize = MoneyHeroValue.fontSize, stepSize = 2.sp),
-        )
+        // Kaydet ya da geri al sonrası net tutar artınca aşağıdan, azalınca yukarıdan kayarak güncellenir.
+        AnimatedContent(state.netMinor, transitionSpec = { countSlide(targetState > initialState) }, label = "heroNet") { net ->
+            BasicText(
+                heroAmount(formatMoney(net, locale, signed = true), locale),
+                style = MoneyHeroValue.copy(color = colors.onPrimaryContainer),
+                maxLines = 1,
+                // Uzun tutar ve büyük yazı boyunda taşmak yerine küçülür.
+                autoSize = TextAutoSize.StepBased(minFontSize = 24.sp, maxFontSize = MoneyHeroValue.fontSize, stepSize = 2.sp),
+            )
+        }
         state.spentPercent?.let {
             Text(
-                stringResource(R.string.summary_spent, it),
+                // %100'ü geçen oran okunmaz; o zaman yalnız aşıldığı söylenir.
+                if (it > 100) stringResource(R.string.summary_overspent) else stringResource(R.string.summary_spent, it),
                 color = colors.onPrimaryContainer,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Normal,
@@ -232,39 +262,38 @@ private fun Tile(icon: Int, label: String, amount: String, background: Color, co
             SeyirIcon(icon, size = 16.dp, tint = content)
             Text(label, color = content, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
         }
-        Text(
-            amount, color = content, maxLines = 1,
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = (-.01).em),
-            autoSize = TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 20.sp, stepSize = 1.sp),
-        )
+        AnimatedContent(amount, transitionSpec = { crossFade() }, label = "tileAmount") { shown ->
+            Text(
+                shown, color = content, maxLines = 1,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = (-.01).em),
+                autoSize = TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 20.sp, stepSize = 1.sp),
+            )
+        }
     }
 }
 
 @Composable
-private fun RecentSection(state: SummaryUiState, locale: Locale, onSeeAll: () -> Unit, highlightId: Long?) {
+private fun RecentSection(state: SummaryUiState, locale: Locale, onSeeAll: () -> Unit, highlightId: Long?, onOpen: (Long) -> Unit) {
     val colors = MaterialTheme.colorScheme
     Row(
         Modifier.fillMaxWidth().padding(start = Spacing.xs, top = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Eyebrow(stringResource(R.string.summary_recent), Modifier.weight(1f).semantics { heading() })
-        if (!state.isEmpty) {
-            TextButton(onSeeAll) {
-                Text(stringResource(R.string.summary_see_all), fontWeight = FontWeight.SemiBold)
-            }
+        TextButton(onSeeAll) {
+            Text(stringResource(R.string.summary_see_all), fontWeight = FontWeight.SemiBold)
         }
     }
     Column(
-        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(colors.surfaceContainer),
+        // Satır eklenip silinince kart boyu sıçramadan değişir.
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(colors.surfaceContainer).animateContentSize(Motion.enter()),
     ) {
-        if (state.isEmpty) {
-            Box(Modifier.fillMaxWidth().padding(vertical = Spacing.xl), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.summary_empty), color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-        state.recent.forEachIndexed { index, row ->
+        state.recent.forEachIndexed { index, row -> key(row.id) {
+            // Pano "nw": yeni kaydedilen satır yukarıdan 6 dp kayarak ve solarak gelir (200 ms).
+            val appear = remember { Animatable(if (row.id == highlightId) 0f else 1f) }
+            LaunchedEffect(Unit) { appear.animateTo(1f, Motion.enter()) }
             if (index > 0) HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = colors.outlineVariant)
-            val category = DefaultCategories.nameRes(row.categoryKey)?.let { stringResource(it) } ?: row.categoryName.orEmpty()
+            val category = categoryName(row.categoryKey, row.categoryName)
             val income = row.type == TransactionType.INCOME
             TransactionRow(
                 title = row.note ?: category,
@@ -272,10 +301,13 @@ private fun RecentSection(state: SummaryUiState, locale: Locale, onSeeAll: () ->
                 icon = row.icon,
                 amount = formatMoney(if (income) row.amountMinor else -row.amountMinor, locale, signed = true),
                 income = income,
+                modifier = Modifier
+                    .graphicsLayer { alpha = appear.value; translationY = (appear.value - 1f) * 6.dp.toPx() }
+                    .clickable { onOpen(row.id) },
                 highlighted = row.id == highlightId,
                 horizontalPadding = Spacing.lg,
             )
-        }
+        } }
     }
 }
 

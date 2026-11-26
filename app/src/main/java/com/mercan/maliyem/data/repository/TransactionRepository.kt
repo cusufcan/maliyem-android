@@ -16,10 +16,20 @@ interface TransactionRepository {
     /** En az bir kaydı olan aylar. */
     fun observeMonthsWithData(): Flow<Set<YearMonth>>
 
-    /** Yeni kaydı ekler, kimliğini döndürür. */
+    /** Tek kayıt; silinince null. */
+    fun observe(id: Long): Flow<TransactionWithCategory?>
+
+    /** Kategori kimliği → kayıt sayısı. */
+    fun observeCountsByCategory(): Flow<Map<Long, Int>>
+
+    suspend fun get(id: Long): TransactionEntity?
+
+    /** Yeni kaydı ekler, kimliğini döndürür. Kimliği dolu kayıt aynı kimlikle geri gelir (silmeyi geri al). */
     suspend fun add(transaction: TransactionEntity): Long
 
-    /** "Geri al" için; kayıt yoksa bir şey yapmaz. */
+    suspend fun update(transaction: TransactionEntity)
+
+    /** Kayıt yoksa bir şey yapmaz. */
     suspend fun delete(id: Long)
 }
 
@@ -30,7 +40,15 @@ class RoomTransactionRepository @Inject constructor(
 
     override fun observeMonthsWithData() = dao.observeDates().map { dates -> dates.mapTo(HashSet(), YearMonth::from) }
 
+    override fun observe(id: Long) = dao.observeById(id)
+
+    override fun observeCountsByCategory() = dao.observeCounts().map { list -> list.associate { it.categoryId to it.count } }
+
+    override suspend fun get(id: Long) = dao.getById(id)
+
     override suspend fun add(transaction: TransactionEntity) = dao.insert(transaction)
+
+    override suspend fun update(transaction: TransactionEntity) = dao.update(transaction)
 
     override suspend fun delete(id: Long) = dao.deleteById(id)
 }

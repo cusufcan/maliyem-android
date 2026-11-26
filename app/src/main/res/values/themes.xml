@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Yalnız pencere zemini; asıl tema Compose'da (MaliyemTheme). -->
-    <style name="Theme.Maliyem" parent="android:Theme.Material.Light.NoActionBar">
+    <!-- Yalnız pencere zemini; asıl tema Compose'da (MaliyemTheme). DayNight, uygulama içi tema seçimini izler. -->
+    <style name="Theme.Maliyem" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:windowBackground">@color/seyir_surface</item>
     </style>
 </resources>

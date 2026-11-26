@@ -23,6 +23,8 @@ data class SummaryUiState(
     /** ‹ › hedefleri; gidilecek ay yoksa null ve düğme pasif. */
     val previousMonth: YearMonth? = null,
     val nextMonth: YearMonth? = null,
+    /** Boş ay kartı: kaydı olan bir önceki ayın neti. */
+    val previousNet: Long? = null,
 ) {
     val netMinor: Long get() = incomeMinor - expenseMinor
     val isEmpty: Boolean get() = recent.isEmpty()

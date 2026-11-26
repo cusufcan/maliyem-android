@@ -1,5 +1,22 @@
 package com.mercan.maliyem.ui.add
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.ui.semantics.Role
+import com.mercan.maliyem.ui.categories.CategoryDialog
+import com.mercan.maliyem.ui.components.SeyirChip
+import com.mercan.maliyem.ui.theme.LocalMoneyColors
+import com.mercan.maliyem.ui.theme.Motion
+import com.mercan.maliyem.ui.theme.countSlide
+import com.mercan.maliyem.ui.theme.crossFade
+import com.mercan.maliyem.ui.theme.slideFade
+import com.mercan.maliyem.util.formatMoney
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,7 +30,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -22,14 +38,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SelectableDates
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -58,9 +70,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.mercan.maliyem.ui.components.SeyirSegmented
+import com.mercan.maliyem.ui.components.categoryName
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
-import com.mercan.maliyem.data.local.DefaultCategories
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.ui.theme.MoneyInputValue
 import com.mercan.maliyem.ui.theme.SeyirIcon
@@ -71,17 +84,19 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** Yeni kayıt alt sayfası. Kayıt olunca önce sayfa kapanır, sonra [onSaved] çağrılır. */
+/** Yeni kayıt alt sayfası; [editId] verilirse aynı form düzenleme için açılır. Kayıt olunca önce sayfa kapanır, sonra [onSaved] çağrılır. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionSheet(
     onDismiss: () -> Unit,
     onSaved: (SavedEntry) -> Unit,
+    editId: Long? = null,
     viewModel: AddTransactionViewModel = hiltViewModel(),
 ) {
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val locale = LocalConfiguration.current.locales[0]
     LaunchedEffect(locale) { viewModel.setLocale(locale) }
+    LaunchedEffect(editId) { editId?.let(viewModel::startEdit) }
     LaunchedEffect(viewModel) {
         viewModel.saved.collect { entry ->
             sheet.hide()
@@ -111,51 +126,70 @@ private fun AddTransactionContent(state: AddUiState, locale: Locale, viewModel: 
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         Text(
-            stringResource(R.string.add_title),
+            stringResource(if (state.editing) R.string.edit_title else R.string.add_title),
             style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp, lineHeight = 28.sp),
             fontWeight = FontWeight.Bold,
         )
         TypeSelector(form.type, viewModel::setType)
         AmountField(
             form.amountText,
+            form.type,
             viewModel::setAmount,
             error = state.error?.takeIf { it != AddFormError.CATEGORY_MISSING },
         )
-        CategoryChips(state, viewModel::setCategory)
+        CategoryChips(state, viewModel::setCategory, viewModel::addCategory)
         Column {
             DateRow(form.date, state.today, locale, viewModel::setDate)
+            QuickDates(form.date, state.today, viewModel::setDate)
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             NoteRow(form.note, viewModel::setNote)
         }
+        // Tutar geçerliyse düğme ne kaydedileceğini söyler: "Kaydet · 412,85 ₺".
+        val amountMinor = parseAmount(form.amountText, locale)?.takeIf { it > 0 }
         Button(viewModel::save, Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-            Text(stringResource(R.string.add_save), fontWeight = FontWeight.SemiBold)
+            AnimatedContent(amountMinor, transitionSpec = { crossFade() }, label = "saveLabel") { minor ->
+                Text(
+                    if (minor != null) stringResource(R.string.add_save_amount, formatMoney(minor, locale)) else stringResource(R.string.add_save),
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun TypeSelector(selected: TransactionType, onSelect: (TransactionType) -> Unit) {
-    val options = listOf(TransactionType.EXPENSE to R.string.add_expense, TransactionType.INCOME to R.string.add_income)
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-        options.forEachIndexed { index, (type, label) ->
-            SegmentedButton(
-                selected = type == selected,
-                onClick = { onSelect(type) },
-                shape = SegmentedButtonDefaults.itemShape(index, options.size),
-            ) { Text(stringResource(label)) }
-        }
-    }
+    val options = listOf(TransactionType.EXPENSE, TransactionType.INCOME)
+    SeyirSegmented(
+        options = listOf(stringResource(R.string.add_expense), stringResource(R.string.add_income)),
+        selected = options.indexOf(selected),
+        onSelect = { onSelect(options[it]) },
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
-private fun AmountField(text: String, onChange: (String) -> Unit, error: AddFormError?) {
+private fun AmountField(text: String, type: TransactionType, onChange: (String) -> Unit, error: AddFormError?) {
     val colors = MaterialTheme.colorScheme
+    val income = type == TransactionType.INCOME
+    val incomeColor = LocalMoneyColors.current.onIncomeContainer
     val focus = remember { FocusRequester() }
     // Sayfa açılınca klavye doğrudan tutara gelsin.
     LaunchedEffect(Unit) { focus.requestFocus() }
     val label = stringResource(R.string.add_amount)
     val errorText = error?.let { stringResource(errorRes(it)) }
-    val lineColor = if (errorText != null) colors.error else colors.primary
+    // Gider "−", gelir "+" ve yeşil; renk 150 ms'de geçer (ADR-0016).
+    val lineColor by animateColorAsState(
+        when {
+            errorText != null -> colors.error
+            income -> incomeColor
+            else -> colors.primary
+        },
+        Motion.fast(), label = "amountLine",
+    )
+    val signColor by animateColorAsState(if (income) incomeColor else colors.onSurfaceVariant, Motion.fast(), label = "amountSign")
+    var lastError by remember { mutableStateOf(errorText) }
+    if (errorText != null) lastError = errorText
     Column {
         BasicTextField(
             value = text,
@@ -171,6 +205,9 @@ private fun AmountField(text: String, onChange: (String) -> Unit, error: AddForm
             decorationBox = { inner ->
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        AnimatedContent(income, transitionSpec = { countSlide(targetState) }, label = "amountSign") { inc ->
+                            Text(if (inc) "+" else "−", style = MoneyInputValue, color = signColor, modifier = Modifier.padding(end = Spacing.xs))
+                        }
                         Column(Modifier.weight(1f)) {
                             if (text.isEmpty()) {
                                 Text("0", style = MoneyInputValue, color = colors.onSurfaceVariant.copy(alpha = .5f))
@@ -184,8 +221,8 @@ private fun AmountField(text: String, onChange: (String) -> Unit, error: AddForm
                 }
             },
         )
-        if (errorText != null) {
-            Text(errorText, color = colors.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = Spacing.xs))
+        AnimatedVisibility(errorText != null, enter = fadeIn(Motion.fast()) + expandVertically(Motion.fast()), exit = fadeOut(Motion.fast()) + shrinkVertically(Motion.fast())) {
+            Text(lastError.orEmpty(), color = colors.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = Spacing.xs))
         }
     }
 }
@@ -198,20 +235,62 @@ private fun errorRes(error: AddFormError) = when (error) {
 }
 
 @Composable
-private fun CategoryChips(state: AddUiState, onSelect: (Long) -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        state.categories.forEach { category ->
-            val name = DefaultCategories.nameRes(category.key)?.let { stringResource(it) } ?: category.name.orEmpty()
-            FilterChip(
-                selected = category.id == state.form.categoryId,
-                onClick = { onSelect(category.id) },
-                label = { Text(name) },
-                leadingIcon = { SeyirIcon(categoryIcon(category.icon), size = 18.dp) },
+private fun CategoryChips(state: AddUiState, onSelect: (Long) -> Unit, onCreate: (name: String, icon: String) -> Unit) {
+    var creating by rememberSaveable { mutableStateOf(false) }
+    // Gider/Gelir değişince çipler kayarak değişir; aynı türde seçim yalnız renkle geçer.
+    AnimatedContent(
+        state,
+        transitionSpec = { slideFade(targetState.form.type == TransactionType.INCOME) },
+        contentKey = { it.form.type },
+        label = "addCategories",
+    ) { shown ->
+        FlowRow(
+            Modifier.fillMaxWidth().animateContentSize(Motion.enter()),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            shown.categories.forEach { category ->
+                SeyirChip(
+                    categoryName(category.key, category.name),
+                    selected = category.id == shown.form.categoryId,
+                    onClick = { onSelect(category.id) },
+                    icon = categoryIcon(category.icon),
+                )
+            }
+            SeyirChip(
+                stringResource(R.string.add_new_category),
+                selected = false,
+                onClick = { creating = true },
+                icon = R.drawable.ic_seyir_plus,
+                role = Role.Button,
             )
         }
     }
-    if (state.error == AddFormError.CATEGORY_MISSING) {
+    AnimatedVisibility(state.error == AddFormError.CATEGORY_MISSING, enter = fadeIn(Motion.fast()) + expandVertically(Motion.fast()), exit = fadeOut(Motion.fast()) + shrinkVertically(Motion.fast())) {
         Text(stringResource(R.string.add_error_category), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+    }
+    if (creating) {
+        CategoryDialog(
+            category = null,
+            onDismiss = { creating = false },
+            onSave = { name, icon ->
+                onCreate(name, icon)
+                creating = false
+            },
+        )
+    }
+}
+
+/** Yaygın iki tarih tek dokunuşla; başka gün için takvim satırdan açılır. */
+@Composable
+private fun QuickDates(date: LocalDate, today: LocalDate, onPick: (LocalDate) -> Unit) {
+    val yesterday = today.minusDays(1)
+    Row(
+        Modifier.fillMaxWidth().padding(start = 24.dp + Spacing.md, bottom = Spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        SeyirChip(stringResource(R.string.add_today), date == today, { onPick(today) })
+        SeyirChip(stringResource(R.string.add_yesterday), date == yesterday, { onPick(yesterday) })
     }
 }
 
@@ -284,7 +363,5 @@ private fun NoteRow(note: String, onChange: (String) -> Unit) {
                 inner()
             },
         )
-        Spacer(Modifier.width(Spacing.xs))
-        Text(label, color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
     }
 }

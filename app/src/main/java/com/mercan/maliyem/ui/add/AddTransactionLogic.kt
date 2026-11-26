@@ -66,3 +66,11 @@ sealed interface Result {
     data class Valid(val entity: TransactionEntity) : Result
     data class Invalid(val error: AddFormError) : Result
 }
+
+/** Düzenlemede tutar alanına yazılacak metin: 12050 → "120,50" (TR), 300000 → "3000". Binlik ayırıcı konmaz. */
+fun amountInputText(minor: Long, locale: Locale): String {
+    val separator = java.text.DecimalFormatSymbols.getInstance(locale).decimalSeparator
+    val whole = minor / 100
+    val fraction = minor % 100
+    return if (fraction == 0L) whole.toString() else "$whole$separator${fraction.toString().padStart(2, '0')}"
+}

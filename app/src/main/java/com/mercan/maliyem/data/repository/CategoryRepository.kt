@@ -2,19 +2,48 @@ package com.mercan.maliyem.data.repository
 
 import com.mercan.maliyem.data.local.CategoryDao
 import com.mercan.maliyem.data.local.CategoryEntity
+import com.mercan.maliyem.data.local.DefaultCategories
 import com.mercan.maliyem.data.local.TransactionType
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 interface CategoryRepository {
-    /** [type] türündeki kategoriler, kullanıcının sırasıyla. */
+    fun observeAll(): Flow<List<CategoryEntity>>
+
+    /** [type] türündeki kategoriler, kullanıcının sırasıyla; "Diğer" hep sonda. */
     fun observeByType(type: TransactionType): Flow<List<CategoryEntity>>
+
+    /** Yeni kategori türünün sonuna ("Diğer"in önüne) eklenir. */
+    suspend fun add(type: TransactionType, name: String, icon: String): Long
+
+    suspend fun update(category: CategoryEntity)
+
+    /** Kayıtları aynı türün "Diğer"ine taşıyıp siler; "Diğer"in kendisi silinmez. */
+    suspend fun delete(category: CategoryEntity)
 }
+
+/** "Diğer" ve "Diğer gelir": silinemez, kayıtlar silinen kategoriden buraya geçer. */
+fun CategoryEntity.isFallback() = key == DefaultCategories.OTHER_EXPENSE || key == DefaultCategories.OTHER_INCOME
+
+private fun fallbackKey(type: TransactionType) =
+    if (type == TransactionType.INCOME) DefaultCategories.OTHER_INCOME else DefaultCategories.OTHER_EXPENSE
 
 class RoomCategoryRepository @Inject constructor(
     private val dao: CategoryDao,
 ) : CategoryRepository {
+    override fun observeAll() = dao.observeAll()
+
     // Kategori sayısı az; ayrı sorgu yerine tüm listeyi süzmek yeterli.
-    override fun observeByType(type: TransactionType) = dao.observeAll().map { all -> all.filter { it.type == type } }
+    override fun observeByType(type: TransactionType) =
+        dao.observeAll().map { all -> all.filter { it.type == type }.sortedBy { it.isFallback() } }
+
+    override suspend fun add(type: TransactionType, name: String, icon: String) =
+        dao.insert(CategoryEntity(type = type, name = name, icon = icon, sortOrder = dao.nextSortOrder(type)))
+
+    override suspend fun update(category: CategoryEntity) = dao.update(category)
+
+    override suspend fun delete(category: CategoryEntity) {
+        if (!category.isFallback()) dao.deleteMovingTransactions(category.id, fallbackKey(category.type))
+    }
 }
