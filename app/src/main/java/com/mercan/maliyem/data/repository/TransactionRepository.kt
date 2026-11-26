@@ -54,7 +54,7 @@ class RoomTransactionRepository @Inject constructor(
 
     override suspend fun add(transaction: TransactionEntity) = dao.insert(transaction)
 
-    override suspend fun update(transaction: TransactionEntity): Boolean = dao.update(transaction) > 0
+    override suspend fun update(transaction: TransactionEntity): Boolean = dao.updateKeepingRule(transaction) > 0
 
     override suspend fun delete(id: Long) = dao.deleteById(id)
 

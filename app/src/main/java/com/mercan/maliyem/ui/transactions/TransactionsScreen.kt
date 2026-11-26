@@ -124,6 +124,7 @@ fun TransactionsScreen(
                                 icon = info.icon,
                                 amount = formatMoney(if (income) transaction.amountMinor else -transaction.amountMinor, locale, signed = true),
                                 income = income,
+                                recurring = transaction.recurringRuleId != null,
                                 modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { onOpen(row.id) },
                                 highlighted = row.id == highlightId,
                                 horizontalPadding = Spacing.lg,

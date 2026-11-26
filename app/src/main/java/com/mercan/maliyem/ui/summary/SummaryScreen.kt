@@ -319,6 +319,7 @@ private fun RecentSection(state: SummaryUiState, locale: Locale, onSeeAll: () ->
                 icon = row.icon,
                 amount = formatMoney(if (income) row.amountMinor else -row.amountMinor, locale, signed = true),
                 income = income,
+                recurring = row.recurring,
                 modifier = Modifier
                     .graphicsLayer { alpha = appear.value; translationY = (appear.value - 1f) * 6.dp.toPx() }
                     .clickable(role = Role.Button) { onOpen(row.id) },

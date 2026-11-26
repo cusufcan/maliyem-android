@@ -6,9 +6,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mercan.maliyem.data.local.AccountEntity
 import com.mercan.maliyem.data.local.CategoryEntity
+import com.mercan.maliyem.data.local.RecurringFrequency
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.repository.AccountRepository
 import com.mercan.maliyem.data.repository.CategoryRepository
+import com.mercan.maliyem.data.repository.RecurringRepository
 import com.mercan.maliyem.data.repository.TransactionRepository
 import com.mercan.maliyem.data.repository.TransferRepository
 import com.mercan.maliyem.data.repository.forType
@@ -43,6 +45,7 @@ private const val KEY_TO = "toAccount"
 private const val KEY_PREVIOUS_ACCOUNT = "previousAccount"
 private const val KEY_PREVIOUS_TO = "previousTo"
 private const val KEY_CREATED = "created"
+private const val KEY_FREQUENCY = "frequency"
 
 data class AddUiState(
     val form: AddForm,
@@ -56,6 +59,7 @@ data class AddUiState(
     val accounts: List<AccountEntity>,
     val transfer: Boolean,
     val toAccountId: Long?,
+    val frequency: RecurringFrequency?,
 ) {
     val activeAccounts = accounts.filterNot { it.archived }
     val canTransfer = form.accountId != null && toAccountId != null
@@ -68,7 +72,13 @@ private data class AccountSelection(
 )
 
 /** Kaydedilen kaydın Özet'e dönüşte vurgulanması ve geri alınması için. */
-data class SavedEntry(val id: Long, val type: TransactionType?, val date: LocalDate, val edited: Boolean = false)
+data class SavedEntry(
+    val id: Long,
+    val type: TransactionType?,
+    val date: LocalDate,
+    val edited: Boolean = false,
+    val recurring: Boolean = false,
+)
 
 @HiltViewModel
 class AddTransactionViewModel @Inject constructor(
@@ -77,6 +87,7 @@ class AddTransactionViewModel @Inject constructor(
     private val categories: CategoryRepository,
     accounts: AccountRepository,
     private val transfers: TransferRepository,
+    private val recurring: RecurringRepository,
     private val settings: AppSettings,
     private val clock: Clock,
     calendar: CalendarDays,
@@ -89,6 +100,7 @@ class AddTransactionViewModel @Inject constructor(
     private val date = savedState.getStateFlow<String?>(KEY_DATE, null)
     private val note = savedState.getStateFlow(KEY_NOTE, "")
     private val tried = savedState.getStateFlow(KEY_TRIED, false)
+    private val frequency = savedState.getStateFlow<String?>(KEY_FREQUENCY, null)
     private val editId = savedState.getStateFlow<Long?>(KEY_EDIT, null)
 
     private val transfer = savedState.getStateFlow(KEY_TRANSFER, false)
@@ -104,7 +116,7 @@ class AddTransactionViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val formChanges = combine(type, amount, category, date, note) { _, _, _, _, _ -> Unit }
-    private val validationChanges = combine(tried, editId, amountLocale) { _, _, _ -> Unit }
+    private val validationChanges = combine(tried, editId, amountLocale, frequency) { _, _, _, _ -> Unit }
 
     val uiState: StateFlow<AddUiState?> =
         combine(formChanges, validationChanges, categoriesByType, calendar.days, accountRows) { _, _, all, today, rows ->
@@ -133,18 +145,21 @@ class AddTransactionViewModel @Inject constructor(
         val to = if (selection.transfer) {
             pickAccount(selection.toAccountId, savedState.get<Long>(KEY_PREVIOUS_TO), rows.filter { it.id != from })
         } else null
+        val repeat = frequency.value?.let(RecurringFrequency::valueOf)
+            ?.takeIf { editId.value == null && !selection.transfer }
+        val selectedDate = date.value?.let(LocalDate::parse) ?: today
         val form = AddForm(
             selectedType,
             amount.value,
             pickCategory(category.value, list),
-            date.value?.let(LocalDate::parse) ?: today,
+            if (repeat == null && editId.value == null) minOf(selectedDate, today) else selectedDate,
             note.value,
             from,
         )
         val locale = Locale.forLanguageTag(amountLocale.value)
         val error = if (!tried.value) null else if (selection.transfer) amountError(form.amountText, locale)
             else (buildEntity(form, locale, 0) as? Result.Invalid)?.error
-        return AddUiState(form, list, today, error, editId.value, parseAmount(form.amountText, locale), rows, selection.transfer, to)
+        return AddUiState(form, list, today, error, editId.value, parseAmount(form.amountText, locale), rows, selection.transfer, to, repeat)
     }
 
     fun setType(value: TransactionType) {
@@ -163,6 +178,7 @@ class AddTransactionViewModel @Inject constructor(
     fun setCategory(id: Long) { savedState[KEY_CATEGORY] = id }
     fun setDate(value: LocalDate) { savedState[KEY_DATE] = value.toString() }
     fun setNote(value: String) { savedState[KEY_NOTE] = value }
+    fun setFrequency(value: RecurringFrequency?) { savedState[KEY_FREQUENCY] = value?.name }
 
     /** "+ Yeni" çipinden: kategoriyi seçili türe ekler ve seçili getirir (ADR-0017). */
     fun addCategory(name: String, icon: String) {
@@ -191,6 +207,7 @@ class AddTransactionViewModel @Inject constructor(
         val form = state.form
         val locale = Locale.forLanguageTag(amountLocale.value)
         val edit = editId.value
+        val repeat = state.frequency
         val createdAt = savedState.get<Long>(KEY_CREATED) ?: clock.millis()
         val entry = if (state.transfer) {
             buildTransfer(form, state.toAccountId, state.amountMinor, createdAt) ?: run {
@@ -214,14 +231,18 @@ class AddTransactionViewModel @Inject constructor(
                     if (edit == null) transfers.add(entry) else edit.takeIf { transfers.update(entry.copy(id = edit)) }
                 } else {
                     val entity = checkNotNull(transaction)
-                    if (edit == null) transactions.add(entity) else edit.takeIf { transactions.update(entity.copy(id = edit)) }
+                    when {
+                        edit != null -> edit.takeIf { transactions.update(entity.copy(id = edit)) }
+                        repeat != null -> recurring.add(entity, repeat)
+                        else -> transactions.add(entity)
+                    }
                 }
                 if (id == null) {
                     _writeFailed.value = true
                     return@launch
                 }
                 settings.setLastAccountId(form.accountId)
-                _saved.value = SavedEntry(id, transaction?.type, form.date, edited = edit != null)
+                _saved.value = SavedEntry(id, transaction?.type, form.date, edited = edit != null, recurring = repeat != null)
             } catch (_: SQLiteException) {
                 _writeFailed.value = true
             } finally {
@@ -281,6 +302,7 @@ class AddTransactionViewModel @Inject constructor(
         savedState[KEY_TRIED] = false
         savedState[KEY_EDIT] = null
         savedState[KEY_CREATED] = null
+        savedState[KEY_FREQUENCY] = null
         savedState[KEY_ACCOUNT] = null
         savedState[KEY_TO] = null
         savedState[KEY_PREVIOUS_ACCOUNT] = null

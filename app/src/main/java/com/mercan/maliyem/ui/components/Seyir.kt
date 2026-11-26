@@ -194,6 +194,7 @@ fun SeyirChip(
     modifier: Modifier = Modifier,
     @DrawableRes icon: Int? = null,
     role: Role = Role.RadioButton,
+    enabled: Boolean = true,
 ) {
     val colors = MaterialTheme.colorScheme
     val sel = LocalSelectionColors.current
@@ -201,8 +202,8 @@ fun SeyirChip(
     val background by animateColorAsState(if (selected) sel.container else Color.Transparent, Motion.fast(), label = "chipBg")
     val border by animateColorAsState(if (selected) sel.container else colors.outlineVariant, Motion.fast(), label = "chipBorder")
     val content by animateColorAsState(if (selected) sel.content else colors.onSurfaceVariant, Motion.fast(), label = "chipText")
-    val action = if (role == Role.Button) Modifier.clickable(role = role, onClick = onClick)
-        else Modifier.selectable(selected, role = role, onClick = onClick)
+    val action = if (role == Role.Button) Modifier.clickable(enabled = enabled, role = role, onClick = onClick)
+        else Modifier.selectable(selected, enabled = enabled, role = role, onClick = onClick)
     Row(
         modifier.heightIn(min = 48.dp).clip(shape).background(background).border(1.dp, border, shape)
             .then(action)

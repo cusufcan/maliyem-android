@@ -35,9 +35,14 @@ class RoomTransactionRepositoryTest {
         override suspend fun insertAll(transactions: List<TransactionEntity>) = Unit
         override suspend fun deleteById(id: Long) { deleted = id }
         override suspend fun deleteAll() = Unit
-        var updateCount = 0
-        override suspend fun update(transaction: TransactionEntity) = updateCount
+        var updated: TransactionEntity? = null
+        override suspend fun update(transaction: TransactionEntity): Int {
+            updated = transaction
+            return 1
+        }
         var existing: TransactionEntity? = null
+        var ruleId: Long? = null
+        override suspend fun existingRecurringRuleId(id: Long) = id.takeIf { it == ruleId }
         var restoredCategory: Long? = 9L
         var requestedFallback: String? = null
         override suspend fun categoryForRestore(id: Long, type: TransactionType, fallbackKey: String): Long? {
@@ -100,7 +105,33 @@ class RoomTransactionRepositoryTest {
         assertTrue(repo.restore(entry))
         assertEquals(DefaultCategories.OTHER_EXPENSE, dao.requestedFallback)
         assertEquals(entry.copy(categoryId = 9), dao.inserted)
+        dao.existing = null
         assertFalse(repo.update(entry))
+    }
+
+    @Test fun `editing a generated transaction keeps its current rule link`() = runBlocking {
+        val entry = TransactionEntity(5, TransactionType.EXPENSE, 101, 2, LocalDate.of(2026, 11, 1), null, 4, accountId = 1, recurringRuleId = 8)
+        val dao = RangeDao().apply { existing = entry }
+        val repo = RoomTransactionRepository(dao)
+        val draft = entry.copy(amountMinor = 500, recurringRuleId = null)
+
+        assertTrue(repo.update(draft))
+        assertEquals(draft.copy(recurringRuleId = 8), dao.updated)
+
+        dao.existing = entry.copy(recurringRuleId = null)
+        assertTrue(repo.update(draft.copy(recurringRuleId = 8)))
+        assertEquals(draft, dao.updated)
+    }
+
+    @Test fun `undo preserves an existing rule link and drops a deleted one`() = runBlocking {
+        val entry = TransactionEntity(5, TransactionType.EXPENSE, 101, 2, LocalDate.of(2026, 11, 1), null, 4, accountId = 1, recurringRuleId = 8)
+        val dao = RangeDao().apply { ruleId = 8 }
+        val repo = RoomTransactionRepository(dao)
+        assertTrue(repo.restore(entry))
+        assertEquals(entry.copy(categoryId = 9), dao.inserted)
+        dao.ruleId = null
+        assertTrue(repo.restore(entry))
+        assertEquals(entry.copy(categoryId = 9, recurringRuleId = null), dao.inserted)
     }
 
     @Test fun `undo does not insert when neither category exists`() = runBlocking {

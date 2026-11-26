@@ -7,13 +7,19 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
+import com.mercan.maliyem.data.repository.RecurringRepository
 import com.mercan.maliyem.ui.navigation.MaliyemNavHost
 import com.mercan.maliyem.ui.theme.MaliyemTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+import kotlinx.coroutines.launch
 
 /** Tek Activity; tüm ekranlar Compose ile çizilir. AppCompat, dil ve tema seçimini uygular. */
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
+    @Inject lateinit var recurring: RecurringRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // İçerik durum ve gezinme çubuklarının altına uzanır; boşluklar Compose'da verilir.
@@ -25,5 +31,10 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        lifecycleScope.launch { recurring.generateDue() }
     }
 }

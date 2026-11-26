@@ -40,6 +40,7 @@ import com.mercan.maliyem.ui.components.SeyirCard
 import com.mercan.maliyem.ui.components.SettingRow
 import com.mercan.maliyem.ui.components.SubText
 import com.mercan.maliyem.ui.components.categoryName
+import com.mercan.maliyem.ui.recurring.detailRes
 import com.mercan.maliyem.ui.theme.MoneyHeroValue
 import com.mercan.maliyem.ui.theme.Spacing
 import com.mercan.maliyem.ui.theme.categoryIcon
@@ -52,11 +53,13 @@ import java.time.format.DateTimeFormatter
 fun TransactionDetailScreen(
     onBack: () -> Unit,
     onEdit: () -> Unit,
+    onOpenRule: (Long) -> Unit,
     onDeleted: (UndoAction) -> Unit,
     viewModel: TransactionDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val accounts by viewModel.accounts.collectAsStateWithLifecycle()
+    val rule by viewModel.rule.collectAsStateWithLifecycle()
     val deleted by viewModel.deleted.collectAsStateWithLifecycle()
     val deleting by viewModel.deleting.collectAsStateWithLifecycle()
     val deleteFailed by viewModel.deleteFailed.collectAsStateWithLifecycle()
@@ -101,6 +104,12 @@ fun TransactionDetailScreen(
                             SettingRow(categoryIcon(account.icon), stringResource(R.string.account_label), value = accountName(account), horizontalPadding = 0.dp)
                             HorizontalDivider(color = colors.outlineVariant)
                         }
+                    }
+                    rule?.takeIf { it.id == transaction.recurringRuleId }?.let { recurring ->
+                        SettingRow(
+                            R.drawable.ic_seyir_repeat, stringResource(recurring.frequency.detailRes()),
+                            onClick = { onOpenRule(recurring.id) }, horizontalPadding = 0.dp,
+                        )
                     }
                     SubText(
                         stringResource(R.string.detail_share, category, formatMoney(current.categoryMonthMinor, locale), current.sharePercent),

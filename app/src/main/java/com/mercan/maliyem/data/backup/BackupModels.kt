@@ -1,5 +1,6 @@
 package com.mercan.maliyem.data.backup
 
+import com.mercan.maliyem.data.local.RecurringFrequency
 import com.mercan.maliyem.data.local.TransactionType
 import kotlinx.serialization.Serializable
 
@@ -13,10 +14,11 @@ data class BackupFile(
     val transactions: List<BackupTransaction>,
     val accounts: List<BackupAccount> = emptyList(),
     val transfers: List<BackupTransfer> = emptyList(),
+    val recurringRules: List<BackupRecurringRule> = emptyList(),
 ) {
     companion object {
         const val FORMAT = "maliyem-backup"
-        const val VERSION = 2
+        const val VERSION = 3
     }
 }
 
@@ -40,6 +42,7 @@ data class BackupTransaction(
     val note: String? = null,
     val createdAt: Long,
     val accountId: Long = 0,
+    val recurringRuleId: Long? = null,
 )
 
 @Serializable
@@ -61,5 +64,21 @@ data class BackupTransfer(
     val amountMinor: Long,
     val date: String,
     val note: String? = null,
+    val createdAt: Long,
+)
+
+@Serializable
+data class BackupRecurringRule(
+    val id: Long,
+    val type: TransactionType,
+    val amountMinor: Long,
+    val categoryId: Long,
+    val accountId: Long,
+    val note: String? = null,
+    val frequency: RecurringFrequency,
+    val startDate: String,
+    val nextDate: String,
+    val endDate: String? = null,
+    val paused: Boolean = false,
     val createdAt: Long,
 )

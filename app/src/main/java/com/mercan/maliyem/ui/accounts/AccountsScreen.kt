@@ -118,13 +118,14 @@ fun AccountsScreen(onBack: () -> Unit, viewModel: AccountsViewModel = hiltViewMo
             availabilityMessage = when {
                 account == null -> null
                 !canArchive -> R.string.account_active_required
+                edited.hasRecurringRules -> R.string.account_recurring_in_use
                 edited.hasActivity && !account.archived -> R.string.account_archive_in_use
                 else -> null
             },
             onArchive = account?.takeIf { canArchive }?.let {
                 { viewModel.setArchived(it); editing = null }
             },
-            onDelete = edited?.takeIf { canArchive && !it.hasActivity && it.account.key != DefaultAccounts.CASH }?.let {
+            onDelete = edited?.takeIf { canArchive && !it.hasActivity && !it.hasRecurringRules && it.account.key != DefaultAccounts.CASH }?.let {
                 { deleting = it.account.id; editing = null }
             },
         )

@@ -11,7 +11,9 @@ import com.mercan.maliyem.data.local.CategoryDao
 import com.mercan.maliyem.data.local.DefaultAccounts
 import com.mercan.maliyem.data.local.DefaultCategories
 import com.mercan.maliyem.data.local.MIGRATION_1_2
+import com.mercan.maliyem.data.local.MIGRATION_2_3
 import com.mercan.maliyem.data.local.MaliyemDatabase
+import com.mercan.maliyem.data.local.RecurringRuleDao
 import com.mercan.maliyem.data.local.TransactionDao
 import com.mercan.maliyem.data.local.TransferDao
 import dagger.Module
@@ -29,11 +31,13 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MaliyemDatabase =
         Room.databaseBuilder(context, MaliyemDatabase::class.java, MaliyemDatabase.NAME)
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .addCallback(SeedDefaults)
             .build()
 
     @Provides fun provideAccountDao(db: MaliyemDatabase): AccountDao = db.accountDao()
+
+    @Provides fun provideRecurringRuleDao(db: MaliyemDatabase): RecurringRuleDao = db.recurringRuleDao()
 
     @Provides fun provideTransferDao(db: MaliyemDatabase): TransferDao = db.transferDao()
 

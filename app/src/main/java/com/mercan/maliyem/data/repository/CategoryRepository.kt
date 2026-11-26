@@ -20,7 +20,7 @@ interface CategoryRepository {
 
     suspend fun update(category: CategoryEntity)
 
-    /** Kayıtları aynı türün "Diğer"ine taşıyıp siler; "Diğer"in kendisi silinmez. */
+    /** Kayıtları ve kuralları aynı türün "Diğer"ine taşıyıp kategoriyi siler; "Diğer"in kendisi silinmez. */
     suspend fun delete(category: CategoryEntity)
 }
 

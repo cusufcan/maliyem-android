@@ -14,7 +14,7 @@ class AccountRepository @Inject constructor(
 ) {
     fun observeAll() = dao.observeAll().distinctUntilChanged()
 
-    fun observeBalances() = db.invalidationTracker.createFlow("accounts", "transactions", "transfers")
+    fun observeBalances() = db.invalidationTracker.createFlow("accounts", "transactions", "transfers", "recurring_rules")
         .map { calculateBalances(dao.ledger()) }
         .distinctUntilChanged()
 

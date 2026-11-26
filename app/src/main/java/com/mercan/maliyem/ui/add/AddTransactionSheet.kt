@@ -37,17 +37,13 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -82,16 +78,16 @@ import com.mercan.maliyem.ui.components.categoryName
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
 import com.mercan.maliyem.ui.accounts.AccountPicker
+import com.mercan.maliyem.ui.components.DateSelectionDialog
 import com.mercan.maliyem.ui.components.SubText
+import com.mercan.maliyem.ui.recurring.FrequencyPicker
 import com.mercan.maliyem.data.local.CategoryEntity
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.ui.theme.MoneyInputValue
 import com.mercan.maliyem.ui.theme.SeyirIcon
 import com.mercan.maliyem.ui.theme.Spacing
 import com.mercan.maliyem.ui.theme.categoryIcon
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -204,7 +200,11 @@ private fun AddTransactionContent(
             }
         }
         Column {
-            DateRow(form.date, state.today, locale, viewModel::setDate)
+            if (state.editId == null && !state.transfer) {
+                FrequencyPicker(state.frequency, viewModel::setFrequency, includeNone = true, enabled = !saving)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
+            DateRow(form.date, state.today, locale, allowFuture = state.frequency != null, onPick = viewModel::setDate)
             QuickDates(form.date, state.today, viewModel::setDate)
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             NoteRow(form.note, viewModel::setNote)
@@ -402,9 +402,14 @@ private fun SheetRow(icon: Int, modifier: Modifier = Modifier, content: @Composa
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DateRow(date: LocalDate, today: LocalDate, locale: Locale, onPick: (LocalDate) -> Unit) {
+private fun DateRow(
+    date: LocalDate,
+    today: LocalDate,
+    locale: Locale,
+    allowFuture: Boolean,
+    onPick: (LocalDate) -> Unit,
+) {
     var open by rememberSaveable { mutableStateOf(false) }
     // Bugünse sol "Bugün", sağ tam tarih; değilse sol tarih, sağ yalnız haftanın günü (tekrar olmasın).
     val isToday = date == today
@@ -419,32 +424,12 @@ private fun DateRow(date: LocalDate, today: LocalDate, locale: Locale, onPick: (
         Text(full, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
     }
     if (open) {
-        // DatePicker UTC gece yarısı milisaniyesiyle çalışır; yerel saat dilimi karışmasın diye UTC'ye çevrilir.
-        val todayMillis = today.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-        val picker = rememberDatePickerState(
-            initialSelectedDateMillis = date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
-            yearRange = minOf(1900, date.year, today.year)..maxOf(2100, date.year, today.year),
-            selectableDates = remember(today) {
-                object : SelectableDates {
-                    override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis <= todayMillis
-                    override fun isSelectableYear(year: Int) = year <= today.year
-                }
-            },
+        DateSelectionDialog(
+            initial = date,
+            onDismiss = { open = false },
+            onPick = onPick,
+            latest = today.takeUnless { allowFuture },
         )
-        DatePickerDialog(
-            onDismissRequest = { open = false },
-            confirmButton = {
-                val selected = picker.selectedDateMillis?.takeIf { it <= todayMillis }
-                TextButton(
-                    onClick = {
-                        selected?.let { onPick(Instant.ofEpochMilli(it).atOffset(ZoneOffset.UTC).toLocalDate()) }
-                        open = false
-                    },
-                    enabled = selected != null,
-                ) { Text(stringResource(R.string.add_pick)) }
-            },
-            dismissButton = { TextButton({ open = false }) { Text(stringResource(R.string.add_cancel)) } },
-        ) { DatePicker(picker) }
     }
 }
 

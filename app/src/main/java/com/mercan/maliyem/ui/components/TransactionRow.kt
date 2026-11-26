@@ -42,13 +42,15 @@ fun TransactionRow(
     modifier: Modifier = Modifier,
     highlighted: Boolean = false,
     horizontalPadding: Dp = 0.dp,
+    recurring: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
     val type = MaterialTheme.typography
     val justNow = stringResource(R.string.add_just_now)
     // Yeni eklenen kayıt "az önce" ile işaretlenir; snackbar kapanınca vurgu kalkar.
     val shownSubtitle = if (highlighted) listOfNotNull(subtitle, justNow).joinToString(" · ") else subtitle
-    val label = listOfNotNull(title, shownSubtitle, amount).joinToString(", ")
+    val repeatLabel = if (recurring) stringResource(R.string.settings_recurring) else null
+    val label = listOfNotNull(title, shownSubtitle, repeatLabel, amount).joinToString(", ")
     Row(
         modifier.background(if (highlighted) colors.primaryContainer else Color.Transparent)
             .heightIn(min = 64.dp).padding(horizontal = horizontalPadding, vertical = Spacing.sm).clearAndSetSemantics { contentDescription = label },
@@ -62,7 +64,10 @@ fun TransactionRow(
             SeyirIcon(categoryIcon(icon), tint = colors.onSecondaryContainer)
         }
         Column(Modifier.weight(1f)) {
-            Text(title, style = type.bodyLarge, fontWeight = FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                if (recurring) SeyirIcon(R.drawable.ic_seyir_repeat, tint = colors.onSurfaceVariant, size = 16.dp)
+                Text(title, style = type.bodyLarge, fontWeight = FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             if (shownSubtitle != null) {
                 Text(shownSubtitle, style = type.bodySmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }

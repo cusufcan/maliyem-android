@@ -13,6 +13,7 @@ data class AccountMovement(val accountId: Long, val delta: Long)
 data class AccountLedger(
     val accounts: List<AccountEntity>,
     val movements: List<AccountMovement>,
+    val recurringAccountIds: Set<Long> = emptySet(),
 )
 
 @Dao
@@ -49,6 +50,7 @@ abstract class AccountDao {
         DELETE FROM accounts WHERE id = :id AND (`key` IS NULL OR `key` != :defaultKey)
             AND (archived = 1 OR EXISTS (SELECT 1 FROM accounts WHERE archived = 0 AND id != :id))
             AND NOT EXISTS (SELECT 1 FROM transactions WHERE accountId = :id)
+            AND NOT EXISTS (SELECT 1 FROM recurring_rules WHERE accountId = :id)
             AND NOT EXISTS (SELECT 1 FROM transfers WHERE fromAccountId = :id OR toAccountId = :id)
     """)
     abstract suspend fun deleteUnused(id: Long, defaultKey: String): Int
@@ -63,6 +65,9 @@ abstract class AccountDao {
     """)
     protected abstract suspend fun getMovements(): List<AccountMovement>
 
+    @Query("SELECT DISTINCT accountId FROM recurring_rules")
+    protected abstract suspend fun getRecurringAccountIds(): List<Long>
+
     @Transaction
-    open suspend fun ledger() = AccountLedger(getAll(), getMovements())
+    open suspend fun ledger() = AccountLedger(getAll(), getMovements(), getRecurringAccountIds().toSet())
 }

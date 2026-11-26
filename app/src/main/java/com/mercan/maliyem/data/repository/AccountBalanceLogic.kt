@@ -4,7 +4,7 @@ import com.mercan.maliyem.data.local.AccountEntity
 import com.mercan.maliyem.data.local.AccountLedger
 import java.math.BigInteger
 
-data class AccountBalance(val account: AccountEntity, val balanceMinor: BigInteger, val hasActivity: Boolean)
+data class AccountBalance(val account: AccountEntity, val balanceMinor: BigInteger, val hasActivity: Boolean, val hasRecurringRules: Boolean = false)
 
 /** Gelecek tarih dahil tüm hareketler eklenir. Toplamlar Long sınırını aşabilir. */
 fun calculateBalances(ledger: AccountLedger): List<AccountBalance> {
@@ -14,6 +14,10 @@ fun calculateBalances(ledger: AccountLedger): List<AccountBalance> {
     }
     return ledger.accounts.map { account ->
         val movement = totals[account.id]
-        AccountBalance(account, account.initialBalanceMinor.toBigInteger() + (movement ?: BigInteger.ZERO), movement != null)
+        AccountBalance(
+            account, account.initialBalanceMinor.toBigInteger() + (movement ?: BigInteger.ZERO),
+            hasActivity = movement != null,
+            hasRecurringRules = account.id in ledger.recurringAccountIds,
+        )
     }
 }

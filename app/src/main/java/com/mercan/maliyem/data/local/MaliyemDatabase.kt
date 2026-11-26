@@ -5,8 +5,11 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
 @Database(
-    entities = [CategoryEntity::class, TransactionEntity::class, AccountEntity::class, TransferEntity::class],
-    version = 2,
+    entities = [
+        CategoryEntity::class, TransactionEntity::class, AccountEntity::class,
+        TransferEntity::class, RecurringRuleEntity::class,
+    ],
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -16,6 +19,7 @@ abstract class MaliyemDatabase : RoomDatabase() {
 
     abstract fun accountDao(): AccountDao
     abstract fun transferDao(): TransferDao
+    abstract fun recurringRuleDao(): RecurringRuleDao
 
     companion object {
         const val NAME = "maliyem.db"

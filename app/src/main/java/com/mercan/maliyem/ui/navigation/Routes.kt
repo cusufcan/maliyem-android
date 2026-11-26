@@ -9,3 +9,5 @@ import kotlinx.serialization.Serializable
 @Serializable data class TransactionDetail(val id: Long, val transfer: Boolean = false)
 @Serializable data object Categories
 @Serializable data object Accounts
+@Serializable data object Recurring
+@Serializable data class RecurringRule(val id: Long, val tab: Int = -1)

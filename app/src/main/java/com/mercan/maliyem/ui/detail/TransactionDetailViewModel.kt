@@ -8,6 +8,7 @@ import androidx.navigation.toRoute
 import com.mercan.maliyem.data.local.TransactionWithCategory
 import com.mercan.maliyem.data.local.TransferEntity
 import com.mercan.maliyem.data.repository.AccountRepository
+import com.mercan.maliyem.data.repository.RecurringRepository
 import com.mercan.maliyem.data.repository.TransactionRepository
 import com.mercan.maliyem.data.repository.TransferRepository
 import com.mercan.maliyem.ui.navigation.TransactionDetail
@@ -48,6 +49,7 @@ class TransactionDetailViewModel @Inject constructor(
     private val repository: TransactionRepository,
     private val transfers: TransferRepository,
     accounts: AccountRepository,
+    recurring: RecurringRepository,
 ) : ViewModel() {
 
     val route = savedState.toRoute<TransactionDetail>()
@@ -75,6 +77,12 @@ class TransactionDetailViewModel @Inject constructor(
         if (route.transfer) transfers.observe(id).map { it?.let(DetailUiState::Transfer) ?: DetailUiState.Missing }
         else record
     ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val rule = uiState.map { (it as? DetailUiState.Record)?.item?.transaction?.recurringRuleId }
+        .distinctUntilChanged()
+        .flatMapLatest { id -> if (id == null) flowOf(null) else recurring.observe(id) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _deleting = MutableStateFlow(false)
     val deleting = _deleting.asStateFlow()

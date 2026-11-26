@@ -1,6 +1,7 @@
 package com.mercan.maliyem.data.backup
 
 import com.mercan.maliyem.data.local.DefaultCategories
+import com.mercan.maliyem.data.local.RecurringFrequency.MONTHLY
 import com.mercan.maliyem.data.local.TransactionType.EXPENSE
 import com.mercan.maliyem.data.local.TransactionType.INCOME
 import org.junit.Assert.assertEquals
@@ -84,7 +85,8 @@ class BackupCodecTest {
         """.trimIndent()
         val result = BackupCodec.decode(content) as BackupDecodeResult.Valid
 
-        assertEquals(2, result.backup.version)
+        assertEquals(BackupFile.VERSION, result.backup.version)
+        assertTrue(result.backup.recurringRules.isEmpty())
         assertEquals(listOf(cash), result.backup.accounts)
         assertTrue(result.backup.transfers.isEmpty())
         assertEquals(1, result.categoryCount)
@@ -92,7 +94,7 @@ class BackupCodecTest {
         assertEquals(BackupTransaction(9, INCOME, 12_550, 5, "2026-11-26", null, 456, accountId = 1), result.backup.transactions.single())
     }
 
-    @Test fun `v2 rejects missing account links and invalid transfers`() {
+    @Test fun `rejects missing account links and invalid transfers`() {
         assertInvalid(backup.copy(transactions = listOf(transaction.copy(accountId = 0))))
         assertInvalid(backup.copy(accounts = listOf(cash)))
         assertInvalid(backup.copy(accounts = listOf(cash.copy(archived = true), card)))
@@ -101,6 +103,65 @@ class BackupCodecTest {
         assertInvalid(backup.copy(transfers = listOf(transfer.copy(amountMinor = -1))))
         assertInvalid(backup.copy(transfers = listOf(transfer.copy(date = "2026-02-30"))))
         assertInvalid(backup.copy(transfers = listOf(transfer, transfer)))
+    }
+
+    @Test fun `v2 without recurrence fields keeps accounts transfers and transactions`() {
+        val content = """
+            {
+              "format":"maliyem-backup","version":2,"exportedAt":123,
+              "categories":[{"id":1,"type":"EXPENSE","name":"Market","icon":"cart","sortOrder":0}],
+              "transactions":[{"id":8,"type":"EXPENSE","amountMinor":100,"categoryId":1,"date":"2026-11-26","createdAt":456,"accountId":2}],
+              "accounts":[{"id":1,"key":"cash","icon":"wallet","sortOrder":0},{"id":2,"name":"Card","icon":"card","sortOrder":1}],
+              "transfers":[{"id":27,"fromAccountId":1,"toAccountId":2,"amountMinor":850,"date":"2026-11-27","note":"Top up","createdAt":123}]
+            }
+        """.trimIndent()
+        val result = BackupCodec.decode(content) as BackupDecodeResult.Valid
+        assertEquals(BackupFile.VERSION, result.backup.version)
+        assertEquals(listOf(cash, card.copy(initialBalanceMinor = 0, archived = false)), result.backup.accounts)
+        assertEquals(listOf(transfer), result.backup.transfers)
+        assertEquals(
+            listOf(BackupTransaction(8, EXPENSE, 100, 1, "2026-11-26", null, 456, accountId = 2)),
+            result.backup.transactions,
+        )
+        assertTrue(result.backup.recurringRules.isEmpty())
+    }
+
+    private val rule = BackupRecurringRule(
+        4, EXPENSE, 100, expense.id, card.id, "Kira", MONTHLY,
+        "2026-01-31", "2026-02-28", "2026-02-15", paused = true, createdAt = 123,
+    )
+
+    @Test fun `v3 round trip keeps paused rules cursor and generated transaction links`() {
+        val linked = backup.copy(
+            recurringRules = listOf(rule),
+            transactions = listOf(transaction.copy(recurringRuleId = rule.id)),
+        )
+        val restored = BackupCodec.decode(BackupCodec.encode(linked)) as BackupDecodeResult.Valid
+        assertEquals(linked, restored.backup)
+    }
+
+    @Test fun `rejects invalid rules and dangling transaction links`() {
+        assertInvalid(backup.copy(transactions = listOf(transaction.copy(recurringRuleId = rule.id))))
+        assertInvalid(backup.copy(recurringRules = listOf(rule, rule)))
+        for (invalid in listOf(
+            rule.copy(id = 0),
+            rule.copy(id = Long.MAX_VALUE),
+            rule.copy(amountMinor = 0),
+            rule.copy(categoryId = 99),
+            rule.copy(categoryId = income.id),
+            rule.copy(accountId = 99),
+            rule.copy(startDate = "2026-02-30"),
+            rule.copy(nextDate = "2026-02-30"),
+            rule.copy(endDate = "2026-02-30"),
+            rule.copy(nextDate = "2026-01-30"),
+            rule.copy(nextDate = "2026-03-30"),
+            rule.copy(endDate = "2026-01-30"),
+        )) {
+            assertInvalid(backup.copy(recurringRules = listOf(invalid)))
+        }
+        val unknownFrequency = BackupCodec.encode(backup.copy(recurringRules = listOf(rule)))
+            .replace("\"MONTHLY\"", "\"DAILY\"")
+        assertEquals(BackupDecodeResult.Invalid, BackupCodec.decode(unknownFrequency))
     }
 
     @Test fun `rejects malformed JSON and absent tables`() {

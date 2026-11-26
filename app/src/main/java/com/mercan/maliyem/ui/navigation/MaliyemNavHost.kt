@@ -33,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -57,6 +58,8 @@ import com.mercan.maliyem.ui.add.AddTransactionSheet
 import com.mercan.maliyem.ui.breakdown.BreakdownScreen
 import com.mercan.maliyem.ui.categories.CategoriesScreen
 import com.mercan.maliyem.ui.detail.TransactionDetailScreen
+import com.mercan.maliyem.ui.recurring.RecurringRuleScreen
+import com.mercan.maliyem.ui.recurring.RecurringScreen
 import com.mercan.maliyem.ui.settings.SettingsScreen
 import com.mercan.maliyem.ui.summary.SummaryScreen
 import com.mercan.maliyem.ui.theme.SeyirIcon
@@ -65,6 +68,7 @@ import com.mercan.maliyem.ui.theme.SeyirTabIndicatorHeight
 import com.mercan.maliyem.ui.theme.SeyirTabIndicatorWidth
 import com.mercan.maliyem.ui.theme.SeyirTabVerticalPadding
 import com.mercan.maliyem.ui.transactions.TransactionsScreen
+import kotlinx.coroutines.launch
 
 private class TopLevelItem(val route: Any, val labelRes: Int, val icon: Int)
 
@@ -88,7 +92,10 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
     val backStackEntry by nav.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
     val activeTab = when {
-        destination?.hasRoute(Categories::class) == true || destination?.hasRoute(Accounts::class) == true -> tabs.lastIndex
+        destination?.hasRoute(Categories::class) == true || destination?.hasRoute(Accounts::class) == true ||
+            destination?.hasRoute(Recurring::class) == true -> tabs.lastIndex
+        destination?.hasRoute(RecurringRule::class) == true ->
+            backStackEntry?.toRoute<RecurringRule>()?.tab?.takeIf { it in tabs.indices } ?: tabs.lastIndex
         destination?.hasRoute(TransactionDetail::class) == true ->
             tabIndexOf(nav.previousBackStackEntry?.destination).takeIf { it >= 0 } ?: 1
         else -> tabIndexOf(destination).coerceAtLeast(0)
@@ -98,6 +105,8 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
     val hasData by app.hasData.collectAsStateWithLifecycle()
     val monthHasData by app.monthHasData.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val ruleSaved = stringResource(R.string.recurring_saved)
     // Ekle/Düzenle alt sayfası ve snackbar uygulama düzeyinde; her sekme aynısını kullanır (ADR-0010).
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var editId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -225,6 +234,7 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
                 SettingsScreen(
                     onCategories = { nav.navigate(Categories) },
                     onAccounts = { nav.navigate(Accounts) },
+                    onRecurring = { nav.navigate(Recurring) },
                     snackbar = snackbar,
                     beforeRestore = app::clearUndo,
                 )
@@ -234,11 +244,18 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
                 TransactionDetailScreen(
                     onBack = { nav.popBackStack() },
                     onEdit = { openSheet(route.id, route.transfer) },
+                    onOpenRule = { nav.navigate(RecurringRule(it, activeTab)) },
                     onDeleted = { action ->
                         if (nav.currentBackStackEntry == entry) nav.popBackStack()
                         app.offerUndo(action)
                     },
                 )
+            }
+            composable<Recurring> {
+                RecurringScreen(onBack = { nav.popBackStack() }, onOpen = { nav.navigate(RecurringRule(it)) })
+            }
+            composable<RecurringRule> { entry ->
+                RecurringRuleScreen(entry.toRoute<RecurringRule>().id, onBack = { nav.popBackStack() })
             }
             composable<Accounts> { AccountsScreen(onBack = { nav.popBackStack() }) }
             composable<Categories> { CategoriesScreen(onBack = { nav.popBackStack() }) }
@@ -252,7 +269,8 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
             editTransfer = editTransfer,
             onSaved = { entry ->
                 sheetOpen = false
-                if (!entry.edited) app.offerUndo(UndoAction.Added(entry))
+                if (entry.recurring) scope.launch { snackbar.showSnackbar(ruleSaved) }
+                else if (!entry.edited) app.offerUndo(UndoAction.Added(entry))
             },
         )
     }

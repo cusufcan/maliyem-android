@@ -16,6 +16,7 @@ import com.mercan.maliyem.data.local.DefaultAccounts
 import com.mercan.maliyem.data.local.DefaultCategories
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.repository.AccountRepository
+import com.mercan.maliyem.data.repository.RecurringRepository
 import com.mercan.maliyem.data.repository.CategoryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -41,12 +42,16 @@ class SettingsViewModel @Inject constructor(
     private val settings: AppSettings,
     categories: CategoryRepository,
     accounts: AccountRepository,
+    recurring: RecurringRepository,
     private val backupRepository: BackupRepository,
     @ApplicationContext context: Context,
 ) : ViewModel() {
     private val resolver = context.contentResolver
 
     val categoryCount: StateFlow<Int?> = categories.observeAll().map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val recurringCount: StateFlow<Int?> = recurring.observeCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val accountCount: StateFlow<Int?> = accounts.observeAll().map { it.size }

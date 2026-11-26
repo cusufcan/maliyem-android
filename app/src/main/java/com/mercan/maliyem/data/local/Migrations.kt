@@ -59,3 +59,26 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         db.execSQL("CREATE INDEX index_transfers_date ON transfers (date)")
     }
 }
+
+/** Kural tablosunu ve boş bırakılabilen bağlantıyı ekler; mevcut kayıtlar yerinde kalır. */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE recurring_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, type TEXT NOT NULL,
+                amountMinor INTEGER NOT NULL, categoryId INTEGER NOT NULL, accountId INTEGER NOT NULL,
+                note TEXT, frequency TEXT NOT NULL, startDate INTEGER NOT NULL, nextDate INTEGER NOT NULL,
+                endDate INTEGER, paused INTEGER NOT NULL, createdAt INTEGER NOT NULL,
+                FOREIGN KEY(categoryId) REFERENCES categories(id) ON UPDATE NO ACTION ON DELETE RESTRICT,
+                FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE RESTRICT
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX index_recurring_rules_categoryId ON recurring_rules (categoryId)")
+        db.execSQL("CREATE INDEX index_recurring_rules_accountId ON recurring_rules (accountId)")
+        db.execSQL("""
+            ALTER TABLE transactions ADD COLUMN recurringRuleId INTEGER
+                REFERENCES recurring_rules(id) ON UPDATE NO ACTION ON DELETE SET NULL
+        """.trimIndent())
+        db.execSQL("CREATE INDEX index_transactions_recurringRuleId ON transactions (recurringRuleId)")
+    }
+}

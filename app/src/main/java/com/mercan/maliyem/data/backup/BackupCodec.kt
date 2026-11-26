@@ -2,6 +2,7 @@ package com.mercan.maliyem.data.backup
 
 import com.mercan.maliyem.data.local.DefaultAccounts
 import com.mercan.maliyem.data.local.DefaultCategories
+import com.mercan.maliyem.data.repository.occurrenceOnOrAfter
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import kotlinx.serialization.json.Json
@@ -35,15 +36,20 @@ object BackupCodec {
             return BackupDecodeResult.Invalid
         }
 
-        val backup = if (file.version == 1) {
+        val withAccounts = if (file.version == 1) {
             val cash = DefaultAccounts.cash()
             file.copy(
-                version = BackupFile.VERSION,
                 accounts = listOf(BackupAccount(cash.id, cash.key, icon = cash.icon, sortOrder = cash.sortOrder)),
                 transactions = file.transactions.map { it.copy(accountId = cash.id) },
                 transfers = emptyList(),
             )
         } else file
+
+        val backup = if (file.version < 3) withAccounts.copy(
+            version = BackupFile.VERSION,
+            recurringRules = emptyList(),
+            transactions = withAccounts.transactions.map { it.copy(recurringRuleId = null) },
+        ) else withAccounts
 
         val accountIds = backup.accounts.map { it.id }.toSet()
         val accountKeys = backup.accounts.mapNotNull { it.key }
@@ -69,11 +75,24 @@ object BackupCodec {
             categoriesById.keys.any { it <= 0 || it == Long.MAX_VALUE }
         ) return BackupDecodeResult.Invalid
 
+        val ruleIds = HashSet<Long>()
+        for (rule in backup.recurringRules) {
+            val start = parseDate(rule.startDate) ?: return BackupDecodeResult.Invalid
+            val next = parseDate(rule.nextDate) ?: return BackupDecodeResult.Invalid
+            val end = rule.endDate?.let { parseDate(it) ?: return BackupDecodeResult.Invalid }
+            if (rule.id <= 0 || rule.id == Long.MAX_VALUE || !ruleIds.add(rule.id) ||
+                rule.amountMinor <= 0 || categoriesById[rule.categoryId]?.type != rule.type ||
+                rule.accountId !in accountIds || next < start || (end != null && end < start) ||
+                (next != LocalDate.MAX && next != occurrenceOnOrAfter(start, rule.frequency, next))
+            ) return BackupDecodeResult.Invalid
+        }
+
         val transactionIds = HashSet<Long>()
         for (transaction in backup.transactions) {
             if (transaction.id <= 0 || transaction.id == Long.MAX_VALUE || !transactionIds.add(transaction.id) ||
                 transaction.amountMinor <= 0 || categoriesById[transaction.categoryId]?.type != transaction.type ||
-                transaction.accountId !in accountIds || !validDate(transaction.date)
+                transaction.accountId !in accountIds || !validDate(transaction.date) ||
+                (transaction.recurringRuleId != null && transaction.recurringRuleId !in ruleIds)
             ) return BackupDecodeResult.Invalid
         }
 
@@ -93,10 +112,11 @@ object BackupCodec {
         return BackupDecodeResult.Valid(backup.copy(categories = backup.categories + missing), backup.categories.size)
     }
 
-    private fun validDate(value: String): Boolean = try {
+    private fun validDate(value: String): Boolean = parseDate(value) != null
+
+    private fun parseDate(value: String): LocalDate? = try {
         LocalDate.parse(value)
-        true
     } catch (_: DateTimeParseException) {
-        false
+        null
     }
 }

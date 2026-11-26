@@ -39,12 +39,14 @@ import java.time.LocalDate
 fun SettingsScreen(
     onCategories: () -> Unit,
     onAccounts: () -> Unit,
+    onRecurring: () -> Unit,
     snackbar: SnackbarHostState,
     beforeRestore: suspend () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val count by viewModel.categoryCount.collectAsStateWithLifecycle()
     val accountCount by viewModel.accountCount.collectAsStateWithLifecycle()
+    val recurringCount by viewModel.recurringCount.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     val language by viewModel.language.collectAsStateWithLifecycle()
     val dataBusy by viewModel.dataBusy.collectAsStateWithLifecycle()
@@ -84,6 +86,11 @@ fun SettingsScreen(
             SettingRow(
                 R.drawable.ic_seyir_wallet, stringResource(R.string.settings_accounts),
                 value = accountCount?.toString(), onClick = onAccounts, horizontalPadding = 0.dp,
+            )
+            HorizontalDivider(color = divider)
+            SettingRow(
+                R.drawable.ic_seyir_repeat, stringResource(R.string.settings_recurring),
+                value = recurringCount?.toString(), onClick = onRecurring, horizontalPadding = 0.dp,
             )
             HorizontalDivider(color = divider)
             SettingRow(
@@ -145,7 +152,7 @@ fun SettingsScreen(
                 Text(stringResource(
                     R.string.settings_restore_body,
                     pending.backup.transactions.size, pending.categoryCount,
-                    pending.backup.accounts.size, pending.backup.transfers.size,
+                    pending.backup.accounts.size, pending.backup.transfers.size, pending.backup.recurringRules.size,
                 ))
             },
             confirmButton = {
