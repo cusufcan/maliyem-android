@@ -1,5 +1,6 @@
 package com.mercan.maliyem.ui.yearly
 
+import android.content.ActivityNotFoundException
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -24,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,6 +59,7 @@ import com.mercan.maliyem.ui.trend.MonthlyTrend
 import com.mercan.maliyem.ui.trend.SeyirMonthlyBars
 import com.mercan.maliyem.util.formatMoney
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 @Composable
 fun YearlyReportScreen(
@@ -68,6 +71,7 @@ fun YearlyReportScreen(
     val exporting by viewModel.exporting.collectAsStateWithLifecycle()
     val resources = LocalResources.current
     val locale = LocalConfiguration.current.locales[0]
+    val scope = rememberCoroutineScope()
     var pendingExportYear by rememberSaveable { mutableStateOf<Int?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         val year = pendingExportYear
@@ -126,7 +130,12 @@ fun YearlyReportScreen(
                         if (exporting) stringResource(R.string.yearly_exporting) else stringResource(R.string.settings_csv),
                         onClick = {
                             pendingExportYear = report.year
-                            picker.launch("maliyem-${report.year}.csv")
+                            try {
+                                picker.launch("maliyem-${report.year}.csv")
+                            } catch (_: ActivityNotFoundException) {
+                                pendingExportYear = null
+                                scope.launch { showMessage(resources.getString(R.string.settings_csv_failed)) }
+                            }
                         },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !exporting && pendingExportYear == null,

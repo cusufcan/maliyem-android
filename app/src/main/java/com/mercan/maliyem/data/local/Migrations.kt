@@ -3,6 +3,9 @@ package com.mercan.maliyem.data.local
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
+internal val ALL_MIGRATIONS
+    get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+
 /** Mevcut kayıtları nakit hesabına bağlar; kimlikleri ve eski sıra sayacını korur. */
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {

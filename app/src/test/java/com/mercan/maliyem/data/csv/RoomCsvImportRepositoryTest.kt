@@ -77,28 +77,32 @@ class RoomCsvImportRepositoryTest {
         assertEquals(1, refreshes)
     }
 
-    @Test fun `confirm rechecks the database and duplicate comparison excludes account but includes category and note`() = runBlocking {
+    @Test fun `confirm rechecks the database and duplicate comparison includes account category and note`() = runBlocking {
         val initial = csv("""
             date,type,category,amount,note,account
             2024-01-01,Expense,Groceries,1.00,a,Cash
         """)
         val repeated = csv("""
             date,type,category,amount,note,account
-            2024-01-01,Gider,Market,1.00,a,Unused card
+            2024-01-01,Gider,Market,1.00,a,Nakit
+            2024-01-01,Expense,Groceries,1.00,a,Card
             2024-01-01,Expense,Groceries,1.00,b,Cash
             2024-01-01,Expense,Rent,1.00,a,Cash
             2024-01-01,Expense,Rent,1.00,a,Cash
         """)
-        assertEquals(4, repository.preview(repeated, true, labels).ready)
+        assertEquals(5, repository.preview(repeated, true, labels).ready)
         repository.import(initial, true, labels)
         val preview = repository.preview(repeated, true, labels)
         assertEquals(1, preview.duplicates)
-        assertTrue(preview.newAccounts.isEmpty())
-        assertEquals(CsvImportResult(3, 1, 0), repository.import(repeated, true, labels))
-        assertEquals(4, db.transactionDao().getAll().size)
-        assertEquals(CsvImportResult(4, 0, 0), repository.import(repeated, false, labels))
-        assertEquals(8, db.transactionDao().getAll().size)
-        assertEquals("Unused card", db.accountDao().getAll().last().name)
+        assertEquals(listOf("Card"), preview.newAccounts)
+        assertEquals(CsvImportResult(4, 1, 0), repository.import(repeated, true, labels))
+        val card = db.accountDao().getAll().single { it.name == "Card" }
+        val transactions = db.transactionDao().getAll()
+        assertEquals(5, transactions.size)
+        assertEquals("a", transactions.single { it.accountId == card.id }.note)
+        assertEquals(CsvImportResult(0, 5, 0), repository.import(repeated, true, labels))
+        assertEquals(CsvImportResult(5, 0, 0), repository.import(repeated, false, labels))
+        assertEquals(10, db.transactionDao().getAll().size)
     }
 
     @Test fun `failure during transfer insert rolls back earlier entity and transaction inserts`() = runBlocking {

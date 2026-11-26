@@ -9,7 +9,7 @@ plugins {
     alias(libs.plugins.androidx.room)
 }
 
-// Room şema dosyaları repoya girer; ileride migration testleri bunlara dayanır.
+// Room, repodaki şemaları androidTest APK'sına asset olarak ekler.
 room {
     schemaDirectory("$projectDir/schemas")
 }
@@ -32,14 +32,22 @@ android {
         // java.time (LocalDate) desugaring'siz çalışsın diye 26 (ADR-0005).
         minSdk = 26
         targetSdk = 37
-        // Play'deki eski sürüm 16; her yüklemede artar.
-        versionCode = 17
-        versionName = "1.1.0"
+        // Play'deki 1.1.0 sürümünün kodu 17; her yüklemede artar.
+        versionCode = 18
+        versionName = "1.2.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     androidResources {
         // Yalnız desteklenen dillerin kaynakları APK'ya girer.
         localeFilters += listOf("en", "tr")
+    }
+
+    bundle {
+        language {
+            // Dil seçimi ve CSV eşleştirmesi iki dilin kaynaklarına çevrimdışı erişir.
+            enableSplit = false
+        }
     }
 
     signingConfigs {
@@ -118,4 +126,6 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.kotlinx.coroutines.test)
+    androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.androidx.test.runner)
 }

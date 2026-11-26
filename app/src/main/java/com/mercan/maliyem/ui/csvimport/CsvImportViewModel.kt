@@ -1,7 +1,7 @@
 package com.mercan.maliyem.ui.csvimport
 
 import android.content.Context
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -29,6 +29,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private const val KEY_IMPORT_RESULT = "csvImportResult"
+
 internal sealed interface CsvImportState {
     data object Loading : CsvImportState
     data class Failed(val reason: CsvFileError) : CsvImportState
@@ -48,20 +50,24 @@ internal sealed interface CsvImportState {
 
 @HiltViewModel
 internal class CsvImportViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+    private val savedStateHandle: SavedStateHandle,
     private val repository: CsvImportRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
     private val labels by lazy { CsvImportLabels.localized(context) }
-    private val uri = Uri.parse(savedStateHandle.toRoute<CsvImport>().uri)
-    private val current = MutableStateFlow<CsvImportState>(CsvImportState.Loading)
+    private val uri = savedStateHandle.toRoute<CsvImport>().uri.toUri()
+    private val current = MutableStateFlow<CsvImportState>(
+        savedStateHandle.get<IntArray>(KEY_IMPORT_RESULT)?.let { (written, duplicates, errors) ->
+            CsvImportState.Finished(CsvImportResult(written, duplicates, errors))
+        } ?: CsvImportState.Loading,
+    )
     val state = current.asStateFlow()
     private var draft: CsvImportState.Mapping? = null
     private var mapped: MappedCsv? = null
     private var skipDuplicates = true
 
     init {
-        load()
+        if (current.value == CsvImportState.Loading) load()
     }
 
     private fun load() = viewModelScope.launch {
@@ -156,6 +162,7 @@ internal class CsvImportViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val result = repository.import(csv, state.skipDuplicates, labels)
+                savedStateHandle[KEY_IMPORT_RESULT] = intArrayOf(result.written, result.skippedDuplicates, result.errors)
                 draft = null
                 mapped = null
                 current.value = CsvImportState.Finished(result)

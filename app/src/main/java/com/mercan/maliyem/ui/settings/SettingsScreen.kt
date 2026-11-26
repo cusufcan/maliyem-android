@@ -1,5 +1,6 @@
 package com.mercan.maliyem.ui.settings
 
+import android.content.ActivityNotFoundException
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
@@ -36,6 +38,7 @@ import com.mercan.maliyem.ui.components.SettingRow
 import com.mercan.maliyem.ui.theme.Spacing
 import java.time.LocalDate
 import com.mercan.maliyem.util.formatMoney
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
@@ -60,6 +63,7 @@ fun SettingsScreen(
     val pendingBackup by viewModel.pendingBackup.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val resources = LocalResources.current
+    val scope = rememberCoroutineScope()
     val backupPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         uri?.let(viewModel::saveBackup)
     }
@@ -166,7 +170,13 @@ fun SettingsScreen(
             HorizontalDivider(color = divider)
             SettingRow(
                 R.drawable.ic_seyir_arrow_in, stringResource(R.string.csv_import),
-                onClick = { csvImportPicker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain")) },
+                onClick = {
+                    try {
+                        csvImportPicker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain"))
+                    } catch (_: ActivityNotFoundException) {
+                        scope.launch { snackbar.showSnackbar(resources.getString(R.string.csv_unreadable)) }
+                    }
+                },
                 horizontalPadding = 0.dp, enabled = !dataBusy,
             )
             HorizontalDivider(color = divider)

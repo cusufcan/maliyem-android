@@ -77,7 +77,7 @@ internal class RecurringReminderWorker(context: Context, parameters: WorkerParam
             if (!entry.appSettings().recurringReminders.value) return Result.success()
             val recurring = entry.recurringRepository()
             val notifications = entry.localNotifications()
-            val count = recurring.generateDue(today)
+            val count = recurring.generateDue(today, throwOnFailure = true)
             notifications.recurringSummary("added", today, count, R.plurals.notification_recurring_added)
             val tomorrow = recurring.countDueOn(today.plusDays(1))
             notifications.recurringSummary("due", today, tomorrow, R.plurals.notification_recurring_due)

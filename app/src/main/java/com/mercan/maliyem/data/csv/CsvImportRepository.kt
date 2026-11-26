@@ -168,15 +168,18 @@ internal class CsvImportRepository @Inject constructor(
     }
 
     private data class TransactionKey(
-        val date: LocalDate, val amount: Long, val type: TransactionType, val note: String, val category: Long,
+        val date: LocalDate, val amount: Long, val type: TransactionType, val note: String,
+        val category: Long, val account: Long,
     )
 
     private data class TransferKey(
         val date: LocalDate, val amount: Long, val note: String, val from: Long, val to: Long,
     )
 
-    private fun ImportRow.transactionKey(): TransactionKey? = category?.id?.let {
-        TransactionKey(entry.date, entry.amountMinor, category.type, entry.note.orEmpty(), it)
+    private fun ImportRow.transactionKey(): TransactionKey? {
+        val accountId = account.id ?: return null
+        val categoryId = category?.id ?: return null
+        return TransactionKey(entry.date, entry.amountMinor, category.type, entry.note.orEmpty(), categoryId, accountId)
     }
 
     private fun ImportRow.transferKey(): TransferKey? {
@@ -192,7 +195,9 @@ internal class CsvImportRepository @Inject constructor(
         val reports = db.transactionReportDao()
         for (dates in transactionKeys.map { it.date }.distinct().chunked(900)) {
             for (item in reports.transactionsOnDates(dates)) {
-                transactionKeys.remove(TransactionKey(item.date, item.amountMinor, item.type, item.note.orEmpty(), item.categoryId))
+                transactionKeys.remove(TransactionKey(
+                    item.date, item.amountMinor, item.type, item.note.orEmpty(), item.categoryId, item.accountId,
+                ))
             }
         }
         for (dates in transferKeys.map { it.date }.distinct().chunked(900)) {

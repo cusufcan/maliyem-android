@@ -2,6 +2,7 @@ package com.mercan.maliyem.data.backup
 
 import android.database.sqlite.SQLiteConstraintException
 import androidx.room.Room
+import com.mercan.maliyem.data.local.DefaultAccounts
 import com.mercan.maliyem.data.local.DefaultCategories
 import com.mercan.maliyem.data.local.MaliyemDatabase
 import com.mercan.maliyem.data.local.RecurringFrequency.MONTHLY
@@ -23,6 +24,11 @@ import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -47,6 +53,46 @@ class RoomBackupRepositoryTest {
     ) { refreshes++ }
 
     @After fun closeDatabase() = db.close()
+
+    @Test fun `backup versions one through six restore into the current Room database`() = runBlocking {
+        val photo = receiptFile("6d093eb6-b924-4aaf-a7fa-8fccbe72abe0.jpg")
+        val original = backup().let {
+            it.copy(transactions = listOf(it.transactions.single().copy(note = "İzmir'de öğle", receiptPath = photo.name)))
+        }
+        for (version in 1..6) {
+            val expected = original.copy(
+                accounts = if (version >= 2) original.accounts else original.accounts.take(1),
+                transfers = if (version >= 2) original.transfers else emptyList(),
+                recurringRules = if (version >= 3) original.recurringRules else emptyList(),
+                budgets = if (version >= 4) original.budgets else emptyList(),
+                overallBudgetMinor = original.overallBudgetMinor.takeIf { version >= 4 },
+                savingsGoals = if (version >= 5) original.savingsGoals else emptyList(),
+                goalEntries = if (version >= 5) original.goalEntries else emptyList(),
+                transactions = original.transactions.map {
+                    it.copy(
+                        accountId = if (version >= 2) it.accountId else DefaultAccounts.CASH_ID,
+                        recurringRuleId = it.recurringRuleId.takeIf { version >= 3 },
+                        receiptPath = it.receiptPath.takeIf { version == 6 },
+                    )
+                },
+            )
+            if (version == 6) photo.writeText("device-local receipt")
+            val payload = Json.parseToJsonElement(BackupCodec.encode(expected.copy(version = version))).jsonObject.toMutableMap()
+            if (version < 2) payload.keys.removeAll(setOf("accounts", "transfers"))
+            if (version < 3) payload.remove("recurringRules")
+            if (version < 4) payload.keys.removeAll(setOf("budgets", "overallBudgetMinor"))
+            if (version < 5) payload.keys.removeAll(setOf("savingsGoals", "goalEntries"))
+            val row = payload.getValue("transactions").jsonArray.single().jsonObject.toMutableMap()
+            if (version < 2) row.remove("accountId")
+            if (version < 3) row.remove("recurringRuleId")
+            if (version < 6) row.remove("receiptPath")
+            payload["transactions"] = JsonArray(listOf(JsonObject(row)))
+
+            val decoded = BackupCodec.decode(JsonObject(payload).toString()) as BackupDecodeResult.Valid
+            repository.replaceAll(decoded)
+            assertEquals("Balance and row data for backup v$version", expected, repository.snapshot().copy(exportedAt = 0))
+        }
+    }
 
     @Test fun `all tables round trip and automatic sequences follow restored ids`() = runBlocking {
         restore(backup())
@@ -115,7 +161,15 @@ class RoomBackupRepositoryTest {
         ) { }
 
         val recurring = recurringAt(today)
-        assertEquals(406, recurring.generateDue())
+        val sqlite = db.openHelper.writableDatabase
+        sqlite.execSQL("CREATE TRIGGER reject_due BEFORE INSERT ON transactions BEGIN SELECT RAISE(ABORT, 'retry'); END")
+        val failure = runCatching { recurring.generateDue(throwOnFailure = true) }.exceptionOrNull()
+        assertTrue(failure is SQLiteConstraintException)
+        assertTrue(db.transactionDao().getAll().isEmpty())
+        assertEquals(start, db.recurringRuleDao().getById(weekly.id)?.nextDate)
+        sqlite.execSQL("DROP TRIGGER reject_due")
+
+        assertEquals(406, recurring.generateDue(throwOnFailure = true))
         assertEquals(406, db.transactionDao().getAll().size)
         assertEquals(0, recurring.generateDue())
         assertEquals(406, db.transactionDao().getAll().size)

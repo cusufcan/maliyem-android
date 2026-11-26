@@ -106,17 +106,18 @@ class RecurringRepository @Inject constructor(
     suspend fun delete(id: Long) = rules.delete(id) > 0
 
     /** Her kural yazma işlemi içinde yeniden okunur; eşzamanlı çağrılar aynı tarihleri üretemez. */
-    suspend fun generateDue(today: LocalDate = LocalDate.now(clock)): Int = generation.withLock {
+    suspend fun generateDue(today: LocalDate = LocalDate.now(clock), throwOnFailure: Boolean = false): Int = generation.withLock {
         val ids = try {
             rules.dueIds(today)
         } catch (e: SQLiteException) {
+            if (throwOnFailure) throw e
             Log.w("RecurringRepository", "Tekrarlayan kurallar okunamadı", e)
             return@withLock 0
         }
-        ids.sumOf { completeBatches(it, today) }
+        ids.sumOf { completeBatches(it, today, throwOnFailure) }
     }
 
-    private suspend fun completeBatches(id: Long, today: LocalDate): Int {
+    private suspend fun completeBatches(id: Long, today: LocalDate, throwOnFailure: Boolean = false): Int {
         var total = 0
         try {
             do {
@@ -128,6 +129,7 @@ class RecurringRepository @Inject constructor(
                 if (count > 0) widgetUpdater.refresh()
             } while (count == MAX_OCCURRENCES)
         } catch (e: SQLiteException) {
+            if (throwOnFailure) throw e
             Log.w("RecurringRepository", "Tekrarlayan kayıtlar yazılamadı", e)
         }
         return total
