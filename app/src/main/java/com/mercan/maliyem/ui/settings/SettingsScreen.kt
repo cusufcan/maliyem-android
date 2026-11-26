@@ -38,11 +38,13 @@ import java.time.LocalDate
 @Composable
 fun SettingsScreen(
     onCategories: () -> Unit,
+    onAccounts: () -> Unit,
     snackbar: SnackbarHostState,
     beforeRestore: suspend () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val count by viewModel.categoryCount.collectAsStateWithLifecycle()
+    val accountCount by viewModel.accountCount.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     val language by viewModel.language.collectAsStateWithLifecycle()
     val dataBusy by viewModel.dataBusy.collectAsStateWithLifecycle()
@@ -77,6 +79,11 @@ fun SettingsScreen(
             SettingRow(
                 R.drawable.ic_seyir_tag, stringResource(R.string.settings_categories),
                 value = count?.toString(), onClick = onCategories, horizontalPadding = 0.dp,
+            )
+            HorizontalDivider(color = divider)
+            SettingRow(
+                R.drawable.ic_seyir_wallet, stringResource(R.string.settings_accounts),
+                value = accountCount?.toString(), onClick = onAccounts, horizontalPadding = 0.dp,
             )
             HorizontalDivider(color = divider)
             SettingRow(
@@ -135,7 +142,11 @@ fun SettingsScreen(
             onDismissRequest = viewModel::dismissBackup,
             title = { Text(stringResource(R.string.settings_restore)) },
             text = {
-                Text(stringResource(R.string.settings_restore_body, pending.backup.transactions.size, pending.categoryCount))
+                Text(stringResource(
+                    R.string.settings_restore_body,
+                    pending.backup.transactions.size, pending.categoryCount,
+                    pending.backup.accounts.size, pending.backup.transfers.size,
+                ))
             },
             confirmButton = {
                 TextButton(onClick = { viewModel.restoreBackup(beforeRestore) }, enabled = !dataBusy) {

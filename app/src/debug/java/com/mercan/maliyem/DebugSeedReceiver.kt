@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.database.sqlite.SQLiteException
 import android.util.Log
+import com.mercan.maliyem.data.local.AccountDao
 import com.mercan.maliyem.data.local.CategoryDao
+import com.mercan.maliyem.data.local.DefaultAccounts
 import com.mercan.maliyem.data.local.TransactionDao
 import com.mercan.maliyem.data.local.TransactionEntity
 import dagger.hilt.android.AndroidEntryPoint
@@ -23,6 +25,7 @@ import kotlinx.coroutines.launch
  */
 @AndroidEntryPoint
 class DebugSeedReceiver : BroadcastReceiver() {
+    @Inject lateinit var accounts: AccountDao
     @Inject lateinit var categories: CategoryDao
     @Inject lateinit var transactions: TransactionDao
     @Inject lateinit var clock: Clock
@@ -31,6 +34,7 @@ class DebugSeedReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                val accountId = accounts.getAll().first { it.key == DefaultAccounts.CASH }.id
                 val byKey = categories.observeAll().first().associateBy { it.key }
                 val month = YearMonth.now(clock).plusMonths(intent.getIntExtra("monthOffset", 0).toLong())
                 val now = clock.millis()
@@ -43,6 +47,7 @@ class DebugSeedReceiver : BroadcastReceiver() {
                         date = month.atDay(day.coerceAtMost(month.lengthOfMonth())),
                         note = note,
                         createdAt = now + index,
+                        accountId = accountId,
                     )
                 }
                 transactions.insertAll(rows)

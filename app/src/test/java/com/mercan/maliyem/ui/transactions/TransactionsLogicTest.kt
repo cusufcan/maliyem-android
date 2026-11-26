@@ -4,6 +4,7 @@ import com.mercan.maliyem.data.local.CategoryEntity
 import com.mercan.maliyem.data.local.TransactionEntity
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.local.TransactionWithCategory
+import com.mercan.maliyem.data.local.TransferEntity
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -14,7 +15,7 @@ class TransactionsLogicTest {
     private val salary = CategoryEntity(2, TransactionType.INCOME, "salary", null, "briefcase", 0)
 
     private fun tx(id: Long, day: Int, amount: Long, category: CategoryEntity, createdAt: Long = id) = TransactionWithCategory(
-        TransactionEntity(id, category.type, amount, category.id, LocalDate.of(2026, 11, day), null, createdAt),
+        TransactionEntity(id, category.type, amount, category.id, LocalDate.of(2026, 11, day), null, createdAt, accountId = 1),
         category,
     )
 
@@ -45,5 +46,19 @@ class TransactionsLogicTest {
         val day = groupByDay(items, TransactionFilter.ALL).single()
         assertEquals(max.toBigInteger() * (-2).toBigInteger(), day.netMinor)
         assertEquals(listOf(2L, 1L), day.rows.map { it.id })
+    }
+
+    @Test fun transfersAreNeutralAndOnlyAppearInAll() {
+        val date = LocalDate.of(2026, 11, 26)
+        val transfer = TransferEntity(3, 1, 2, Long.MAX_VALUE, date, createdAt = 3)
+        val transferOnly = transfer.copy(id = 4, date = date.plusDays(1))
+        val transfers = listOf(transfer, transferOnly)
+
+        val days = groupByDay(rows, TransactionFilter.ALL, transfers)
+        assertEquals(0.toBigInteger(), days.first().netMinor)
+        assertEquals(95_000.toBigInteger(), days[1].netMinor)
+        assertEquals(DayRow.Transfer(transfer), days[1].rows.first())
+        assertEquals(groupByDay(rows, TransactionFilter.EXPENSE), groupByDay(rows, TransactionFilter.EXPENSE, transfers))
+        assertEquals(groupByDay(rows, TransactionFilter.INCOME), groupByDay(rows, TransactionFilter.INCOME, transfers))
     }
 }

@@ -62,5 +62,14 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
     fun setLanguage(language: AppLanguage) =
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(language.tag))
 
-    private companion object { const val KEY_THEME = "theme" }
+    fun lastAccountId(): Long? = prefs.getLong(KEY_LAST_ACCOUNT, 0).takeIf { it > 0 }
+
+    fun setLastAccountId(id: Long?) {
+        prefs.edit { if (id == null) remove(KEY_LAST_ACCOUNT) else putLong(KEY_LAST_ACCOUNT, id) }
+    }
+
+    private companion object {
+        const val KEY_THEME = "theme"
+        const val KEY_LAST_ACCOUNT = "lastAccount"
+    }
 }

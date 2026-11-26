@@ -59,6 +59,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
+import com.mercan.maliyem.data.repository.AccountBalance
+import com.mercan.maliyem.ui.accounts.AccountsCard
 import com.mercan.maliyem.data.local.DefaultCategories
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.ui.components.TransactionRow
@@ -86,6 +88,7 @@ fun SummaryScreen(
     viewModel: SummaryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val accounts by viewModel.activeAccounts.collectAsStateWithLifecycle()
     // İlk açılış, boş ay ve dolu ay arası solarak; ay değişimi yönlü kayarak geçer (ADR-0016).
     AnimatedContent(
         firstLaunch to state,
@@ -100,12 +103,12 @@ fun SummaryScreen(
         label = "summary",
     ) { (first, shown) ->
         when {
-            first -> FirstLaunch(onAdd)
+            first -> FirstLaunch(onAdd, accounts)
             shown == null -> Unit
-            shown.isEmpty -> EmptyMonth(shown, viewModel::previousMonth, viewModel::nextMonth, viewModel::selectMonth, onAdd)
+            shown.isEmpty -> EmptyMonth(shown, viewModel::previousMonth, viewModel::nextMonth, viewModel::selectMonth, onAdd, onSeeAll, accounts)
             else -> SummaryContent(
                 shown, onPreviousMonth = viewModel::previousMonth, onNextMonth = viewModel::nextMonth, onSeeAll = onSeeAll,
-                highlightId = highlightId, onOpen = onOpen,
+                highlightId = highlightId, onOpen = onOpen, accounts = accounts,
             )
         }
     }
@@ -113,11 +116,12 @@ fun SummaryScreen(
 
 /** Pano 7 · İlk açılış. */
 @Composable
-private fun FirstLaunch(onAdd: () -> Unit) {
+private fun FirstLaunch(onAdd: () -> Unit, accounts: List<AccountBalance>) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState())
             .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.lg),
     ) {
+        AccountsCard(accounts)
         EmptyState(
             R.drawable.ic_seyir_wallet,
             stringResource(R.string.empty_first_title),
@@ -138,6 +142,8 @@ private fun EmptyMonth(
     onNextMonth: () -> Unit,
     onSelectMonth: (YearMonth) -> Unit,
     onAdd: () -> Unit,
+    onSeeAll: () -> Unit,
+    accounts: List<AccountBalance>,
 ) {
     val locale = LocalConfiguration.current.locales[0]
     val monthsIn = stringArrayResource(R.array.month_in)
@@ -151,13 +157,18 @@ private fun EmptyMonth(
             onPrevious = onPreviousMonth.takeIf { state.previousMonth != null },
             onNext = onNextMonth.takeIf { state.nextMonth != null },
         )
+        AccountsCard(accounts)
         EmptyState(
             R.drawable.ic_seyir_calendar,
-            stringResource(R.string.empty_month_title, monthsIn[state.month.monthValue - 1]),
+            stringResource(
+                if (state.hasTransfers) R.string.empty_month_transfers_title else R.string.empty_month_title,
+                monthsIn[state.month.monthValue - 1],
+            ),
             stringResource(R.string.empty_month_body),
             Modifier.weight(1f),
         ) {
             SeyirButton(stringResource(R.string.add_open), onAdd, icon = R.drawable.ic_seyir_plus)
+            if (state.hasTransfers) SeyirButton(stringResource(R.string.nav_transactions), onSeeAll, tonal = true)
         }
         state.previousNet?.let { (previous, net) ->
             val colors = MaterialTheme.colorScheme
@@ -189,6 +200,7 @@ fun SummaryContent(
     modifier: Modifier = Modifier,
     highlightId: Long? = null,
     onOpen: (Long) -> Unit = {},
+    accounts: List<AccountBalance> = emptyList(),
 ) {
     val locale = LocalConfiguration.current.locales[0]
     Column(
@@ -214,6 +226,7 @@ fun SummaryContent(
                 MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.colorScheme.onSurface, Modifier.weight(1f),
             )
         }
+        AccountsCard(accounts)
         RecentSection(state, locale, onSeeAll, highlightId, onOpen)
     }
 }

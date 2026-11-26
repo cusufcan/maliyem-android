@@ -27,6 +27,7 @@ data class SummaryUiState(
     val nextMonth: YearMonth? = null,
     /** Boş ay kartı: kaydı olan bir önceki ayın neti. */
     val previousNet: Pair<YearMonth, BigInteger>? = null,
+    val hasTransfers: Boolean = false,
 ) {
     val netMinor: BigInteger = incomeMinor - expenseMinor
     val isEmpty: Boolean get() = recent.isEmpty()

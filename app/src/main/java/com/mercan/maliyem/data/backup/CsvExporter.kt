@@ -8,15 +8,16 @@ data class CsvRow(
     val category: String,
     val amountMinor: Long,
     val note: String?,
+    val account: String,
 )
 
 /** Excel için UTF-8 BOM, alanlar ve satır sonları için RFC 4180. Tutar kuruştan tam sayıyla çevrilir. */
 object CsvExporter {
     fun encode(rows: List<CsvRow>): String = buildString {
-        append("\uFEFFdate,type,category,amount,note\r\n")
+        append("\uFEFFdate,type,category,amount,note,account\r\n")
         for (row in rows.sortedBy { it.date }) {
             val amount = "${row.amountMinor / 100}.${(row.amountMinor % 100).toString().padStart(2, '0')}"
-            append(listOf(row.date.toString(), row.type, row.category, amount, row.note.orEmpty()).joinToString(",", transform = ::quote))
+            append(listOf(row.date.toString(), row.type, row.category, amount, row.note.orEmpty(), row.account).joinToString(",", transform = ::quote))
             append("\r\n")
         }
     }

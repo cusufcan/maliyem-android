@@ -19,8 +19,14 @@ import java.time.LocalDate
             childColumns = ["categoryId"],
             onDelete = ForeignKey.RESTRICT,
         ),
+        ForeignKey(
+            entity = AccountEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.RESTRICT,
+        ),
     ],
-    indices = [Index("categoryId"), Index("date")],
+    indices = [Index("categoryId"), Index("date"), Index("accountId")],
 )
 data class TransactionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -30,4 +36,5 @@ data class TransactionEntity(
     val date: LocalDate,
     val note: String? = null,
     val createdAt: Long,
+    val accountId: Long,
 )

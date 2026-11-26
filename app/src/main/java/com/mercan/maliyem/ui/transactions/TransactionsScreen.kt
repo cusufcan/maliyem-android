@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
+import com.mercan.maliyem.ui.accounts.accountName
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.ui.components.EmptyState
 import com.mercan.maliyem.ui.components.Eyebrow
@@ -49,6 +50,8 @@ import java.time.format.DateTimeFormatter
 fun TransactionsScreen(
     highlightId: Long?,
     onOpen: (Long) -> Unit,
+    onOpenTransfer: (Long) -> Unit,
+    highlightTransferId: Long?,
     viewModel: TransactionsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -97,10 +100,10 @@ fun TransactionsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Eyebrow(dayLabel(day.date, today, dayFormat), Modifier.weight(1f).semantics { heading() })
-                    SubText(formatMoney(day.netMinor, locale, signed = true))
+                    if (day.rows.any { it is DayRow.Record }) SubText(formatMoney(day.netMinor, locale, signed = true))
                 }
             }
-            itemsIndexed(day.rows, key = { _, row -> row.id }, contentType = { _, _ -> "record" }) { index, row ->
+            itemsIndexed(day.rows, key = { _, row -> "${row is DayRow.Transfer}-${row.id}" }, contentType = { _, _ -> "record" }) { index, row ->
                 val top = if (index == 0) 20.dp else 0.dp
                 val bottom = if (index == day.rows.lastIndex) 20.dp else 0.dp
                 val colors = MaterialTheme.colorScheme
@@ -110,18 +113,40 @@ fun TransactionsScreen(
                         .background(colors.surfaceContainer),
                 ) {
                     if (index > 0) HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = colors.outlineVariant)
-                    val category = categoryName(row.categoryKey, row.categoryName)
-                    val income = row.type == TransactionType.INCOME
-                    TransactionRow(
-                        title = row.note ?: category,
-                        subtitle = category.takeIf { row.note != null },
-                        icon = row.icon,
-                        amount = formatMoney(if (income) row.amountMinor else -row.amountMinor, locale, signed = true),
-                        income = income,
-                        modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { onOpen(row.id) },
-                        highlighted = row.id == highlightId,
-                        horizontalPadding = Spacing.lg,
-                    )
+                    when (row) {
+                        is DayRow.Record -> {
+                            val (transaction, info) = row.item
+                            val category = categoryName(info.key, info.name)
+                            val income = transaction.type == TransactionType.INCOME
+                            TransactionRow(
+                                title = transaction.note ?: category,
+                                subtitle = category.takeIf { transaction.note != null },
+                                icon = info.icon,
+                                amount = formatMoney(if (income) transaction.amountMinor else -transaction.amountMinor, locale, signed = true),
+                                income = income,
+                                modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { onOpen(row.id) },
+                                highlighted = row.id == highlightId,
+                                horizontalPadding = Spacing.lg,
+                            )
+                        }
+                        is DayRow.Transfer -> {
+                            val transfer = row.item
+                            TransactionRow(
+                                title = stringResource(
+                                    R.string.transfer_direction,
+                                    accountName(current.accounts, transfer.fromAccountId),
+                                    accountName(current.accounts, transfer.toAccountId),
+                                ),
+                                subtitle = transfer.note ?: stringResource(R.string.add_transfer),
+                                icon = "transfer",
+                                amount = formatMoney(transfer.amountMinor, locale),
+                                income = false,
+                                modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { onOpenTransfer(row.id) },
+                                highlighted = row.id == highlightTransferId,
+                                horizontalPadding = Spacing.lg,
+                            )
+                        }
+                    }
                 }
             }
         }

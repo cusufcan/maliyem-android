@@ -98,7 +98,7 @@
     <string name="settings_backup">Back up data</string>
     <string name="settings_restore">Restore from backup</string>
     <string name="settings_csv">Export as CSV</string>
-    <string name="settings_restore_body">All current transactions and categories will be replaced.\n\nTransactions in the backup: %1$d\nCategories in the backup: %2$d</string>
+    <string name="settings_restore_body">All current transactions, categories, accounts, and transfers will be replaced.\n\nTransactions in the backup: %1$d\nCategories in the backup: %2$d\nAccounts after restore: %3$d\nTransfers in the backup: %4$d</string>
     <string name="settings_restore_confirm">Restore</string>
     <string name="settings_restoring">Restoring…</string>
     <string name="settings_backup_saved">Backup saved</string>
@@ -129,6 +129,7 @@
     <string name="empty_first_note">You start with ready-made categories; add your own later.</string>
     <string name="empty_first_add">Add first record</string>
     <string name="empty_month_title">No records in %1$s yet</string>
+    <string name="empty_month_transfers_title">No income or expenses in %1$s yet</string>
     <string name="empty_month_body">Add your first income or expense and the summary fills itself.</string>
     <string name="empty_month_last">Last month</string>
     <string name="empty_month_closed">%1$s closed at %2$s</string>
@@ -172,4 +173,31 @@
     <string name="icon_percent">Interest</string>
     <string name="icon_star">Bonus</string>
     <string name="icon_tools">Repairs</string>
+
+    <string name="settings_accounts">Accounts</string>
+    <string name="account_cash">Cash</string>
+    <string name="account_label">Account</string>
+    <string name="account_new">Add account</string>
+    <string name="account_edit">Edit account</string>
+    <string name="account_initial_balance">Opening balance</string>
+    <string name="account_balance_invalid">Enter a valid balance.</string>
+    <string name="account_archive">Archive</string>
+    <string name="account_archived">Archived</string>
+    <string name="account_unarchive">Unarchive</string>
+    <string name="account_default">Default account</string>
+    <string name="account_active_required">Keep at least one account active.</string>
+    <string name="account_archive_in_use">This account is used by transactions or transfers. You can archive it to keep its history.</string>
+    <string name="account_delete_title">Delete %1$s?</string>
+    <string name="account_total">Total balance</string>
+    <string name="account_write_failed">Could not save the account change.</string>
+    <string name="add_transfer">Transfer</string>
+    <string name="transfer_from">From account</string>
+    <string name="transfer_to">To account</string>
+    <string name="transfer_direction">%1$s → %2$s</string>
+    <string name="transfer_need_accounts">Add a second active account in Settings to make a transfer.</string>
+    <string name="transfer_saved">Transfer saved</string>
+    <string name="transfer_edit_title">Edit transfer</string>
+    <string name="account_choose">Select an account</string>
+    <string name="account_picker_label">%1$s: %2$s</string>
+    <string name="icon_wallet">Wallet</string>
 </resources>

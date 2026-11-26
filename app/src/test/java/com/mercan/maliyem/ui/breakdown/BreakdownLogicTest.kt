@@ -16,7 +16,7 @@ class BreakdownLogicTest {
     private val salary = CategoryEntity(3, TransactionType.INCOME, "salary", null, "briefcase", 0)
 
     private fun tx(id: Long, amount: Long, c: CategoryEntity) =
-        TransactionWithCategory(TransactionEntity(id, c.type, amount, c.id, LocalDate.of(2026, 11, 1), null, id), c)
+        TransactionWithCategory(TransactionEntity(id, c.type, amount, c.id, LocalDate.of(2026, 11, 1), null, id, accountId = 1), c)
 
     private val rows = listOf(tx(1, 10_000, market), tx(2, 30_000, rent), tx(3, 20_000, market), tx(4, 99_000, salary))
 

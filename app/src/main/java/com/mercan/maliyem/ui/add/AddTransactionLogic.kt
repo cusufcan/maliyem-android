@@ -1,8 +1,11 @@
 package com.mercan.maliyem.ui.add
 
+import com.mercan.maliyem.data.local.AccountEntity
 import com.mercan.maliyem.data.local.CategoryEntity
+import com.mercan.maliyem.data.local.DefaultAccounts
 import com.mercan.maliyem.data.local.TransactionEntity
 import com.mercan.maliyem.data.local.TransactionType
+import com.mercan.maliyem.data.local.TransferEntity
 import com.mercan.maliyem.util.moneyDecimalSeparator
 import com.mercan.maliyem.util.parseMoney
 import java.time.LocalDate
@@ -15,9 +18,10 @@ data class AddForm(
     val categoryId: Long?,
     val date: LocalDate,
     val note: String,
+    val accountId: Long?,
 )
 
-enum class AddFormError { AMOUNT_EMPTY, AMOUNT_INVALID, AMOUNT_ZERO, CATEGORY_MISSING }
+enum class AddFormError { AMOUNT_EMPTY, AMOUNT_INVALID, AMOUNT_ZERO, CATEGORY_MISSING, ACCOUNT_MISSING }
 
 /**
  * Tutarı kuruşa çevirir. Klavye bazen yerel ondalık ayırıcı yerine öbür işareti verir
@@ -41,6 +45,12 @@ fun amountError(text: String, locale: Locale): AddFormError? =
 fun pickCategory(selected: Long?, categories: List<CategoryEntity>): Long? =
     selected?.takeIf { id -> categories.any { it.id == id } } ?: categories.firstOrNull()?.id
 
+/** Arşivlenmiş hesap yalnız kendi eski kaydında seçili kalabilir. */
+fun pickAccount(selected: Long?, previous: Long?, accounts: List<AccountEntity>): Long? =
+    selected?.takeIf { id -> accounts.any { it.id == id && (!it.archived || id == previous) } }
+        ?: accounts.firstOrNull { !it.archived && it.key == DefaultAccounts.CASH }?.id
+        ?: accounts.firstOrNull { !it.archived }?.id
+
 fun cleanNote(note: String): String? = note.trim().ifEmpty { null }
 
 /** Form geçerliyse kayıt, değilse ilk hata. [form]'un kategorisi [pickCategory] ile çözülmüş olmalı. */
@@ -48,6 +58,7 @@ fun buildEntity(form: AddForm, locale: Locale, createdAt: Long): Result {
     val minor = parseAmount(form.amountText, locale)
     amountError(form.amountText, minor)?.let { return Result.Invalid(it) }
     val categoryId = form.categoryId ?: return Result.Invalid(AddFormError.CATEGORY_MISSING)
+    val accountId = form.accountId ?: return Result.Invalid(AddFormError.ACCOUNT_MISSING)
     return Result.Valid(
         TransactionEntity(
             type = form.type,
@@ -56,7 +67,19 @@ fun buildEntity(form: AddForm, locale: Locale, createdAt: Long): Result {
             date = form.date,
             note = cleanNote(form.note),
             createdAt = createdAt,
+            accountId = accountId,
         ),
+    )
+}
+
+/** Aynı hesap ve geçersiz tutar için transfer kaydı oluşturulmaz. */
+fun buildTransfer(form: AddForm, toAccountId: Long?, amountMinor: Long?, createdAt: Long): TransferEntity? {
+    val from = form.accountId ?: return null
+    val to = toAccountId?.takeIf { it != from } ?: return null
+    val minor = amountMinor?.takeIf { it > 0 } ?: return null
+    return TransferEntity(
+        fromAccountId = from, toAccountId = to, amountMinor = minor,
+        date = form.date, note = cleanNote(form.note), createdAt = createdAt,
     )
 }
 
@@ -70,5 +93,7 @@ fun amountInputText(minor: Long, locale: Locale): String {
     val separator = moneyDecimalSeparator(locale)
     val whole = minor / 100
     val fraction = minor % 100
-    return if (fraction == 0L) whole.toString() else "$whole$separator${fraction.toString().padStart(2, '0')}"
+    val sign = if (minor < 0 && whole == 0L) "-" else ""
+    return if (fraction == 0L) whole.toString()
+        else "$sign$whole$separator${kotlin.math.abs(fraction).toString().padStart(2, '0')}"
 }

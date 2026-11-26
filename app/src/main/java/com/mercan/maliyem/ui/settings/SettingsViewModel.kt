@@ -12,8 +12,10 @@ import com.mercan.maliyem.data.backup.BackupDecodeResult
 import com.mercan.maliyem.data.backup.BackupRepository
 import com.mercan.maliyem.data.backup.CsvExporter
 import com.mercan.maliyem.data.backup.CsvRow
+import com.mercan.maliyem.data.local.DefaultAccounts
 import com.mercan.maliyem.data.local.DefaultCategories
 import com.mercan.maliyem.data.local.TransactionType
+import com.mercan.maliyem.data.repository.AccountRepository
 import com.mercan.maliyem.data.repository.CategoryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -38,12 +40,16 @@ import kotlinx.coroutines.withContext
 class SettingsViewModel @Inject constructor(
     private val settings: AppSettings,
     categories: CategoryRepository,
+    accounts: AccountRepository,
     private val backupRepository: BackupRepository,
     @ApplicationContext context: Context,
 ) : ViewModel() {
     private val resolver = context.contentResolver
 
     val categoryCount: StateFlow<Int?> = categories.observeAll().map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val accountCount: StateFlow<Int?> = accounts.observeAll().map { it.size }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val theme: StateFlow<ThemeMode> = settings.theme
@@ -95,6 +101,7 @@ class SettingsViewModel @Inject constructor(
             try {
                 beforeRestore()
                 withContext(Dispatchers.IO) { backupRepository.replaceAll(backup) }
+                settings.setLastAccountId(null)
                 _dataMessages.send(R.string.settings_restore_saved)
             } finally {
                 _pendingBackup.value = null
@@ -109,6 +116,9 @@ class SettingsViewModel @Inject constructor(
             val categories = snapshot.categories.associate { category ->
                 category.id to (category.name ?: DefaultCategories.nameRes(category.key)?.let(resources::getString).orEmpty())
             }
+            val accounts = snapshot.accounts.associate { account ->
+                account.id to (account.name ?: DefaultAccounts.nameRes(account.key)?.let(resources::getString).orEmpty())
+            }
             val expense = resources.getString(R.string.add_expense)
             val income = resources.getString(R.string.add_income)
             val rows = snapshot.transactions.map { transaction ->
@@ -118,9 +128,18 @@ class SettingsViewModel @Inject constructor(
                     categories.getValue(transaction.categoryId),
                     transaction.amountMinor,
                     transaction.note,
+                    accounts.getValue(transaction.accountId),
                 )
             }
-            writeDocument(uri, CsvExporter.encode(rows))
+            val transfers = snapshot.transfers.map { transfer ->
+                CsvRow(
+                    LocalDate.parse(transfer.date), resources.getString(R.string.add_transfer), "", transfer.amountMinor,
+                    transfer.note, resources.getString(
+                        R.string.transfer_direction, accounts.getValue(transfer.fromAccountId), accounts.getValue(transfer.toAccountId),
+                    ),
+                )
+            }
+            writeDocument(uri, CsvExporter.encode(rows + transfers))
         }
         _dataMessages.send(R.string.settings_csv_saved)
     }

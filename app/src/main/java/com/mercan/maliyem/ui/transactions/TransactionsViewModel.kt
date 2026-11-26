@@ -3,7 +3,9 @@ package com.mercan.maliyem.ui.transactions
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mercan.maliyem.data.repository.AccountRepository
 import com.mercan.maliyem.data.repository.TransactionRepository
+import com.mercan.maliyem.data.repository.TransferRepository
 import com.mercan.maliyem.ui.CalendarDays
 import com.mercan.maliyem.ui.MonthSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -13,7 +15,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 private const val KEY_FILTER = "filter"
@@ -23,6 +24,8 @@ class TransactionsViewModel @Inject constructor(
     private val savedState: SavedStateHandle,
     months: MonthSelection,
     repository: TransactionRepository,
+    transfers: TransferRepository,
+    accounts: AccountRepository,
     calendar: CalendarDays,
 ) : ViewModel() {
 
@@ -32,10 +35,13 @@ class TransactionsViewModel @Inject constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<TransactionsUiState?> = months.month
-        .flatMapLatest { m -> repository.observeMonth(m).map { m to it } }
-        .combine(filter) { (m, rows), f ->
-            val selected = TransactionFilter.valueOf(f)
-            TransactionsUiState(m, selected, groupByDay(rows, selected))
+        .flatMapLatest { month ->
+            combine(
+                repository.observeMonth(month), transfers.observeMonth(month), filter, accounts.observeAll(),
+            ) { rows, moves, f, accountRows ->
+                val selected = TransactionFilter.valueOf(f)
+                TransactionsUiState(month, selected, groupByDay(rows, selected, moves), accountRows)
+            }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 

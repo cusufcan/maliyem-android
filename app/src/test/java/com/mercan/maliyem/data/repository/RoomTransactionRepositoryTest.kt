@@ -72,7 +72,7 @@ class RoomTransactionRepositoryTest {
     @Test fun `add and delete reach the dao`() = runBlocking {
         val dao = RangeDao()
         val repo = RoomTransactionRepository(dao)
-        val entity = TransactionEntity(type = TransactionType.EXPENSE, amountMinor = 100, categoryId = 1, date = LocalDate.of(2026, 11, 26), createdAt = 0)
+        val entity = TransactionEntity(type = TransactionType.EXPENSE, amountMinor = 100, categoryId = 1, date = LocalDate.of(2026, 11, 26), createdAt = 0, accountId = 1)
         assertEquals(7L, repo.add(entity))
         assertEquals(entity, dao.inserted)
         repo.delete(7)
@@ -90,7 +90,7 @@ class RoomTransactionRepositoryTest {
     }
 
     @Test fun `delete returns the snapshot and undo can restore into the fallback category`() = runBlocking {
-        val entry = TransactionEntity(5, TransactionType.EXPENSE, 101, 2, LocalDate.of(2026, 11, 1), "note", 4)
+        val entry = TransactionEntity(5, TransactionType.EXPENSE, 101, 2, LocalDate.of(2026, 11, 1), "note", 4, accountId = 1)
         val dao = RangeDao().apply { existing = entry }
         val repo = RoomTransactionRepository(dao)
         assertNull(repo.deleteAndGet(99))
@@ -104,7 +104,7 @@ class RoomTransactionRepositoryTest {
     }
 
     @Test fun `undo does not insert when neither category exists`() = runBlocking {
-        val entry = TransactionEntity(5, TransactionType.INCOME, 101, 2, LocalDate.of(2026, 11, 1), null, 4)
+        val entry = TransactionEntity(5, TransactionType.INCOME, 101, 2, LocalDate.of(2026, 11, 1), null, 4, accountId = 1)
         val dao = RangeDao().apply { restoredCategory = null }
         assertFalse(RoomTransactionRepository(dao).restore(entry))
         assertEquals(DefaultCategories.OTHER_INCOME, dao.requestedFallback)
