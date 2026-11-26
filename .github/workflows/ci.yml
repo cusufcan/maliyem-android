@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Aynı dalda yeni push gelirse eski koşuyu iptal et.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # Gradle bağımlılık önbelleği + wrapper doğrulaması.
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Test, lint, derleme
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug
+
+      - name: Raporları yükle (hata olursa da)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: raporlar
+          path: |
+            app/build/reports/
+            app/build/test-results/
+          if-no-files-found: ignore
