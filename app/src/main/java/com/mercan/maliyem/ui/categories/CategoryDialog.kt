@@ -27,6 +27,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -82,7 +83,7 @@ internal fun CategoryDialog(
                         val ring by animateColorAsState(if (selected) colors.primary else Color.Transparent, Motion.fast(), label = "iconRing")
                         val tint by animateColorAsState(if (selected) colors.onPrimaryContainer else colors.onSurfaceVariant, Motion.fast(), label = "iconTint")
                         Box(
-                            Modifier.size(48.dp).background(bg, CircleShape).border(2.dp, ring, CircleShape)
+                            Modifier.size(48.dp).clip(CircleShape).background(bg).border(2.dp, ring, CircleShape)
                                 .selectable(selected, role = Role.RadioButton) { icon = key }
                                 .semantics { contentDescription = label },
                             contentAlignment = Alignment.Center,
