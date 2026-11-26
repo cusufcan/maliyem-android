@@ -89,6 +89,7 @@ tasks.withType<Test>().configureEach {
 dependencies {
     robolectricSdk(libs.robolectric.sdk)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.exifinterface)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.activity.compose)

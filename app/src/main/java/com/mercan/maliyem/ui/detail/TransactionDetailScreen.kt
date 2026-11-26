@@ -53,6 +53,7 @@ import java.time.format.DateTimeFormatter
 fun TransactionDetailScreen(
     onBack: () -> Unit,
     onEdit: () -> Unit,
+    onOpenReceipt: (String) -> Unit,
     onOpenRule: (Long) -> Unit,
     onDeleted: (UndoAction) -> Unit,
     viewModel: TransactionDetailViewModel = hiltViewModel(),
@@ -104,6 +105,12 @@ fun TransactionDetailScreen(
                             SettingRow(categoryIcon(account.icon), stringResource(R.string.account_label), value = accountName(account), horizontalPadding = 0.dp)
                             HorizontalDivider(color = colors.outlineVariant)
                         }
+                    }
+                    transaction.receiptPath?.let { path ->
+                        SettingRow(
+                            R.drawable.ic_seyir_receipt, stringResource(R.string.receipt_open),
+                            onClick = { onOpenReceipt(path) }, horizontalPadding = 0.dp,
+                        )
                     }
                     rule?.takeIf { it.id == transaction.recurringRuleId }?.let { recurring ->
                         SettingRow(

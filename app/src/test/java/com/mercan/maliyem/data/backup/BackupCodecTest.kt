@@ -165,10 +165,24 @@ class BackupCodecTest {
     private val deposit = BackupGoalEntry(20, goal.id, 18_500, "2026-11-26", "Başlangıç")
     private val withdrawal = BackupGoalEntry(21, goal.id, -3_500, "2026-11-27")
 
-    @Test fun `v5 round trip keeps goals and signed entries regardless of list order`() {
+    @Test fun `v6 round trip keeps goals and signed entries regardless of list order`() {
         val file = backup.copy(savingsGoals = listOf(goal), goalEntries = listOf(withdrawal, deposit))
         val restored = BackupCodec.decode(BackupCodec.encode(file)) as BackupDecodeResult.Valid
         assertEquals(file, restored.backup)
+    }
+
+    @Test fun `v6 JSON keeps the relative path and v5 still reads absent or unknown receipt fields`() {
+        val path = "6d093eb6-b924-4aaf-a7fa-8fccbe72abe0.jpg"
+        val withReceipt = backup.copy(transactions = listOf(transaction.copy(receiptPath = path)))
+        val encoded = BackupCodec.encode(withReceipt)
+        assertTrue(encoded.contains("\"receiptPath\":\"$path\""))
+        assertEquals(withReceipt, (BackupCodec.decode(encoded) as BackupDecodeResult.Valid).backup)
+
+        val legacy = BackupCodec.encode(backup.copy(version = 5, savingsGoals = listOf(goal)))
+        for (content in listOf(legacy.replace(",\"receiptPath\":null", ""), legacy.replace("\"receiptPath\":null", "\"receiptPath\":{}"))) {
+            val result = BackupCodec.decode(content) as BackupDecodeResult.Valid
+            assertEquals(backup.copy(savingsGoals = listOf(goal)), result.backup)
+        }
     }
 
     @Test fun `rejects invalid goals and entries before restore`() {

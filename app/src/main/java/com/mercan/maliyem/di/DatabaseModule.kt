@@ -15,6 +15,7 @@ import com.mercan.maliyem.data.local.MIGRATION_1_2
 import com.mercan.maliyem.data.local.MIGRATION_2_3
 import com.mercan.maliyem.data.local.MIGRATION_3_4
 import com.mercan.maliyem.data.local.MIGRATION_4_5
+import com.mercan.maliyem.data.local.MIGRATION_5_6
 import com.mercan.maliyem.data.local.MaliyemDatabase
 import com.mercan.maliyem.data.local.RecurringRuleDao
 import com.mercan.maliyem.data.local.SavingsGoalDao
@@ -35,7 +36,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MaliyemDatabase =
         Room.databaseBuilder(context, MaliyemDatabase::class.java, MaliyemDatabase.NAME)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .addCallback(SeedDefaults)
             .build()
 

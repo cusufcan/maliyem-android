@@ -99,12 +99,13 @@ class SettingsViewModel @Inject constructor(
         if (!_dataBusy.value) _pendingBackup.value = null
     }
 
-    fun restoreBackup(beforeRestore: suspend () -> Unit) {
+    fun restoreBackup(restoreWithUndoCleared: suspend (suspend () -> Unit) -> Unit) {
         val backup = _pendingBackup.value ?: return
         runDataAction(R.string.settings_restore_failed) {
             try {
-                beforeRestore()
-                withContext(Dispatchers.IO) { backupRepository.replaceAll(backup) }
+                restoreWithUndoCleared {
+                    withContext(Dispatchers.IO) { backupRepository.replaceAll(backup) }
+                }
                 settings.setLastAccountId(null)
                 recurring.generateDue()
                 _dataMessages.send(R.string.settings_restore_saved)

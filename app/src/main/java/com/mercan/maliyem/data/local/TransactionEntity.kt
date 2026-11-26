@@ -44,4 +44,5 @@ data class TransactionEntity(
     val createdAt: Long,
     val accountId: Long,
     val recurringRuleId: Long? = null,
+    val receiptPath: String? = null,
 )

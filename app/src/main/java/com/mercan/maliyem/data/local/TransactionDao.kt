@@ -59,6 +59,20 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions ORDER BY date, createdAt, id")
     suspend fun getAll(): List<TransactionEntity>
 
+    @Query("SELECT DISTINCT receiptPath FROM transactions WHERE receiptPath IS NOT NULL")
+    suspend fun receiptPaths(): List<String>
+
+    @Query("UPDATE transactions SET receiptPath = NULL WHERE receiptPath = :path")
+    suspend fun clearMissingReceipt(path: String)
+
+    @Transaction
+    suspend fun clearMissingReceipts(paths: List<String>) {
+        paths.forEach { clearMissingReceipt(it) }
+    }
+
+    @Query("SELECT EXISTS(SELECT 1 FROM transactions WHERE receiptPath = :path)")
+    suspend fun referencesReceipt(path: String): Boolean
+
     @Query("SELECT categoryId, COUNT(*) AS count FROM transactions GROUP BY categoryId")
     fun observeCounts(): Flow<List<CategoryCount>>
 

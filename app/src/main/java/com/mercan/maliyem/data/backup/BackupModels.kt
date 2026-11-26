@@ -22,7 +22,7 @@ data class BackupFile(
 ) {
     companion object {
         const val FORMAT = "maliyem-backup"
-        const val VERSION = 5
+        const val VERSION = 6
     }
 }
 
@@ -47,6 +47,7 @@ data class BackupTransaction(
     val createdAt: Long,
     val accountId: Long = 0,
     val recurringRuleId: Long? = null,
+    val receiptPath: String? = null,
 )
 
 @Serializable

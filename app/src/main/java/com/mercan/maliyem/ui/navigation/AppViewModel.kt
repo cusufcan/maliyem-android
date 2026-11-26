@@ -15,11 +15,13 @@ import com.mercan.maliyem.ui.add.SavedEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.YearMonth
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -75,8 +77,12 @@ class AppViewModel @Inject constructor(
     fun finishUndo(action: UndoAction, perform: Boolean) {
         if (_undoActions.value.firstOrNull() != action) return
         _undoActions.update { it.drop(1) }
-        if (!perform) return
-        viewModelScope.launch {
+        val deleted = (action as? UndoAction.Deleted)?.entity
+        if (!perform) {
+            deleted?.let(repository::discardUndo)
+            return
+        }
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
                 undoWrites.withLock {
                     when (action) {
@@ -90,15 +96,31 @@ class AppViewModel @Inject constructor(
                 _undoFailed.value = R.string.undo_related_record_missing
             } catch (_: SQLiteException) {
                 _undoFailed.value = R.string.undo_failed
+            } finally {
+                deleted?.let(repository::discardUndo)
             }
         }
     }
 
     /** Yedekte aynı kimlikler başka kayıtlara ait olabilir; eski "Geri al" işlemlerini kapatır. */
-    suspend fun clearUndo() {
-        _undoActions.value = emptyList()
-        undoWrites.withLock { _undoFailed.value = null }
+    suspend fun restoreWithUndoCleared(restore: suspend () -> Unit) {
+        val queued = takeQueuedDeletions()
+        try {
+            undoWrites.withLock {
+                _undoFailed.value = null
+                restore()
+            }
+        } finally {
+            queued.forEach { repository.discardUndo(it.entity) }
+        }
     }
+
+    override fun onCleared() {
+        takeQueuedDeletions().forEach { repository.discardUndo(it.entity) }
+    }
+
+    private fun takeQueuedDeletions() =
+        _undoActions.getAndUpdate { emptyList() }.filterIsInstance<UndoAction.Deleted>()
 
     fun acknowledgeUndoFailure() { _undoFailed.value = null }
 }

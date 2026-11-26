@@ -232,6 +232,29 @@ class MigrationsTest {
         )
     }
 
+    @Test fun `v5 to v6 preserves records and sequence and adds a nullable receipt`() {
+        val v6 = schema(6)
+        val expectedSchema = metadata(v6)
+        val fresh = sqlite(createTables(v6) + expectedSchema)
+        val migrated = sqlite(
+            createTables(schema(5)) + """
+                INSERT INTO accounts VALUES (1, 'cash', NULL, 'wallet', 0, 0, 0);
+                INSERT INTO categories VALUES (6, 'EXPENSE', NULL, 'Market', 'cart', 1);
+                INSERT INTO transactions VALUES (9, 'EXPENSE', 75, 6, 20000, 'Note', 123, 1, NULL);
+                UPDATE sqlite_sequence SET seq = 40 WHERE name = 'transactions';
+                BEGIN;
+            """.trimIndent() + "\n" + migrationSql(MIGRATION_5_6) + """
+                COMMIT;
+                SELECT id, amountMinor, note, receiptPath IS NULL FROM transactions;
+                INSERT INTO transactions (type, amountMinor, categoryId, date, createdAt, accountId, receiptPath)
+                    VALUES ('EXPENSE', 25, 6, 20001, 124, 1, '6d093eb6-b924-4aaf-a7fa-8fccbe72abe0.jpg');
+                SELECT id, receiptPath FROM transactions WHERE id > 9;
+                PRAGMA foreign_key_check;
+            """.trimIndent() + "\n" + expectedSchema,
+        )
+        assertEquals("9|75|Note|1\n41|6d093eb6-b924-4aaf-a7fa-8fccbe72abe0.jpg\n" + fresh, migrated)
+    }
+
     private fun metadata(schema: JsonObject): String =
         schema.getValue("entities").jsonArray.joinToString("\n") { entity ->
             val table = entity.jsonObject.getValue("tableName").jsonPrimitive.content

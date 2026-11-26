@@ -46,7 +46,7 @@ fun SettingsScreen(
     onGoals: () -> Unit,
     onImportCsv: (Uri) -> Unit,
     snackbar: SnackbarHostState,
-    beforeRestore: suspend () -> Unit,
+    restoreWithUndoCleared: suspend (suspend () -> Unit) -> Unit,
     securityCard: @Composable () -> Unit,
     notificationsCard: @Composable () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -147,6 +147,7 @@ fun SettingsScreen(
             HorizontalDivider(color = divider)
             SettingRow(
                 R.drawable.ic_seyir_arrow_out, stringResource(R.string.settings_backup),
+                subtitle = stringResource(R.string.receipt_backup_note),
                 onClick = { backupPicker.launch("maliyem-yedek-${LocalDate.now()}.json") },
                 horizontalPadding = 0.dp, enabled = !dataBusy,
             )
@@ -187,12 +188,12 @@ fun SettingsScreen(
                             formatMoney(it, resources.configuration.locales[0])
                         } ?: stringResource(R.string.settings_restore_no_budget),
                         pending.backup.savingsGoals.size, pending.backup.goalEntries.size,
-                    ),
+                    ) + "\n\n" + stringResource(R.string.receipt_restore_note),
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                 )
             },
             confirmButton = {
-                TextButton(onClick = { viewModel.restoreBackup(beforeRestore) }, enabled = !dataBusy) {
+                TextButton(onClick = { viewModel.restoreBackup(restoreWithUndoCleared) }, enabled = !dataBusy) {
                     Text(stringResource(if (dataBusy) R.string.settings_restoring else R.string.settings_restore_confirm))
                 }
             },

@@ -1,6 +1,7 @@
 package com.mercan.maliyem
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
@@ -8,6 +9,7 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -25,6 +27,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.mercan.maliyem.ui.CalendarDays
+import com.mercan.maliyem.ui.add.AddTransactionViewModel
 import com.mercan.maliyem.widget.GlanceWidgetUpdater
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.repository.RecurringRepository
@@ -53,6 +56,7 @@ class MainActivity : AppCompatActivity() {
     @Inject lateinit var recurringWork: RecurringWork
     @Inject internal lateinit var widgets: GlanceWidgetUpdater
 
+    private val addTransaction: AddTransactionViewModel by viewModels()
     private val appLock: AppLockViewModel by viewModels()
     private lateinit var authentication: AppLockAuthentication
     private var authenticationAvailable by mutableStateOf(false)
@@ -65,6 +69,24 @@ class MainActivity : AppCompatActivity() {
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         notificationsAllowed = notifications.hasPermission()
+    }
+
+    private val takeReceipt = registerForActivityResult(ActivityResultContracts.TakePicture()) { taken ->
+        addTransaction.finishReceiptCapture(taken)
+    }
+
+    private val pickReceipt = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        uri?.let { addTransaction.importReceipt(it) }
+    }
+
+    private fun launchReceiptSource(launch: () -> Unit) {
+        try {
+            launch()
+        } catch (_: ActivityNotFoundException) {
+            addTransaction.receiptCaptureFailed()
+        } catch (_: SecurityException) {
+            addTransaction.receiptCaptureFailed()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -107,6 +129,13 @@ class MainActivity : AppCompatActivity() {
                                 securityCard = { SecurityCard(lockEnabled) },
                                 notificationsCard = { NotificationSettings() },
                                 onBudgetCreated = ::requestNotificationPermission,
+                                add = addTransaction,
+                                onReceiptCamera = { launchReceiptSource { takeReceipt.launch(addTransaction.startReceiptCapture()) } },
+                                onReceiptGallery = {
+                                    launchReceiptSource {
+                                        pickReceipt.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                    }
+                                },
                             )
                         }
                     }

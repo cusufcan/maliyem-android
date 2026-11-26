@@ -10,7 +10,7 @@ import androidx.room.TypeConverters
         TransferEntity::class, RecurringRuleEntity::class, BudgetEntity::class, OverallBudgetEntity::class,
         SavingsGoalEntity::class, GoalEntryEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

@@ -8,16 +8,25 @@ import com.mercan.maliyem.data.local.RecurringFrequency.MONTHLY
 import com.mercan.maliyem.data.local.TransactionType.EXPENSE
 import com.mercan.maliyem.data.local.TransactionType.INCOME
 import com.mercan.maliyem.data.local.RecurringFrequency.WEEKLY
+import com.mercan.maliyem.data.receipt.RECEIPTS_DIRECTORY
+import com.mercan.maliyem.data.receipt.RECEIPT_DRAFTS_DIRECTORY
+import com.mercan.maliyem.data.receipt.ReceiptStore
 import com.mercan.maliyem.data.repository.RecurringRepository
+import com.mercan.maliyem.data.repository.RoomTransactionRepository
 import com.mercan.maliyem.notifications.BudgetAlerts
+import com.mercan.maliyem.notifications.BudgetAlertTracker
+import com.mercan.maliyem.notifications.ExpenseWrite
 import com.mercan.maliyem.notifications.LocalNotifications
 import com.mercan.maliyem.ui.settings.AppSettings
+import java.io.File
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,10 +39,11 @@ import org.robolectric.annotation.Config
 class RoomBackupRepositoryTest {
     private val db = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), MaliyemDatabase::class.java)
         .allowMainThreadQueries().build()
+    private val receipts = ReceiptStore(RuntimeEnvironment.getApplication(), db.transactionDao())
     private var refreshes = 0
     private val repository = RoomBackupRepository(
         db, db.categoryDao(), db.transactionDao(), db.accountDao(), db.transferDao(), db.recurringRuleDao(), db.budgetDao(),
-        db.savingsGoalDao(),
+        db.savingsGoalDao(), receipts,
     ) { refreshes++ }
 
     @After fun closeDatabase() = db.close()
@@ -68,7 +78,9 @@ class RoomBackupRepositoryTest {
     }
 
     @Test fun `a late write failure rolls back every table and its sequence`() = runBlocking {
-        restore(backup())
+        val photo = receiptFile("6d093eb6-b924-4aaf-a7fa-8fccbe72abe0.jpg")
+        val entry = backup().transactions.single().copy(receiptPath = photo.name)
+        restore(backup().copy(transactions = listOf(entry)))
         val before = repository.snapshot().copy(exportedAt = 0)
         val oldSequences = sequences()
         db.openHelper.writableDatabase.execSQL(
@@ -82,6 +94,7 @@ class RoomBackupRepositoryTest {
         assertTrue("Unexpected failure: $error", error is SQLiteConstraintException)
         assertEquals(before, repository.snapshot().copy(exportedAt = 0))
         assertEquals(oldSequences, sequences())
+        assertTrue(photo.exists())
         assertEquals(1, refreshes)
     }
 
@@ -98,7 +111,7 @@ class RoomBackupRepositoryTest {
         fun recurringAt(date: LocalDate) = RecurringRepository(
             db.recurringRuleDao(), db.transactionDao(),
             Clock.fixed(date.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC),
-            alerts,
+            alerts, receipts,
         ) { }
 
         val recurring = recurringAt(today)
@@ -112,6 +125,100 @@ class RoomBackupRepositoryTest {
         val transactions = db.transactionDao().getAll()
         assertEquals(407, transactions.size)
         assertEquals(today.plusWeeks(3), transactions.last().date)
+    }
+
+    @Test fun `JSON restore keeps local receipts and drops missing or unsafe paths`() = runBlocking {
+        val local = receiptFile("6d093eb6-b924-4aaf-a7fa-8fccbe72abe0.jpg")
+        val removed = receiptFile("6d093eb6-b924-4aaf-a7fa-8fccbe72abe1.jpg")
+        val missing = "6d093eb6-b924-4aaf-a7fa-8fccbe72abe2.jpg"
+        val unsafe = "../${local.name}"
+        val entry = backup().transactions.single()
+        restore(backup().copy(transactions = listOf(entry.copy(receiptPath = removed.name))))
+
+        // Recreate a device-local photo whose path is present in the incoming backup.
+        local.writeText("local")
+        restore(backup().copy(transactions = listOf(
+            entry.copy(receiptPath = local.name),
+            entry.copy(id = entry.id + 1, receiptPath = missing),
+            entry.copy(id = entry.id + 2, receiptPath = unsafe),
+        )))
+        assertEquals(listOf(local.name, null, null), repository.snapshot().transactions.map { it.receiptPath })
+        assertTrue(local.exists())
+        assertFalse(removed.exists())
+        assertFalse(BackupCodec.encode(repository.snapshot()).contains("\"local\""))
+    }
+
+    @Test fun `receipt deletion waits for undo and reconciliation preserves shared files`() = runBlocking {
+        restore(backup())
+        val photo = receiptFile("6d093eb6-b924-4aaf-a7fa-8fccbe72abe0.jpg")
+        val orphan = receiptFile("6d093eb6-b924-4aaf-a7fa-8fccbe72abe1.jpg")
+        val dao = db.transactionDao()
+        val entry = dao.getAll().single().copy(receiptPath = photo.name)
+        dao.update(entry)
+        val transactions = transactionRepository()
+        val removed = checkNotNull(transactions.deleteAndGet(entry.id))
+
+        receipts.reconcile()
+        assertFalse(orphan.exists())
+        assertTrue(photo.exists())
+        assertTrue(transactions.restore(removed))
+        receipts.discardUndo(removed)?.join()
+        assertEquals(photo.name, dao.getById(entry.id)?.receiptPath)
+        assertTrue(photo.exists())
+
+        val shared = dao.insert(entry.copy(id = 0))
+        val expiring = checkNotNull(transactions.deleteAndGet(entry.id))
+        val last = checkNotNull(transactions.deleteAndGet(shared))
+        receipts.discardUndo(expiring)?.join()
+        assertTrue(photo.exists())
+        receipts.discardUndo(last)?.join()
+        assertFalse(photo.exists())
+    }
+
+    @Test fun `replacing removing and permanently deleting receipts clean their files`() = runBlocking {
+        restore(backup())
+        val dao = db.transactionDao()
+        val entry = dao.getAll().single()
+        val transactions = transactionRepository()
+        val old = receiptFile("6d093eb6-b924-4aaf-a7fa-8fccbe72abe0.jpg")
+        dao.update(entry.copy(receiptPath = old.name))
+        val context = RuntimeEnvironment.getApplication()
+        val draftDirectory = File(context.filesDir, RECEIPT_DRAFTS_DIRECTORY).apply { mkdirs() }
+        val draft = File(draftDirectory, "6d093eb6-b924-4aaf-a7fa-8fccbe72abe1.jpg").apply { writeText("new") }
+        val saved = File(old.parentFile, draft.name)
+
+        assertFalse(transactions.update(entry.copy(id = 99, receiptPath = draft.name)))
+        assertFalse(saved.exists())
+        assertTrue(draft.exists())
+        assertTrue(old.exists())
+
+        assertTrue(transactions.update(entry.copy(receiptPath = draft.name)))
+        assertFalse(old.exists())
+        assertEquals("new", saved.readText())
+        assertTrue(transactions.update(entry))
+        assertFalse(saved.exists())
+        assertNull(dao.getById(entry.id)?.receiptPath)
+
+        val added = transactions.add(entry.copy(id = 0, receiptPath = draft.name))
+        transactions.delete(added)
+        assertFalse(saved.exists())
+
+        dao.update(entry.copy(receiptPath = draft.name))
+        receipts.reconcile()
+        assertNull(dao.getById(entry.id)?.receiptPath)
+    }
+
+    private fun transactionRepository() = RoomTransactionRepository(
+        db.transactionDao(),
+        object : BudgetAlertTracker {
+            override suspend fun <T> track(write: suspend () -> ExpenseWrite<T>): T = write().result
+        },
+        receipts,
+    ) { }
+
+    private fun receiptFile(name: String): File {
+        val directory = File(RuntimeEnvironment.getApplication().filesDir, RECEIPTS_DIRECTORY).apply { mkdirs() }
+        return File(directory, name).apply { writeText(name) }
     }
 
     private suspend fun restore(backup: BackupFile) {

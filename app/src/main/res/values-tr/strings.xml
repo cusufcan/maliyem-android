@@ -416,4 +416,19 @@
     <string name="csv_finished">İçe aktarma tamamlandı</string>
     <string name="csv_finished_counts">Aktarılan: %1$d · Atlanan yinelenen: %2$d · Hatalı: %3$d</string>
     <string name="csv_done">Bitti</string>
+    <string name="receipt_add">Fiş ekle</string>
+    <string name="receipt_photo">Fiş fotoğrafı</string>
+    <string name="receipt_open">Fişi görüntüle</string>
+    <string name="receipt_camera">Fotoğraf çek</string>
+    <string name="receipt_gallery">Galeriden seç</string>
+    <string name="receipt_replace">Değiştir</string>
+    <string name="receipt_remove">Kaldır</string>
+    <string name="receipt_importing">Fotoğraf hazırlanıyor…</string>
+    <string name="receipt_failed">Fotoğraf eklenemedi. Tekrar dene veya fişi kaldır.</string>
+    <string name="receipt_missing">Fiş fotoğrafı bulunamadı.</string>
+    <string name="receipt_future">İlk işlem kaydedildikten sonra fiş ekleyebilirsin.</string>
+    <string name="receipt_zoom_in">Yakınlaştır</string>
+    <string name="receipt_zoom_out">Uzaklaştır</string>
+    <string name="receipt_backup_note">JSON yedekleri fiş fotoğraflarını içermez.</string>
+    <string name="receipt_restore_note">Fiş yalnızca fotoğrafı bu cihazda varsa geri yüklenir. İşlemle bağlantısı kalmayan fotoğraflar silinir.</string>
 </resources>

@@ -7,6 +7,7 @@ import com.mercan.maliyem.data.repository.occurrenceOnOrAfter
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
@@ -39,7 +40,14 @@ object BackupCodec {
                 if (version != null && version < 4) addAll(listOf("budgets", "overallBudgetMinor"))
                 if (version != null && version < 5) addAll(listOf("savingsGoals", "goalEntries"))
             }
-            json.decodeFromJsonElement(BackupFile.serializer(), JsonObject(fields - unknownLegacyFields))
+            val payload = (fields - unknownLegacyFields).toMutableMap()
+            val transactions = payload["transactions"]
+            if (version != null && version < 6 && transactions is JsonArray) {
+                payload["transactions"] = JsonArray(transactions.map {
+                    if (it is JsonObject) JsonObject(it - "receiptPath") else it
+                })
+            }
+            json.decodeFromJsonElement(BackupFile.serializer(), JsonObject(payload))
         } catch (_: IllegalArgumentException) {
             return BackupDecodeResult.Invalid
         }
@@ -70,11 +78,15 @@ object BackupCodec {
             overallBudgetMinor = null,
         ) else withRules
 
-        val backup = if (file.version < 5) withBudgets.copy(
-            version = BackupFile.VERSION,
+        val withGoals = if (file.version < 5) withBudgets.copy(
             savingsGoals = emptyList(),
             goalEntries = emptyList(),
         ) else withBudgets
+
+        val backup = if (file.version < 6) withGoals.copy(
+            version = BackupFile.VERSION,
+            transactions = withGoals.transactions.map { it.copy(receiptPath = null) },
+        ) else withGoals
 
         val ids = sequence {
             backup.accounts.forEach { yield(it.id) }

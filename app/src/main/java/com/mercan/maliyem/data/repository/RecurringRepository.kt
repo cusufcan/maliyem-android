@@ -7,6 +7,7 @@ import com.mercan.maliyem.data.local.RecurringRuleDao
 import com.mercan.maliyem.data.local.RecurringRuleEntity
 import com.mercan.maliyem.data.local.TransactionDao
 import com.mercan.maliyem.data.local.TransactionEntity
+import com.mercan.maliyem.data.receipt.ReceiptStore
 import com.mercan.maliyem.notifications.BudgetAlertTracker
 import com.mercan.maliyem.notifications.ExpenseWrite
 import com.mercan.maliyem.widget.WidgetUpdater
@@ -23,6 +24,7 @@ class RecurringRepository @Inject constructor(
     private val transactions: TransactionDao,
     private val clock: Clock,
     private val budgetAlerts: BudgetAlertTracker,
+    private val receipts: ReceiptStore,
     private val widgetUpdater: WidgetUpdater,
 ) {
     private val generation = Mutex()
@@ -36,16 +38,18 @@ class RecurringRepository @Inject constructor(
     /** Kural ve ilk kayıtlar birlikte yazılır; gelecek tarihli kural sırada bekler. */
     suspend fun add(transaction: TransactionEntity, frequency: RecurringFrequency): Long {
         val today = LocalDate.now(clock)
-        val (id, count) = budgetAlerts.track {
-            val rule = RecurringRuleEntity(
-                type = transaction.type, amountMinor = transaction.amountMinor,
-                categoryId = transaction.categoryId, accountId = transaction.accountId, note = transaction.note,
-                frequency = frequency, startDate = transaction.date, nextDate = transaction.date,
-                createdAt = transaction.createdAt,
-            )
-            val id = rules.insert(rule)
-            val generated = generate(rule.copy(id = id), today)
-            ExpenseWrite(id to generated.size, generated)
+        val (id, count) = receipts.save(transaction.receiptPath) { path ->
+            budgetAlerts.track {
+                val rule = RecurringRuleEntity(
+                    type = transaction.type, amountMinor = transaction.amountMinor,
+                    categoryId = transaction.categoryId, accountId = transaction.accountId, note = transaction.note,
+                    frequency = frequency, startDate = transaction.date, nextDate = transaction.date,
+                    createdAt = transaction.createdAt,
+                )
+                val id = rules.insert(rule)
+                val generated = generate(rule.copy(id = id), today, path)
+                ExpenseWrite(id to generated.size, generated)
+            }
         }
         widgetUpdater.refresh()
         if (count == MAX_OCCURRENCES) completeBatches(id, today)
@@ -130,7 +134,11 @@ class RecurringRepository @Inject constructor(
     }
 
     /** Çağıran, kayıtların eklenmesini ve imlecin ilerlemesini aynı Room işleminde tutar. */
-    private suspend fun generate(rule: RecurringRuleEntity, today: LocalDate): List<TransactionEntity> {
+    private suspend fun generate(
+        rule: RecurringRuleEntity,
+        today: LocalDate,
+        receiptPath: String? = null,
+    ): List<TransactionEntity> {
         val dates = occurrences(rule, today)
         if (dates.isEmpty()) return emptyList()
         val createdAt = clock.millis()
@@ -138,7 +146,7 @@ class RecurringRepository @Inject constructor(
             TransactionEntity(
                 type = rule.type, amountMinor = rule.amountMinor, categoryId = rule.categoryId,
                 date = date, note = rule.note, createdAt = createdAt, accountId = rule.accountId,
-                recurringRuleId = rule.id,
+                recurringRuleId = rule.id, receiptPath = receiptPath.takeIf { date == rule.startDate },
             )
         }
         transactions.insertAll(generated)

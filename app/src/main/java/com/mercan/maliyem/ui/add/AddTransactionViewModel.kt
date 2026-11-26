@@ -1,6 +1,7 @@
 package com.mercan.maliyem.ui.add
 
 import android.database.sqlite.SQLiteException
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,6 +9,7 @@ import com.mercan.maliyem.data.local.AccountEntity
 import com.mercan.maliyem.data.local.CategoryEntity
 import com.mercan.maliyem.data.local.RecurringFrequency
 import com.mercan.maliyem.data.local.TransactionType
+import com.mercan.maliyem.data.receipt.ReceiptDrafts
 import com.mercan.maliyem.data.repository.AccountRepository
 import com.mercan.maliyem.data.repository.CategoryRepository
 import com.mercan.maliyem.data.repository.RecurringRepository
@@ -17,10 +19,12 @@ import com.mercan.maliyem.data.repository.forType
 import com.mercan.maliyem.ui.CalendarDays
 import com.mercan.maliyem.ui.settings.AppSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.io.IOException
 import java.time.Clock
 import java.time.LocalDate
 import java.util.Locale
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -47,6 +51,8 @@ private const val KEY_PREVIOUS_ACCOUNT = "previousAccount"
 private const val KEY_PREVIOUS_TO = "previousTo"
 private const val KEY_CREATED = "created"
 private const val KEY_FREQUENCY = "frequency"
+private const val KEY_RECEIPT = "receipt"
+private const val KEY_CAMERA_CAPTURE = "receiptCapture"
 
 data class AddUiState(
     val form: AddForm,
@@ -91,6 +97,7 @@ class AddTransactionViewModel @Inject constructor(
     private val recurring: RecurringRepository,
     private val settings: AppSettings,
     private val clock: Clock,
+    private val receiptDrafts: ReceiptDrafts,
     calendar: CalendarDays,
 ) : ViewModel() {
 
@@ -132,6 +139,69 @@ class AddTransactionViewModel @Inject constructor(
     val saved = _saved.asStateFlow()
     private val _writeFailed = MutableStateFlow(false)
     val writeFailed = _writeFailed.asStateFlow()
+
+    val receiptPath = savedState.getStateFlow<String?>(KEY_RECEIPT, null)
+    private val _receiptImporting = MutableStateFlow(false)
+    val receiptImporting = _receiptImporting.asStateFlow()
+    private val _receiptFailed = MutableStateFlow(false)
+    val receiptFailed = _receiptFailed.asStateFlow()
+
+    fun startReceiptCapture(): Uri {
+        receiptDrafts.discardCapture(savedState[KEY_CAMERA_CAPTURE])
+        val name = receiptDrafts.newName()
+        savedState[KEY_CAMERA_CAPTURE] = name
+        return receiptDrafts.cameraUri(name)
+    }
+
+    fun receiptCaptureFailed() {
+        receiptDrafts.discardCapture(savedState[KEY_CAMERA_CAPTURE])
+        savedState[KEY_CAMERA_CAPTURE] = null
+        _receiptFailed.value = true
+    }
+
+    fun finishReceiptCapture(taken: Boolean) {
+        val name = savedState.get<String>(KEY_CAMERA_CAPTURE) ?: return
+        savedState[KEY_CAMERA_CAPTURE] = null
+        if (taken) importReceipt(receiptDrafts.cameraUri(name), capture = name)
+        else receiptDrafts.discardCapture(name)
+    }
+
+    fun importReceipt(uri: Uri, capture: String? = null) {
+        if (_receiptImporting.value || _saving.value) {
+            receiptDrafts.discardCapture(capture)
+            return
+        }
+        _receiptImporting.value = true
+        _receiptFailed.value = false
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            val name = receiptDrafts.newName()
+            try {
+                receiptDrafts.importPhoto(uri, name)
+                setReceipt(name)
+            } catch (_: IOException) {
+                _receiptFailed.value = true
+            } catch (_: SecurityException) {
+                _receiptFailed.value = true
+            } catch (_: IllegalArgumentException) {
+                _receiptFailed.value = true
+            } finally {
+                if (receiptPath.value != name) receiptDrafts.discardDraft(name)
+                receiptDrafts.discardCapture(capture)
+                _receiptImporting.value = false
+            }
+        }
+    }
+
+    fun removeReceipt() {
+        if (_saving.value || _receiptImporting.value) return
+        setReceipt(null)
+        _receiptFailed.value = false
+    }
+
+    private fun setReceipt(path: String?) {
+        if (receiptPath.value != path) receiptDrafts.discardDraft(receiptPath.value)
+        savedState[KEY_RECEIPT] = path
+    }
 
     private fun resolveState(
         all: Map<TransactionType, List<CategoryEntity>>,
@@ -202,7 +272,7 @@ class AddTransactionViewModel @Inject constructor(
     }
 
     fun save() {
-        if (_saving.value) return
+        if (_saving.value || _receiptImporting.value) return
         val all = categoriesByType.value ?: return
         val rows = accountRows.value ?: return
         val state = resolveState(all, LocalDate.now(clock), rows, AccountSelection(transfer.value, account.value, toAccount.value))
@@ -210,6 +280,7 @@ class AddTransactionViewModel @Inject constructor(
         val locale = Locale.forLanguageTag(amountLocale.value)
         val edit = editId.value
         val repeat = state.frequency
+        if (repeat != null && form.date > state.today && receiptPath.value != null) return
         val createdAt = savedState.get<Long>(KEY_CREATED) ?: clock.millis()
         val entry = if (state.transfer) {
             buildTransfer(form, state.toAccountId, state.amountMinor, createdAt) ?: run {
@@ -223,7 +294,7 @@ class AddTransactionViewModel @Inject constructor(
                 savedState[KEY_TRIED] = true
                 return
             }
-            (result as Result.Valid).entity
+            (result as Result.Valid).entity.copy(receiptPath = receiptPath.value)
         }
         _saving.value = true
         _writeFailed.value = false
@@ -247,6 +318,8 @@ class AddTransactionViewModel @Inject constructor(
                 _saved.value = SavedEntry(id, transaction?.type, form.date, edited = edit != null, recurring = repeat != null)
             } catch (_: SQLiteException) {
                 _writeFailed.value = true
+            } catch (_: IOException) {
+                _receiptFailed.value = true
             } finally {
                 if (_saved.value == null) _saving.value = false
             }
@@ -267,6 +340,7 @@ class AddTransactionViewModel @Inject constructor(
                     loadDraft(entity.amountMinor, entity.date, entity.note, entity.createdAt, entity.accountId, locale)
                     savedState[KEY_TYPE] = entity.type.name
                     savedState[KEY_CATEGORY] = entity.categoryId
+                    setReceipt(entity.receiptPath)
                 }
             } catch (_: SQLiteException) {
                 return false
@@ -281,6 +355,8 @@ class AddTransactionViewModel @Inject constructor(
                 parseAmount(amount.value, sourceLocale)?.let { setAmount(amountInputText(it, locale), locale) }
             }
         }
+        val path = receiptPath.value
+        if (path != null && !receiptDrafts.hasPhoto(path) && path == receiptPath.value) setReceipt(null)
         return true
     }
 
@@ -297,7 +373,13 @@ class AddTransactionViewModel @Inject constructor(
     val hasDraft: Boolean
         get() = _saving.value || _saved.value != null || editId.value != null || amount.value.isNotEmpty() ||
             note.value.isNotEmpty() || savedState.get<Boolean>(KEY_TYPE_CHANGED) == true || category.value != null || date.value != null || account.value != null ||
-            toAccount.value != null || frequency.value != null || transfer.value || tried.value
+            toAccount.value != null || frequency.value != null || transfer.value || tried.value ||
+            receiptPath.value != null || _receiptImporting.value
+
+    override fun onCleared() {
+        receiptDrafts.discardDraft(receiptPath.value)
+        receiptDrafts.discardCapture(savedState[KEY_CAMERA_CAPTURE])
+    }
 
     /** Sayfa kapanınca taslak atılır; tür seçimi bir sonraki kayıt için kalır. */
     fun reset() {
@@ -316,6 +398,10 @@ class AddTransactionViewModel @Inject constructor(
         savedState[KEY_PREVIOUS_ACCOUNT] = null
         savedState[KEY_PREVIOUS_TO] = null
         savedState[KEY_TRANSFER] = false
+        setReceipt(null)
+        receiptDrafts.discardCapture(savedState[KEY_CAMERA_CAPTURE])
+        savedState[KEY_CAMERA_CAPTURE] = null
+        _receiptFailed.value = false
         _saved.value = null
         _saving.value = false
         _writeFailed.value = false

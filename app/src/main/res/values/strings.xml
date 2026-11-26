@@ -418,4 +418,19 @@
     <string name="csv_finished">Import complete</string>
     <string name="csv_finished_counts">Imported: %1$d · Duplicates skipped: %2$d · Errors: %3$d</string>
     <string name="csv_done">Done</string>
+    <string name="receipt_add">Add receipt</string>
+    <string name="receipt_photo">Receipt photo</string>
+    <string name="receipt_open">View receipt</string>
+    <string name="receipt_camera">Take a photo</string>
+    <string name="receipt_gallery">Choose from gallery</string>
+    <string name="receipt_replace">Replace</string>
+    <string name="receipt_remove">Remove</string>
+    <string name="receipt_importing">Preparing photo…</string>
+    <string name="receipt_failed">Could not attach the photo. Try again or remove it.</string>
+    <string name="receipt_missing">The receipt photo is unavailable.</string>
+    <string name="receipt_future">You can add a receipt after the first transaction is recorded.</string>
+    <string name="receipt_zoom_in">Zoom in</string>
+    <string name="receipt_zoom_out">Zoom out</string>
+    <string name="receipt_backup_note">JSON backups do not include receipt photos.</string>
+    <string name="receipt_restore_note">A receipt is linked only if its photo is still on this device. Photos no longer linked to a transaction are removed.</string>
 </resources>

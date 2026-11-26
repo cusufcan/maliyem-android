@@ -53,6 +53,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.mercan.maliyem.R
 import com.mercan.maliyem.data.local.TransactionType
+import com.mercan.maliyem.ui.components.ReceiptViewer
 import com.mercan.maliyem.ui.accounts.AccountsScreen
 import com.mercan.maliyem.ui.add.AddTransactionSheet
 import com.mercan.maliyem.ui.add.AddTransactionViewModel
@@ -102,9 +103,11 @@ fun MaliyemNavHost(
     securityCard: @Composable () -> Unit,
     notificationsCard: @Composable () -> Unit,
     onBudgetCreated: () -> Unit,
+    add: AddTransactionViewModel,
+    onReceiptCamera: () -> Unit,
+    onReceiptGallery: () -> Unit,
     app: AppViewModel = hiltViewModel(),
 ) {
-    val add: AddTransactionViewModel = hiltViewModel()
     val nav = rememberNavController()
     val backStackEntry by nav.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
@@ -132,6 +135,7 @@ fun MaliyemNavHost(
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var editId by rememberSaveable { mutableStateOf<Long?>(null) }
     var editTransfer by rememberSaveable { mutableStateOf(false) }
+    var viewingReceipt by rememberSaveable { mutableStateOf<String?>(null) }
     val undoActions by app.undoActions.collectAsStateWithLifecycle()
     val pendingUndo = undoActions.firstOrNull()
     val addedEntry = (pendingUndo as? UndoAction.Added)?.entry
@@ -257,6 +261,7 @@ fun MaliyemNavHost(
                     onOpenGoals = { nav.navigate(SavingsGoals()) },
                     onOpenYearlyReport = { nav.navigate(YearlyReport) { launchSingleTop = true } },
                     onOpen = { nav.navigate(TransactionDetail(it)) },
+                    onOpenReceipt = { viewingReceipt = it },
                     onAdd = { openSheet() },
                 )
             }
@@ -270,6 +275,7 @@ fun MaliyemNavHost(
                 TransactionsScreen(
                     highlightId = highlightId,
                     onOpen = { nav.navigate(TransactionDetail(it)) },
+                    onOpenReceipt = { viewingReceipt = it },
                     onOpenTransfer = { nav.navigate(TransactionDetail(it, transfer = true)) },
                     highlightTransferId = highlightTransferId,
                 )
@@ -278,6 +284,7 @@ fun MaliyemNavHost(
                 TransactionsScreen(
                     highlightId = highlightId,
                     onOpen = { nav.navigate(TransactionDetail(it)) },
+                    onOpenReceipt = { viewingReceipt = it },
                     onOpenTransfer = { nav.navigate(TransactionDetail(it, transfer = true)) },
                     highlightTransferId = highlightTransferId,
                 )
@@ -292,7 +299,7 @@ fun MaliyemNavHost(
                     onGoals = { nav.navigate(SavingsGoals(fromSettings = true)) },
                     onImportCsv = { nav.navigate(CsvImport(it.toString())) { launchSingleTop = true } },
                     snackbar = snackbar,
-                    beforeRestore = app::clearUndo,
+                    restoreWithUndoCleared = app::restoreWithUndoCleared,
                     securityCard = securityCard,
                     notificationsCard = notificationsCard,
                 )
@@ -305,6 +312,7 @@ fun MaliyemNavHost(
                 TransactionDetailScreen(
                     onBack = { nav.popBackStack() },
                     onEdit = { openSheet(route.id, route.transfer) },
+                    onOpenReceipt = { viewingReceipt = it },
                     onOpenRule = { nav.navigate(RecurringRule(it, activeTab)) },
                     onDeleted = { action ->
                         if (nav.currentBackStackEntry == entry) nav.popBackStack()
@@ -342,6 +350,8 @@ fun MaliyemNavHost(
             editId = editId,
             editTransfer = editTransfer,
             viewModel = add,
+            onReceiptCamera = onReceiptCamera,
+            onReceiptGallery = onReceiptGallery,
             onSaved = { entry ->
                 sheetOpen = false
                 if (entry.recurring) scope.launch { snackbar.showSnackbar(ruleSaved) }
@@ -349,4 +359,5 @@ fun MaliyemNavHost(
             },
         )
     }
+    viewingReceipt?.let { ReceiptViewer(it, onBack = { viewingReceipt = null }) }
 }

@@ -2,7 +2,6 @@ package com.mercan.maliyem.ui.transactions
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -35,7 +34,6 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -65,6 +63,7 @@ import java.util.Locale
 fun TransactionsScreen(
     highlightId: Long?,
     onOpen: (Long) -> Unit,
+    onOpenReceipt: (String) -> Unit,
     onOpenTransfer: (Long) -> Unit,
     highlightTransferId: Long?,
     viewModel: TransactionsViewModel = hiltViewModel(),
@@ -124,7 +123,7 @@ fun TransactionsScreen(
         }
         TransactionsList(
             result, filters, options, currentPeriod, rangeResults, locale, dayFormat,
-            viewModel::selectMonth, highlightId, highlightTransferId, onOpen, onOpenTransfer,
+            viewModel::selectMonth, highlightId, highlightTransferId, onOpen, onOpenReceipt, onOpenTransfer,
         )
     }
     if (sheetOpen) {
@@ -150,6 +149,7 @@ private fun TransactionsList(
     highlightId: Long?,
     highlightTransferId: Long?,
     onOpen: (Long) -> Unit,
+    onOpenReceipt: (String) -> Unit,
     onOpenTransfer: (Long) -> Unit,
 ) {
     val count = result?.let { pluralStringResource(R.plurals.records, it.count, it.count) }
@@ -225,7 +225,8 @@ private fun TransactionsList(
                                 amount = formatMoney(if (income) transaction.amountMinor else -transaction.amountMinor, locale, signed = true),
                                 income = income,
                                 recurring = transaction.recurringRuleId != null,
-                                modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { onOpen(row.id) },
+                                onOpen = { onOpen(row.id) },
+                                onOpenReceipt = transaction.receiptPath?.let { path -> { onOpenReceipt(path) } },
                                 highlighted = row.id == highlightId,
                                 horizontalPadding = Spacing.lg,
                             )
@@ -242,7 +243,7 @@ private fun TransactionsList(
                                 icon = "transfer",
                                 amount = formatMoney(transfer.amountMinor, locale),
                                 income = false,
-                                modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { onOpenTransfer(row.id) },
+                                onOpen = { onOpenTransfer(row.id) },
                                 highlighted = row.id == highlightTransferId,
                                 horizontalPadding = Spacing.lg,
                             )

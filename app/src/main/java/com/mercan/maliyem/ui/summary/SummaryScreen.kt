@@ -92,6 +92,7 @@ fun SummaryScreen(
     firstLaunch: Boolean,
     onSeeAll: () -> Unit,
     onOpen: (Long) -> Unit,
+    onOpenReceipt: (String) -> Unit,
     onAdd: () -> Unit,
     onOpenBudget: (Long?) -> Unit,
     onOpenGoals: () -> Unit,
@@ -127,7 +128,7 @@ fun SummaryScreen(
             )
             else -> SummaryContent(
                 shown, onPreviousMonth = viewModel::previousMonth, onNextMonth = viewModel::nextMonth, onSeeAll = onSeeAll,
-                highlightId = highlightId, onOpen = onOpen, accounts = accounts, onOpenBudget = openBudget, onSelectMonth = viewModel::selectMonth,
+                highlightId = highlightId, onOpen = onOpen, onOpenReceipt = onOpenReceipt, accounts = accounts, onOpenBudget = openBudget, onSelectMonth = viewModel::selectMonth,
                 goalsCard = goalsCard, onOpenYearlyReport = onOpenYearlyReport,
             )
         }
@@ -245,6 +246,7 @@ fun SummaryContent(
     modifier: Modifier = Modifier,
     highlightId: Long? = null,
     onOpen: (Long) -> Unit = {},
+    onOpenReceipt: (String) -> Unit = {},
     accounts: List<AccountBalance> = emptyList(),
     onOpenBudget: (Long?) -> Unit = {},
     onSelectMonth: (YearMonth) -> Unit = {},
@@ -280,7 +282,7 @@ fun SummaryContent(
         BudgetsCard(state.budgets, locale, onOpenBudget)
         goalsCard()
         SeyirTrendCard(state.trend, locale, onSelectMonth, onOpenYearlyReport)
-        RecentSection(state, locale, onSeeAll, highlightId, onOpen)
+        RecentSection(state, locale, onSeeAll, highlightId, onOpen, onOpenReceipt)
     }
 }
 
@@ -349,7 +351,7 @@ private fun Tile(icon: Int, label: String, amount: String, background: Color, co
 }
 
 @Composable
-private fun RecentSection(state: SummaryUiState, locale: Locale, onSeeAll: () -> Unit, highlightId: Long?, onOpen: (Long) -> Unit) {
+private fun RecentSection(state: SummaryUiState, locale: Locale, onSeeAll: () -> Unit, highlightId: Long?, onOpen: (Long) -> Unit, onOpenReceipt: (String) -> Unit) {
     val colors = MaterialTheme.colorScheme
     Row(
         Modifier.fillMaxWidth().padding(start = Spacing.xs, top = Spacing.xs),
@@ -378,9 +380,9 @@ private fun RecentSection(state: SummaryUiState, locale: Locale, onSeeAll: () ->
                 amount = formatMoney(if (income) row.amountMinor else -row.amountMinor, locale, signed = true),
                 income = income,
                 recurring = row.recurring,
-                modifier = Modifier
-                    .graphicsLayer { alpha = appear.value; translationY = (appear.value - 1f) * 6.dp.toPx() }
-                    .clickable(role = Role.Button) { onOpen(row.id) },
+                onOpen = { onOpen(row.id) },
+                onOpenReceipt = row.receiptPath?.let { path -> { onOpenReceipt(path) } },
+                modifier = Modifier.graphicsLayer { alpha = appear.value; translationY = (appear.value - 1f) * 6.dp.toPx() },
                 highlighted = row.id == highlightId,
                 horizontalPadding = Spacing.lg,
             )

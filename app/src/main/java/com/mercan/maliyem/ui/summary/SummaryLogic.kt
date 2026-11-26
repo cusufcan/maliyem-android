@@ -18,6 +18,7 @@ data class SummaryRow(
     val categoryName: String?,
     val icon: String,
     val recurring: Boolean = false,
+    val receiptPath: String? = null,
 )
 
 data class SummaryUiState(
@@ -57,7 +58,7 @@ fun buildSummary(rows: List<TransactionWithCategory>, month: YearMonth): Summary
     val recent = rows
         .sortedWith(compareByDescending<TransactionWithCategory> { it.transaction.date }.thenByDescending { it.transaction.createdAt }.thenByDescending { it.transaction.id })
         .take(RECENT_COUNT)
-        .map { (t, c) -> SummaryRow(t.id, t.type, t.amountMinor, t.note, c.key, c.name, c.icon, t.recurringRuleId != null) }
+        .map { (t, c) -> SummaryRow(t.id, t.type, t.amountMinor, t.note, c.key, c.name, c.icon, t.recurringRuleId != null, t.receiptPath) }
     return SummaryUiState(month, income, expense, recent)
 }
 

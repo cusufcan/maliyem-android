@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -39,6 +40,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -59,10 +61,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -83,6 +88,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
 import com.mercan.maliyem.ui.accounts.AccountPicker
 import com.mercan.maliyem.ui.components.DateSelectionDialog
+import com.mercan.maliyem.ui.components.ReceiptThumbnail
+import com.mercan.maliyem.ui.components.ReceiptViewer
+import com.mercan.maliyem.ui.components.SettingRow
 import com.mercan.maliyem.ui.components.SubText
 import com.mercan.maliyem.ui.recurring.FrequencyPicker
 import com.mercan.maliyem.data.local.CategoryEntity
@@ -101,13 +109,15 @@ import java.util.Locale
 fun AddTransactionSheet(
     onDismiss: () -> Unit,
     onSaved: (SavedEntry) -> Unit,
+    onReceiptCamera: () -> Unit,
+    onReceiptGallery: () -> Unit,
     editId: Long? = null,
     editTransfer: Boolean = false,
     viewModel: AddTransactionViewModel = hiltViewModel(),
 ) {
     val canChangeSheet = remember(viewModel) {
         { target: SheetValue ->
-            target != SheetValue.Hidden || !viewModel.saving.value || viewModel.saved.value != null
+            target != SheetValue.Hidden || (!viewModel.saving.value && !viewModel.receiptImporting.value) || viewModel.saved.value != null
         }
     }
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = canChangeSheet)
@@ -128,7 +138,7 @@ fun AddTransactionSheet(
     val writeFailed by viewModel.writeFailed.collectAsStateWithLifecycle()
     ModalBottomSheet(
         onDismissRequest = {
-            if (!viewModel.saving.value) {
+            if (!viewModel.saving.value && !viewModel.receiptImporting.value) {
                 viewModel.reset()
                 onDismiss()
             }
@@ -139,7 +149,7 @@ fun AddTransactionSheet(
         when (ready) {
             false -> WriteError(Modifier.padding(Spacing.lg))
             true -> state?.takeIf { it.editId == editId && (editId == null || it.transfer == editTransfer) }?.let {
-                AddTransactionContent(it, locale, viewModel, saving, writeFailed)
+                AddTransactionContent(it, locale, viewModel, saving, writeFailed, onReceiptCamera, onReceiptGallery)
             }
             null -> Unit
         }
@@ -154,8 +164,14 @@ private fun AddTransactionContent(
     viewModel: AddTransactionViewModel,
     saving: Boolean,
     writeFailed: Boolean,
+    onReceiptCamera: () -> Unit,
+    onReceiptGallery: () -> Unit,
 ) {
     val form = state.form
+    val receipt by viewModel.receiptPath.collectAsStateWithLifecycle()
+    val importing by viewModel.receiptImporting.collectAsStateWithLifecycle()
+    val photoFailed by viewModel.receiptFailed.collectAsStateWithLifecycle()
+    val futureRule = state.frequency != null && form.date > state.today
     val amountField = remember { BringIntoViewRequester() }
     val categoryField = remember { BringIntoViewRequester() }
     val accountField = remember { BringIntoViewRequester() }
@@ -237,6 +253,13 @@ private fun AddTransactionContent(
                 QuickDates(form.date, state.today, viewModel::setDate)
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 NoteRow(form.note, viewModel::setNote)
+                if (!state.transfer) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    ReceiptField(
+                        receipt, futureRule, saving, importing, photoFailed,
+                        onReceiptCamera, onReceiptGallery, viewModel::removeReceipt,
+                    )
+                }
             }
         }
         // Tutar geçerliyse düğme ne kaydedileceğini söyler: "Kaydet · 412,85 ₺".
@@ -248,7 +271,7 @@ private fun AddTransactionContent(
                 viewModel.save()
             },
             modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.lg).heightIn(min = 48.dp),
-            enabled = !saving && (!state.transfer || state.canTransfer),
+            enabled = !saving && !importing && (!state.transfer || state.canTransfer) && !(futureRule && receipt != null),
         ) {
             AnimatedContent(amountMinor, transitionSpec = { crossFade() }, label = "saveLabel") { minor ->
                 Text(
@@ -258,6 +281,85 @@ private fun AddTransactionContent(
             }
         }
     }
+}
+
+@Composable
+private fun ReceiptField(
+    path: String?,
+    futureRule: Boolean,
+    saving: Boolean,
+    importing: Boolean,
+    failed: Boolean,
+    onCamera: () -> Unit,
+    onGallery: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    var choosing by rememberSaveable { mutableStateOf(false) }
+    var viewing by rememberSaveable { mutableStateOf(false) }
+    val enabled = !saving && !importing
+    val addLabel = stringResource(R.string.receipt_add)
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    fun launchSource(launch: () -> Unit) {
+        focus.clearFocus()
+        keyboard?.hide()
+        choosing = false
+        launch()
+    }
+    if (path == null) {
+        SettingRow(
+            R.drawable.ic_seyir_receipt, addLabel,
+            onClick = { choosing = true }, enabled = enabled && !futureRule, horizontalPadding = 0.dp,
+        )
+    } else {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            val open = stringResource(R.string.receipt_open)
+            ReceiptThumbnail(
+                path, Modifier.size(64.dp).clip(MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .clickable(role = Role.Button, onClickLabel = open) { viewing = true }
+                    .semantics { contentDescription = open },
+            )
+            Column {
+                Text(stringResource(R.string.receipt_photo), style = MaterialTheme.typography.bodyLarge)
+                FlowRow {
+                    TextButton({ choosing = true }, enabled = enabled && !futureRule) {
+                        Text(stringResource(R.string.receipt_replace))
+                    }
+                    TextButton(onRemove, enabled = enabled) { Text(stringResource(R.string.receipt_remove)) }
+                }
+            }
+        }
+    }
+    if (futureRule) SubText(stringResource(R.string.receipt_future))
+    if (importing) SubText(stringResource(R.string.receipt_importing))
+    if (failed) {
+        Text(
+            stringResource(R.string.receipt_failed),
+            Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall,
+        )
+    }
+    if (choosing) {
+        AlertDialog(
+            onDismissRequest = { choosing = false },
+            title = { Text(if (path == null) addLabel else stringResource(R.string.receipt_replace)) },
+            text = {
+                Column {
+                    SettingRow(
+                        null, stringResource(R.string.receipt_camera),
+                        onClick = { launchSource(onCamera) }, horizontalPadding = 0.dp,
+                    )
+                    SettingRow(
+                        null, stringResource(R.string.receipt_gallery),
+                        onClick = { launchSource(onGallery) }, horizontalPadding = 0.dp,
+                    )
+                }
+            },
+            confirmButton = { TextButton({ choosing = false }) { Text(stringResource(R.string.add_cancel)) } },
+        )
+    }
+    if (viewing && path != null) ReceiptViewer(path, onBack = { viewing = false }, draft = true)
 }
 
 @Composable
