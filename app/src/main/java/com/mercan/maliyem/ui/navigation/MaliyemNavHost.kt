@@ -55,6 +55,7 @@ import com.mercan.maliyem.R
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.ui.accounts.AccountsScreen
 import com.mercan.maliyem.ui.add.AddTransactionSheet
+import com.mercan.maliyem.ui.add.AddTransactionViewModel
 import com.mercan.maliyem.ui.breakdown.BreakdownScreen
 import com.mercan.maliyem.ui.budgets.BudgetsScreen
 import com.mercan.maliyem.ui.budgets.OVERALL_BUDGET
@@ -70,6 +71,7 @@ import com.mercan.maliyem.ui.theme.SeyirTabIndicatorHeight
 import com.mercan.maliyem.ui.theme.SeyirTabIndicatorWidth
 import com.mercan.maliyem.ui.theme.SeyirTabVerticalPadding
 import com.mercan.maliyem.ui.transactions.TransactionsScreen
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private class TopLevelItem(val route: Any, val labelRes: Int, val icon: Int)
@@ -90,7 +92,12 @@ private fun tabIndexOf(destination: androidx.navigation.NavDestination?): Int =
     else tabs.indexOfFirst { destination?.hasRoute(it.route::class) == true }
 
 @Composable
-fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
+fun MaliyemNavHost(
+    quickEntry: TransactionType?,
+    onQuickEntryConsumed: () -> Unit,
+    app: AppViewModel = hiltViewModel(),
+) {
+    val add: AddTransactionViewModel = hiltViewModel()
     val nav = rememberNavController()
     val backStackEntry by nav.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
@@ -162,6 +169,16 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
         editId = id
         editTransfer = transfer
         sheetOpen = true
+    }
+
+    LaunchedEffect(quickEntry) {
+        if (quickEntry == null) return@LaunchedEffect
+        // Sürmekte olan kaydın sonucu işlendikten sonra yeni taslağı aç.
+        add.saving.first { !it }
+        add.reset()
+        add.setType(quickEntry)
+        openSheet()
+        onQuickEntryConsumed()
     }
 
     Scaffold(
@@ -281,6 +298,7 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
             onDismiss = { sheetOpen = false },
             editId = editId,
             editTransfer = editTransfer,
+            viewModel = add,
             onSaved = { entry ->
                 sheetOpen = false
                 if (entry.recurring) scope.launch { snackbar.showSnackbar(ruleSaved) }

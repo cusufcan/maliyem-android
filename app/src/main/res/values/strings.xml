@@ -275,4 +275,13 @@
     <string name="budget_spent_limit">%1$s / %2$s</string>
     <string name="budget_remaining">Remaining %1$s</string>
     <string name="budget_over">Over by %1$s</string>
+
+    <string name="shortcut_new_expense">New expense</string>
+    <string name="shortcut_new_income">New income</string>
+    <string name="widget_name">Monthly summary</string>
+    <string name="widget_description">See this month’s net, expenses and income, and quickly add a transaction.</string>
+    <string name="widget_month_net">This month’s net</string>
+    <string name="widget_add_expense">− Expense</string>
+    <string name="widget_add_income">+ Income</string>
+    <string name="widget_preview_net">₺0.00</string>
 </resources>

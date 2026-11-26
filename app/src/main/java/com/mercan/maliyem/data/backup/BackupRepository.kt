@@ -15,6 +15,7 @@ import com.mercan.maliyem.data.local.TransactionDao
 import com.mercan.maliyem.data.local.TransactionEntity
 import com.mercan.maliyem.data.local.TransferDao
 import com.mercan.maliyem.data.local.TransferEntity
+import com.mercan.maliyem.widget.WidgetUpdater
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -32,6 +33,7 @@ class RoomBackupRepository @Inject constructor(
     private val transfers: TransferDao,
     private val recurringRules: RecurringRuleDao,
     private val budgets: BudgetDao,
+    private val widgetUpdater: WidgetUpdater,
 ) : BackupRepository {
     /** Tablolar aynı anlık görüntüden okunur; dışa aktarımda bağlantılar korunur. */
     override suspend fun snapshot(): BackupFile = db.withTransaction {
@@ -103,5 +105,6 @@ class RoomBackupRepository @Inject constructor(
             transactions.insertAll(transactionRows)
             transfers.insertAll(transferRows)
         }
+        widgetUpdater.refresh()
     }
 }

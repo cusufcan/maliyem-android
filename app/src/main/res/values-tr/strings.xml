@@ -273,4 +273,13 @@
     <string name="budget_spent_limit">%1$s / %2$s</string>
     <string name="budget_remaining">Kalan %1$s</string>
     <string name="budget_over">Aşıldı (%1$s)</string>
+
+    <string name="shortcut_new_expense">Yeni gider</string>
+    <string name="shortcut_new_income">Yeni gelir</string>
+    <string name="widget_name">Aylık özet</string>
+    <string name="widget_description">Bu ayın netini, giderini ve gelirini gör, hızlıca kayıt ekle.</string>
+    <string name="widget_month_net">Bu ayın neti</string>
+    <string name="widget_add_expense">− Gider</string>
+    <string name="widget_add_income">+ Gelir</string>
+    <string name="widget_preview_net">0,00 ₺</string>
 </resources>

@@ -9,6 +9,7 @@ import com.mercan.maliyem.data.local.RecurringRuleDao
 import com.mercan.maliyem.data.local.RecurringRuleEntity
 import com.mercan.maliyem.data.local.TransactionDao
 import com.mercan.maliyem.data.local.TransactionEntity
+import com.mercan.maliyem.widget.WidgetUpdater
 import java.time.Clock
 import java.time.LocalDate
 import javax.inject.Inject
@@ -18,6 +19,7 @@ class RecurringRepository @Inject constructor(
     private val rules: RecurringRuleDao,
     private val transactions: TransactionDao,
     private val clock: Clock,
+    private val widgetUpdater: WidgetUpdater,
 ) {
     fun observeAll() = rules.observeAll()
     fun observe(id: Long) = rules.observe(id)
@@ -34,7 +36,7 @@ class RecurringRepository @Inject constructor(
         val id = rules.insert(rule)
         generate(rule.copy(id = id), LocalDate.now(clock))
         id
-    }
+    }.also { widgetUpdater.refresh() }
 
     /** Güncel imleç korunur; sıklık değişirse yeni takvimde aynı gün veya sonrasına hizalanır. */
     suspend fun edit(
@@ -58,7 +60,7 @@ class RecurringRepository @Inject constructor(
         rules.update(updated)
         generate(updated, LocalDate.now(clock))
         true
-    }
+    }.also { if (it) widgetUpdater.refresh() }
 
     suspend fun setPaused(id: Long, paused: Boolean): Boolean = db.withTransaction {
         val current = rules.getById(id) ?: return@withTransaction false
@@ -70,7 +72,7 @@ class RecurringRepository @Inject constructor(
         rules.update(updated)
         if (!paused) generate(updated, today)
         true
-    }
+    }.also { if (it && !paused) widgetUpdater.refresh() }
 
     suspend fun delete(id: Long) = rules.delete(id) > 0
 
@@ -85,9 +87,8 @@ class RecurringRepository @Inject constructor(
         }
         for (id in ids) {
             try {
-                db.withTransaction {
-                    rules.getById(id)?.let { generate(it, today) }
-                }
+                val generated = db.withTransaction { rules.getById(id)?.let { generate(it, today) } }
+                if (generated == true) widgetUpdater.refresh()
             } catch (e: SQLiteException) {
                 Log.w("RecurringRepository", "Tekrarlayan kayıtlar yazılamadı", e)
             }
@@ -95,9 +96,9 @@ class RecurringRepository @Inject constructor(
     }
 
     /** Çağıran, kayıtların eklenmesini ve imlecin ilerlemesini aynı Room işleminde tutar. */
-    private suspend fun generate(rule: RecurringRuleEntity, today: LocalDate) {
+    private suspend fun generate(rule: RecurringRuleEntity, today: LocalDate): Boolean {
         val dates = occurrences(rule, today)
-        if (dates.isEmpty()) return
+        if (dates.isEmpty()) return false
         val createdAt = clock.millis()
         transactions.insertAll(dates.map { date ->
             TransactionEntity(
@@ -107,5 +108,6 @@ class RecurringRepository @Inject constructor(
             )
         })
         rules.advance(rule.id, nextOccurrence(rule, dates.last()))
+        return true
     }
 }

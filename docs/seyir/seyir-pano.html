@@ -164,6 +164,17 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .det .big{font-size:52px;line-height:56px}
 .acts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.widget-stage{position:absolute;inset:38px 0 16px;display:grid;align-content:center;justify-items:center;gap:16px;padding:12px}
+.widget-shortcuts{display:flex;gap:4px}
+.widget-card{width:156px;padding:4px 8px;border-radius:20px;background:var(--pc);color:var(--opc);cursor:pointer}
+.widget-card.wide{width:204px;padding:12px 8px}
+.widget-label{font-size:11px}
+.widget-net{font-size:15px;font-weight:700}
+.wide .widget-net{font-size:22px}
+.widget-figures,.widget-actions{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px}
+.widget-figures b{display:block;font-size:12px}
+.widget-actions button{height:26px;border:0;border-radius:12px;background:var(--su);color:var(--on);font-size:11px;text-align:center;font-weight:600;cursor:pointer}
+.widget-actions button:last-child{background:var(--pos);color:var(--opos)}
 </style>
 </head>
 <body>
@@ -369,6 +380,17 @@ const budgetSettings=(editing=null)=>{
  ${budgetLimits[editing]?`<button class="remove" data-budget-remove="${editing}">Bütçeyi kaldır</button>`:""}
  <div class="acts"><button class="btn x" data-budget-cancel>Vazgeç</button><button class="btn" data-budget-save="${editing}">Kaydet</button></div></div>`:""}`;
 };
+const widget=(wide=0)=>{
+ const income=sum(T,inc),expense=sum(T,t=>!inc(t)),net=income-expense;
+ return `<div class="widget-stage">
+ <div class="widget-shortcuts" aria-label="Başlatıcı kısayolları">
+ <button class="btn x" data-kind="0">Yeni gider</button><button class="btn x" data-kind="1">Yeni gelir</button></div>
+ <div class="widget-card ${wide?"wide":""}" data-widget-card>
+ <div class="widget-label">Bu ayın neti</div><div class="widget-net">${net<0?"−":net>0?"+":""}${f(net)} ₺</div>
+ ${wide?`<div class="widget-figures widget-label"><div>Gider<b>${f(expense)} ₺</b></div><div>Gelir<b>${f(income)} ₺</b></div></div>`:""}
+ <div class="widget-actions"><button data-kind="0">− Gider</button><button data-kind="1">+ Gelir</button></div>
+ </div></div>`;
+};
 const S=[["1 · Özet","Ayın neti, bütçe kullanımı ve son altı ay. Çubuk çifti seçili ayı değiştirir.",ozet],
 ["2 · İşlemler","Ay gezintisi, arama sonucu toplamları ve filtre alt sayfası. Örnek veri Kasım 2026 ile sınırlı.",k=>k===2?txSheet():islem(0,0,k===1),["Ay","Arama","Filtreler"],0],
 ["3 · Yeni kayıt","Alt sayfa. Gider/Gelir kategorileri değiştirir; “Kaydet” özete döner, yeni kayıt vurgulu ve geri alınabilir.",ekle,["Form","Kaydedildi"],0],
@@ -378,14 +400,18 @@ const S=[["1 · Özet","Ayın neti, bütçe kullanımı ve son altı ay. Çubuk 
 ["7 · Boş durumlar","Yeni ayın ilk günü ve uygulamanın ilk açılışı.",bos,["Yeni ay","İlk açılış"],0],
 ["8 · Ayarlar","Kategoriler, bütçeler, tema, dil ve veri işlemleri.",ayar],
 ["9 · Özet, koyu","Aynı ekran, koyu tema.",ozet],
-["10 · Bütçeler","Genel aylık limit ve gider kategorileri. Satıra dokununca limit düzenlenir.",k=>budgetSettings(k?"Market":null),["Liste","Limit düzenle"],0]];
+["10 · Bütçeler","Genel aylık limit ve gider kategorileri. Satıra dokununca limit düzenlenir.",k=>budgetSettings(k?"Market":null),["Liste","Limit düzenle"],0],
+["11 · Hızlı kayıt","Başlatıcı kısayolları ve widget düğmeleri Yeni kayıt formunu seçilen türde açar.",widget,["2 × 1","Geniş"],0]];
 const B=document.getElementById("board");
 B.innerHTML=S.map((s,k)=>`<figure data-k="${k}"><figcaption><b>${s[0]}</b><span>${s[1]}</span></figcaption><div class="phone"><div class="in"><div class="status"><span>12.04</span><i></i></div><div class="body">${s[2](s[4])}</div><div class="gest"></div></div></div>${s[3]?`<div class="grp" role="group" aria-label="Durum">${s[3].map((x,j)=>`<button data-st="${j}" aria-pressed="${j===s[4]}">${x}</button>`).join("")}</div>`:""}</figure>`).join("");
 const press=b=>[...b.parentElement.children].forEach(x=>x.setAttribute("aria-pressed",x===b));
 const theme=m=>B.querySelectorAll(".phone").forEach((p,k)=>p.classList.toggle("dark",m==="koyu"||(m==="karma"&&k===8)));
 theme("karma");
 const setSt=(fg,j)=>{fg.querySelectorAll("[data-st]").forEach((x,n)=>x.setAttribute("aria-pressed",n===j));fg.querySelector(".body").innerHTML=S[+fg.dataset.k][2](j)};
-document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b){
+ const card=e.target.closest("[data-widget-card]");if(card)card.closest(".body").innerHTML=ozet();
+ return;
+}
  const fg=b.closest("figure"),body=fg&&fg.querySelector(".body"),d=b.dataset;
  if(d.v){press(b);theme(d.v)}
  else if(d.st)setSt(fg,+d.st);
@@ -418,7 +444,7 @@ document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)r
  else if(d.kind)body.innerHTML=ekle(0,+d.kind);
  else if(d.dk)body.innerHTML=dag(+d.dk);
  else if(d.ck)body.innerHTML=kat(+d.ck);
- else if("save" in d)setSt(fg,1);
+ else if("save" in d){if(+fg.dataset.k===10)body.innerHTML=ozet(1);else setSt(fg,1)}
  else if("del" in d)setSt(fg,1);
  else if("undo" in d)setSt(fg,0);
  else if("chip" in d||"seg" in d)press(b);

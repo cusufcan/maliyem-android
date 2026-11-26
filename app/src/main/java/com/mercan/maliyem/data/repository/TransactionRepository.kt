@@ -5,6 +5,7 @@ import com.mercan.maliyem.data.local.TransactionEntity
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.local.TransactionWithCategory
 import com.mercan.maliyem.data.local.TrendEntry
+import com.mercan.maliyem.widget.WidgetUpdater
 import java.time.LocalDate
 import java.time.YearMonth
 import javax.inject.Inject
@@ -55,6 +56,7 @@ interface TransactionRepository {
 
 class RoomTransactionRepository @Inject constructor(
     private val dao: TransactionDao,
+    private val widgetUpdater: WidgetUpdater,
 ) : TransactionRepository {
     override fun observeMonth(month: YearMonth) = dao.observeRange(month.atDay(1), month.atEndOfMonth()).distinctUntilChanged()
 
@@ -78,13 +80,15 @@ class RoomTransactionRepository @Inject constructor(
 
     override suspend fun get(id: Long) = dao.getById(id)
 
-    override suspend fun add(transaction: TransactionEntity) = dao.insert(transaction)
+    override suspend fun add(transaction: TransactionEntity) = dao.insert(transaction).also { widgetUpdater.refresh() }
 
-    override suspend fun update(transaction: TransactionEntity): Boolean = dao.updateKeepingRule(transaction) > 0
+    override suspend fun update(transaction: TransactionEntity): Boolean =
+        (dao.updateKeepingRule(transaction) > 0).also { if (it) widgetUpdater.refresh() }
 
-    override suspend fun delete(id: Long) = dao.deleteById(id)
+    override suspend fun delete(id: Long) = dao.deleteById(id).also { widgetUpdater.refresh() }
 
-    override suspend fun deleteAndGet(id: Long) = dao.deleteAndGet(id)
+    override suspend fun deleteAndGet(id: Long) = dao.deleteAndGet(id).also { if (it != null) widgetUpdater.refresh() }
 
-    override suspend fun restore(transaction: TransactionEntity) = dao.restore(transaction, fallbackKey(transaction.type))
+    override suspend fun restore(transaction: TransactionEntity) =
+        dao.restore(transaction, fallbackKey(transaction.type)).also { if (it) widgetUpdater.refresh() }
 }
