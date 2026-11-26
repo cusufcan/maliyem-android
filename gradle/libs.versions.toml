@@ -14,6 +14,9 @@ hiltNavigationCompose = "1.4.0"
 room = "2.8.5"
 glance = "1.2.0"
 junit = "4.13.2"
+robolectric = "4.16.1"
+robolectricSdk34 = "14-robolectric-10818077-i7"
+work = "2.7.1"
 coroutines = "1.11.0"
 navigationCompose = "2.10.2"
 serializationJson = "1.13.0"
@@ -32,6 +35,7 @@ androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hilt" }
 androidx-hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
+androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 androidx-glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
 androidx-glance-material3 = { module = "androidx.glance:glance-material3", version.ref = "glance" }
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
@@ -40,6 +44,8 @@ androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref =
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serializationJson" }
 junit = { module = "junit:junit", version.ref = "junit" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+robolectric-sdk = { module = "org.robolectric:android-all-instrumented", version.ref = "robolectricSdk34" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 
 [plugins]

@@ -3,6 +3,11 @@ package com.mercan.maliyem.ui.summary
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -76,59 +81,67 @@ internal fun SeyirTrendCard(months: List<MonthlyTrend>, locale: Locale, onSelect
                 TrendLegend(stringResource(R.string.summary_income), incomeColor, outlined = false)
                 TrendLegend(stringResource(R.string.summary_expense), expenseColor, outlined = true)
             }
-            Row(Modifier.fillMaxWidth().selectableGroup()) {
-                months.forEach { item ->
-                    val selected = item.month == current.month
-                    val description = stringResource(
-                        R.string.trend_month_values,
-                        monthTitle("LLLL yyyy", item.month, locale),
-                        formatMoney(item.incomeMinor, locale),
-                        formatMoney(item.expenseMinor, locale),
-                        formatMoney(item.netMinor, locale, signed = true),
-                    )
-                    val incomeFraction = if (item.incomeMinor.signum() == 0) 0f
-                        else (item.incomeMinor.toDouble() / maximum).toFloat().coerceAtLeast(minimumFraction)
-                    val expenseFraction = if (item.expenseMinor.signum() == 0) 0f
-                        else (item.expenseMinor.toDouble() / maximum).toFloat().coerceAtLeast(minimumFraction)
-                    val income by animateFloatAsState(
-                        if (grown) incomeFraction else 0f, Motion.medium(), label = "trendIncome",
-                    )
-                    val expense by animateFloatAsState(
-                        if (grown) expenseFraction else 0f, Motion.medium(), label = "trendExpense",
-                    )
-                    Column(
-                        Modifier.weight(1f).clip(MaterialTheme.shapes.small)
-                            .background(if (selected) colors.primaryContainer else Color.Transparent)
-                            .selectable(selected, role = Role.Tab) { onSelectMonth(item.month) }
-                            .clearAndSetSemantics { contentDescription = description }
-                            .padding(vertical = Spacing.xs),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    ) {
-                        Canvas(Modifier.fillMaxWidth().height(chartHeight)) {
-                            val width = minOf(size.width * .30f, 16.dp.toPx())
-                            val gap = Spacing.xs.toPx()
-                            val x = (size.width - 2 * width - gap) / 2f
-                            val incomeHeight = if (incomeFraction == 0f) 2.dp.toPx() else size.height * income
-                            val expenseHeight = if (expenseFraction == 0f) 2.dp.toPx() else size.height * expense
-                            drawTrendBar(
-                                if (incomeFraction == 0f) colors.outline else incomeColor,
-                                x, width, incomeHeight, outlined = false,
-                            )
-                            drawTrendBar(
-                                if (expenseFraction == 0f) colors.outline else expenseColor,
-                                x + width + gap, width, expenseHeight, outlined = true,
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val monthWidth = (maxWidth / months.size).coerceAtLeast(48.dp)
+                val scroll = rememberScrollState()
+                LaunchedEffect(scroll.maxValue) {
+                    if (scroll.maxValue in 1 until Int.MAX_VALUE) scroll.scrollTo(scroll.maxValue)
+                }
+                Row(Modifier.horizontalScroll(scroll).selectableGroup()) {
+                    months.forEach { item ->
+                        val selected = item.month == current.month
+                        val description = stringResource(
+                            R.string.trend_month_values,
+                            monthTitle("LLLL yyyy", item.month, locale),
+                            formatMoney(item.incomeMinor, locale),
+                            formatMoney(item.expenseMinor, locale),
+                            formatMoney(item.netMinor, locale, signed = true),
+                        )
+                        val incomeFraction = if (item.incomeMinor.signum() == 0) 0f
+                            else (item.incomeMinor.toDouble() / maximum).toFloat().coerceAtLeast(minimumFraction)
+                        val expenseFraction = if (item.expenseMinor.signum() == 0) 0f
+                            else (item.expenseMinor.toDouble() / maximum).toFloat().coerceAtLeast(minimumFraction)
+                        val income by animateFloatAsState(
+                            if (grown) incomeFraction else 0f, Motion.medium(), label = "trendIncome",
+                        )
+                        val expense by animateFloatAsState(
+                            if (grown) expenseFraction else 0f, Motion.medium(), label = "trendExpense",
+                        )
+                        Column(
+                            Modifier.width(monthWidth).clip(MaterialTheme.shapes.small)
+                                .background(if (selected) colors.primaryContainer else Color.Transparent)
+                                .selectable(selected, role = Role.Tab) { onSelectMonth(item.month) }
+                                .semantics(mergeDescendants = true) { contentDescription = description }
+                                .padding(vertical = Spacing.xs),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        ) {
+                            Canvas(Modifier.fillMaxWidth().height(chartHeight)) {
+                                val width = minOf(size.width * .30f, 16.dp.toPx())
+                                val gap = Spacing.xs.toPx()
+                                val x = (size.width - 2 * width - gap) / 2f
+                                val incomeHeight = if (incomeFraction == 0f) 2.dp.toPx() else size.height * income
+                                val expenseHeight = if (expenseFraction == 0f) 2.dp.toPx() else size.height * expense
+                                drawTrendBar(
+                                    if (incomeFraction == 0f) colors.outline else incomeColor,
+                                    x, width, incomeHeight, outlined = false,
+                                )
+                                drawTrendBar(
+                                    if (expenseFraction == 0f) colors.outline else expenseColor,
+                                    x + width + gap, width, expenseHeight, outlined = true,
+                                )
+                            }
+                            BasicText(
+                                monthTitle("LLL", item.month, locale),
+                                modifier = Modifier.clearAndSetSemantics { },
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = if (selected) colors.onPrimaryContainer else colors.onSurfaceVariant,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                ),
+                                maxLines = 1,
+                                autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 11.sp, stepSize = 1.sp),
                             )
                         }
-                        BasicText(
-                            monthTitle("LLL", item.month, locale),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                color = if (selected) colors.onPrimaryContainer else colors.onSurfaceVariant,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            ),
-                            maxLines = 1,
-                            autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 11.sp, stepSize = 1.sp),
-                        )
                     }
                 }
             }

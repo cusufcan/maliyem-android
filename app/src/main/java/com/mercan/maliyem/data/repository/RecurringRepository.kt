@@ -26,17 +26,22 @@ class RecurringRepository @Inject constructor(
     fun observeCount() = rules.observeCount()
 
     /** Kural ve ilk kayıtlar birlikte yazılır; gelecek tarihli kural sırada bekler. */
-    suspend fun add(transaction: TransactionEntity, frequency: RecurringFrequency) = db.withTransaction {
-        val rule = RecurringRuleEntity(
-            type = transaction.type, amountMinor = transaction.amountMinor,
-            categoryId = transaction.categoryId, accountId = transaction.accountId, note = transaction.note,
-            frequency = frequency, startDate = transaction.date, nextDate = transaction.date,
-            createdAt = transaction.createdAt,
-        )
-        val id = rules.insert(rule)
-        generate(rule.copy(id = id), LocalDate.now(clock))
-        id
-    }.also { widgetUpdater.refresh() }
+    suspend fun add(transaction: TransactionEntity, frequency: RecurringFrequency): Long {
+        val today = LocalDate.now(clock)
+        val (id, generated) = db.withTransaction {
+            val rule = RecurringRuleEntity(
+                type = transaction.type, amountMinor = transaction.amountMinor,
+                categoryId = transaction.categoryId, accountId = transaction.accountId, note = transaction.note,
+                frequency = frequency, startDate = transaction.date, nextDate = transaction.date,
+                createdAt = transaction.createdAt,
+            )
+            val id = rules.insert(rule)
+            id to generate(rule.copy(id = id), today)
+        }
+        widgetUpdater.refresh()
+        if (generated == MAX_OCCURRENCES) completeBatches(id, today)
+        return id
+    }
 
     /** Güncel imleç korunur; sıklık değişirse yeni takvimde aynı gün veya sonrasına hizalanır. */
     suspend fun edit(
@@ -47,20 +52,25 @@ class RecurringRepository @Inject constructor(
         note: String?,
         frequency: RecurringFrequency,
         endDate: LocalDate?,
-    ): Boolean = db.withTransaction {
-        val current = rules.getById(id) ?: return@withTransaction false
-        require(endDate == null || endDate >= current.startDate)
-        val edited = current.copy(
-            amountMinor = amountMinor, categoryId = categoryId, accountId = accountId,
-            note = note, frequency = frequency, endDate = endDate,
-        )
-        val nextDate = if (frequency == current.frequency) current.nextDate
-            else occurrenceOnOrAfter(current.startDate, frequency, current.nextDate)
-        val updated = edited.copy(nextDate = nextDate)
-        rules.update(updated)
-        generate(updated, LocalDate.now(clock))
-        true
-    }.also { if (it) widgetUpdater.refresh() }
+    ): Boolean {
+        val today = LocalDate.now(clock)
+        val generated = db.withTransaction {
+            val current = rules.getById(id) ?: return@withTransaction null
+            require(endDate == null || endDate >= current.startDate)
+            val edited = current.copy(
+                amountMinor = amountMinor, categoryId = categoryId, accountId = accountId,
+                note = note, frequency = frequency, endDate = endDate,
+            )
+            val nextDate = if (frequency == current.frequency) current.nextDate
+                else occurrenceOnOrAfter(current.startDate, frequency, current.nextDate)
+            val updated = edited.copy(nextDate = nextDate)
+            rules.update(updated)
+            generate(updated, today)
+        } ?: return false
+        widgetUpdater.refresh()
+        if (generated == MAX_OCCURRENCES) completeBatches(id, today)
+        return true
+    }
 
     suspend fun setPaused(id: Long, paused: Boolean): Boolean = db.withTransaction {
         val current = rules.getById(id) ?: return@withTransaction false
@@ -85,20 +95,24 @@ class RecurringRepository @Inject constructor(
             Log.w("RecurringRepository", "Tekrarlayan kurallar okunamadı", e)
             return
         }
-        for (id in ids) {
-            try {
-                val generated = db.withTransaction { rules.getById(id)?.let { generate(it, today) } }
-                if (generated == true) widgetUpdater.refresh()
-            } catch (e: SQLiteException) {
-                Log.w("RecurringRepository", "Tekrarlayan kayıtlar yazılamadı", e)
-            }
+        for (id in ids) completeBatches(id, today)
+    }
+
+    private suspend fun completeBatches(id: Long, today: LocalDate) {
+        try {
+            do {
+                val count = db.withTransaction { rules.getById(id)?.let { generate(it, today) } ?: 0 }
+                if (count > 0) widgetUpdater.refresh()
+            } while (count == MAX_OCCURRENCES)
+        } catch (e: SQLiteException) {
+            Log.w("RecurringRepository", "Tekrarlayan kayıtlar yazılamadı", e)
         }
     }
 
     /** Çağıran, kayıtların eklenmesini ve imlecin ilerlemesini aynı Room işleminde tutar. */
-    private suspend fun generate(rule: RecurringRuleEntity, today: LocalDate): Boolean {
+    private suspend fun generate(rule: RecurringRuleEntity, today: LocalDate): Int {
         val dates = occurrences(rule, today)
-        if (dates.isEmpty()) return false
+        if (dates.isEmpty()) return 0
         val createdAt = clock.millis()
         transactions.insertAll(dates.map { date ->
             TransactionEntity(
@@ -108,6 +122,6 @@ class RecurringRepository @Inject constructor(
             )
         })
         rules.advance(rule.id, nextOccurrence(rule, dates.last()))
-        return true
+        return dates.size
     }
 }

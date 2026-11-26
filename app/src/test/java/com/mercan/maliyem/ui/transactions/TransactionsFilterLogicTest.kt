@@ -53,6 +53,18 @@ class TransactionsFilterLogicTest {
         assertTrue(search("92233720368547758.07").matches(record.copy(transaction = record.transaction.copy(amountMinor = Long.MAX_VALUE))))
     }
 
+    @Test fun pastedAmountsUseTheMoneyParserWithoutLosingPrefixSearch() {
+        val grouped = record.copy(transaction = record.transaction.copy(amountMinor = 123_456))
+        val move = transfer.copy(amountMinor = 123_456)
+        for (query in listOf("1.234,56", "1.234,56 ₺", "−1.234,56 ₺", "+₺1,234.56")) {
+            assertTrue(query, search(query).matches(grouped))
+            assertTrue(query, search(query).matches(move))
+            assertFalse(query, search(query).matches(record))
+        }
+        assertFalse(search("1.234,5 ₺").matches(grouped))
+        assertTrue(search("1234,5").matches(grouped))
+    }
+
     @Test fun amountBoundsAreInclusiveAndAlsoApplyToTransfersAndSearch() {
         assertTrue(search("125", TransactionsFilters(minimum = 12_550, maximum = 12_550)).matches(record))
         assertFalse(search("125", TransactionsFilters(minimum = 12_551)).matches(record))

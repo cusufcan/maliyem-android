@@ -234,6 +234,7 @@ private fun RuleForm(
             enabled = !busy && minor != null && categoryId != null && accountId != null,
         )
         SubText(ruleStatus(rule))
+        SubText(stringResource(R.string.recurring_pause_note))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             TextButton(onPause, enabled = !busy) {
                 Text(stringResource(if (rule.paused) R.string.recurring_resume else R.string.recurring_pause))

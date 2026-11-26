@@ -21,7 +21,9 @@ import com.mercan.maliyem.data.repository.CategoryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
-import java.io.InputStreamReader
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
+import java.nio.ByteBuffer
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -42,7 +44,7 @@ class SettingsViewModel @Inject constructor(
     private val settings: AppSettings,
     categories: CategoryRepository,
     accounts: AccountRepository,
-    recurring: RecurringRepository,
+    private val recurring: RecurringRepository,
     private val backupRepository: BackupRepository,
     @ApplicationContext context: Context,
 ) : ViewModel() {
@@ -87,11 +89,12 @@ class SettingsViewModel @Inject constructor(
     fun openBackup(uri: Uri) = runDataAction(R.string.settings_backup_invalid) {
         val result = withContext(Dispatchers.IO) {
             val input = resolver.openInputStream(uri) ?: throw IOException()
-            val content = InputStreamReader(input, Charsets.UTF_8.newDecoder()).buffered().use { it.readText() }
-            BackupCodec.decode(content)
+            input.use { readBackup(it) }?.let(BackupCodec::decode)
         }
         when (result) {
             is BackupDecodeResult.Valid -> _pendingBackup.value = result
+            null -> _dataMessages.send(R.string.settings_backup_too_large)
+            BackupDecodeResult.IdOutOfRange -> _dataMessages.send(R.string.settings_backup_id_out_of_range)
             BackupDecodeResult.Invalid -> _dataMessages.send(R.string.settings_backup_invalid)
         }
     }
@@ -107,6 +110,7 @@ class SettingsViewModel @Inject constructor(
                 beforeRestore()
                 withContext(Dispatchers.IO) { backupRepository.replaceAll(backup) }
                 settings.setLastAccountId(null)
+                recurring.generateDue()
                 _dataMessages.send(R.string.settings_restore_saved)
             } finally {
                 _pendingBackup.value = null
@@ -169,4 +173,19 @@ class SettingsViewModel @Inject constructor(
         val output = resolver.openOutputStream(uri, "wt") ?: throw IOException()
         output.bufferedWriter(Charsets.UTF_8).use { it.write(content) }
     }
+}
+
+private const val MAX_BACKUP_BYTES = 20_000_000
+
+/** A document provider may omit or misreport the size, so count bytes as they arrive. */
+internal fun readBackup(input: InputStream): String? {
+    val output = ByteArrayOutputStream()
+    val chunk = ByteArray(DEFAULT_BUFFER_SIZE)
+    while (true) {
+        val count = input.read(chunk, 0, minOf(chunk.size, MAX_BACKUP_BYTES - output.size() + 1))
+        if (count < 0) break
+        if (count > MAX_BACKUP_BYTES - output.size()) return null
+        output.write(chunk, 0, count)
+    }
+    return Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(output.toByteArray())).toString()
 }

@@ -15,11 +15,14 @@ import kotlinx.serialization.json.jsonPrimitive
 sealed interface BackupDecodeResult {
     /** [categoryCount] dosyadaki sayıdır; [backup] eksik "Diğer" kategorilerini de içerir. */
     class Valid internal constructor(val backup: BackupFile, val categoryCount: Int) : BackupDecodeResult
+    data object IdOutOfRange : BackupDecodeResult
     data object Invalid : BackupDecodeResult
 }
 
 /** Dosyayı veritabanına dokunmadan doğrular ve eksik "Diğer" kategorilerini tamamlar. */
 object BackupCodec {
+    const val MAX_ID = 9_007_199_254_740_992L
+
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
@@ -67,16 +70,42 @@ object BackupCodec {
             overallBudgetMinor = null,
         ) else withRules
 
+        val ids = sequence {
+            backup.accounts.forEach { yield(it.id) }
+            backup.categories.forEach { yield(it.id) }
+            backup.transactions.forEach {
+                yield(it.id)
+                yield(it.categoryId)
+                yield(it.accountId)
+                it.recurringRuleId?.let { id -> yield(id) }
+            }
+            backup.transfers.forEach {
+                yield(it.id)
+                yield(it.fromAccountId)
+                yield(it.toAccountId)
+            }
+            backup.recurringRules.forEach {
+                yield(it.id)
+                yield(it.categoryId)
+                yield(it.accountId)
+            }
+            backup.budgets.forEach {
+                yield(it.id)
+                yield(it.categoryId)
+            }
+        }
+        if (ids.any { it > MAX_ID }) return BackupDecodeResult.IdOutOfRange
+
         val accountIds = backup.accounts.map { it.id }.toSet()
         val accountKeys = backup.accounts.mapNotNull { it.key }
-        if (accountIds.size != backup.accounts.size || accountIds.any { it <= 0 || it == Long.MAX_VALUE } ||
+        if (accountIds.size != backup.accounts.size || accountIds.any { it <= 0 } ||
             accountKeys.distinct().size != accountKeys.size || DefaultAccounts.CASH !in accountKeys ||
             backup.accounts.none { !it.archived }
         ) return BackupDecodeResult.Invalid
 
         val transferIds = HashSet<Long>()
         for (transfer in backup.transfers) {
-            if (transfer.id <= 0 || transfer.id == Long.MAX_VALUE || !transferIds.add(transfer.id) ||
+            if (transfer.id <= 0 || !transferIds.add(transfer.id) ||
                 transfer.amountMinor <= 0 || transfer.fromAccountId == transfer.toAccountId ||
                 transfer.fromAccountId !in accountIds || transfer.toAccountId !in accountIds ||
                 !validDate(transfer.date)
@@ -88,14 +117,14 @@ object BackupCodec {
         val categoriesByKey = categoriesWithKey.associateBy { it.key }
         if (categoriesById.size != backup.categories.size ||
             categoriesByKey.size != categoriesWithKey.size ||
-            categoriesById.keys.any { it <= 0 || it == Long.MAX_VALUE }
+            categoriesById.keys.any { it <= 0 }
         ) return BackupDecodeResult.Invalid
 
         if (backup.overallBudgetMinor?.let { it <= 0 } == true) return BackupDecodeResult.Invalid
         val budgetIds = HashSet<Long>()
         val budgetCategories = HashSet<Long>()
         for (budget in backup.budgets) {
-            if (budget.id <= 0 || budget.id == Long.MAX_VALUE || !budgetIds.add(budget.id) ||
+            if (budget.id <= 0 || !budgetIds.add(budget.id) ||
                 budget.limitMinor <= 0 || categoriesById[budget.categoryId]?.type != TransactionType.EXPENSE ||
                 !budgetCategories.add(budget.categoryId)
             ) return BackupDecodeResult.Invalid
@@ -106,7 +135,7 @@ object BackupCodec {
             val start = parseDate(rule.startDate) ?: return BackupDecodeResult.Invalid
             val next = parseDate(rule.nextDate) ?: return BackupDecodeResult.Invalid
             val end = rule.endDate?.let { parseDate(it) ?: return BackupDecodeResult.Invalid }
-            if (rule.id <= 0 || rule.id == Long.MAX_VALUE || !ruleIds.add(rule.id) ||
+            if (rule.id <= 0 || !ruleIds.add(rule.id) ||
                 rule.amountMinor <= 0 || categoriesById[rule.categoryId]?.type != rule.type ||
                 rule.accountId !in accountIds || next < start || (end != null && end < start) ||
                 (next != LocalDate.MAX && next != occurrenceOnOrAfter(start, rule.frequency, next))
@@ -115,7 +144,7 @@ object BackupCodec {
 
         val transactionIds = HashSet<Long>()
         for (transaction in backup.transactions) {
-            if (transaction.id <= 0 || transaction.id == Long.MAX_VALUE || !transactionIds.add(transaction.id) ||
+            if (transaction.id <= 0 || !transactionIds.add(transaction.id) ||
                 transaction.amountMinor <= 0 || categoriesById[transaction.categoryId]?.type != transaction.type ||
                 transaction.accountId !in accountIds || !validDate(transaction.date) ||
                 (transaction.recurringRuleId != null && transaction.recurringRuleId !in ruleIds)

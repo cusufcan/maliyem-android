@@ -46,6 +46,20 @@ class CsvExporterTest {
         )
     }
 
+    @Test fun `escapes formula leading characters in text and keeps amounts numeric`() {
+        val rows = listOf(
+            CsvRow(date, "=Type", "+Category", -5, "-Note", "@Account"),
+            CsvRow(date, "Expense", "\tCategory", 500, "\rNote", "Account"),
+        )
+
+        assertEquals(
+            "\uFEFFdate,type,category,amount,note,account\r\n" +
+                "2026-11-26,'=Type,'+Category,-0.05,'-Note,'@Account\r\n" +
+                "2026-11-26,Expense,'\tCategory,5.00,\"'\rNote\",Account\r\n",
+            CsvExporter.encode(rows),
+        )
+    }
+
     @Test fun `exports a transfer with an empty category and a directional account`() {
         val row = CsvRow(date, "Transfer", "", 535, null, "Cash → Card")
 

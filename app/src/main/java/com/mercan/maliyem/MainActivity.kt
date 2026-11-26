@@ -18,6 +18,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import com.mercan.maliyem.ui.CalendarDays
+import com.mercan.maliyem.widget.GlanceWidgetUpdater
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.repository.RecurringRepository
 import com.mercan.maliyem.quickentry.quickEntryType
@@ -35,6 +39,8 @@ import kotlinx.coroutines.launch
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
     @Inject lateinit var recurring: RecurringRepository
+    @Inject lateinit var calendar: CalendarDays
+    @Inject internal lateinit var widgets: GlanceWidgetUpdater
 
     private val appLock: AppLockViewModel by viewModels()
     private lateinit var authentication: AppLockAuthentication
@@ -50,6 +56,14 @@ class MainActivity : AppCompatActivity() {
             authenticationAvailable = authentication.isAvailable()
         }
         lifecycleScope.launch { appLock.enabled.collect { updateSecureWindow() } }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                calendar.days.collect {
+                    widgets.refreshIfMonthChanged()
+                    recurring.generateDue()
+                }
+            }
+        }
         // Yeniden kurulan alt sayfa kendi taslağını saklar; açılış eylemi tekrarlanmaz.
         pendingQuickEntry = if (savedInstanceState == null) quickEntryType(intent.dataString)
             else savedInstanceState.getString(KEY_QUICK_ENTRY)?.let(TransactionType::valueOf)
@@ -89,7 +103,6 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         appLock.onForeground()
-        lifecycleScope.launch { recurring.generateDue() }
     }
 
     override fun onPostResume() {

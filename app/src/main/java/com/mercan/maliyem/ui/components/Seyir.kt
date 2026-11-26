@@ -27,6 +27,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -184,7 +186,7 @@ fun SeyirChip(
     val sel = LocalSelectionColors.current
     val shape = RoundedCornerShape(12.dp)
     val background by animateColorAsState(if (selected) sel.container else Color.Transparent, Motion.fast(), label = "chipBg")
-    val border by animateColorAsState(if (selected) sel.container else colors.outlineVariant, Motion.fast(), label = "chipBorder")
+    val border by animateColorAsState(if (selected) sel.container else colors.outline, Motion.fast(), label = "chipBorder")
     val content by animateColorAsState(if (selected) sel.content else colors.onSurfaceVariant, Motion.fast(), label = "chipText")
     val action = if (role == Role.Button) Modifier.clickable(enabled = enabled, role = role, onClick = onClick)
         else Modifier.selectable(selected, enabled = enabled, role = role, onClick = onClick)
@@ -299,5 +301,12 @@ fun EmptyState(@DrawableRes icon: Int, title: String, body: String, modifier: Mo
         )
         Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, lineHeight = 23.sp))
         extra()
+    }
+}
+
+@Composable
+internal fun ScreenLoading() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
     }
 }

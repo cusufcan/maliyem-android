@@ -3,6 +3,8 @@ package com.mercan.maliyem.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
@@ -19,6 +21,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -51,33 +55,37 @@ fun TransactionRow(
     val shownSubtitle = if (highlighted) listOfNotNull(subtitle, justNow).joinToString(" · ") else subtitle
     val repeatLabel = if (recurring) stringResource(R.string.settings_recurring) else null
     val label = listOfNotNull(title, shownSubtitle, repeatLabel, amount).joinToString(", ")
-    Row(
-        modifier.background(if (highlighted) colors.primaryContainer else Color.Transparent)
+    val amountStyle = type.bodyLarge.copy(fontFeatureSettings = "tnum", fontWeight = FontWeight.SemiBold)
+    val amountWidth = rememberTextMeasurer().measure(amount, amountStyle, softWrap = false).size.width
+    val amountColor = if (income) LocalMoneyColors.current.onIncomeContainer else colors.onSurface
+    BoxWithConstraints(
+        modifier.fillMaxWidth().background(if (highlighted) colors.primaryContainer else Color.Transparent)
             .heightIn(min = 64.dp).padding(horizontal = horizontalPadding, vertical = Spacing.sm).clearAndSetSemantics { contentDescription = label },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
-        Box(
-            Modifier.size(40.dp).background(colors.secondaryContainer, CircleShape),
-            contentAlignment = Alignment.Center,
+        val amountDp = with(LocalDensity.current) { amountWidth.toDp() }
+        val titleSpace = with(LocalDensity.current) { 100.dp * fontScale }
+        val stacked = maxWidth < 40.dp + Spacing.md * 2 + amountDp + titleSpace
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            SeyirIcon(categoryIcon(icon), tint = colors.onSecondaryContainer)
-        }
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                if (recurring) SeyirIcon(R.drawable.ic_seyir_repeat, tint = colors.onSurfaceVariant, size = 16.dp)
-                Text(title, style = type.bodyLarge, fontWeight = FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Box(
+                Modifier.size(40.dp).background(colors.secondaryContainer, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                SeyirIcon(categoryIcon(icon), tint = colors.onSecondaryContainer)
             }
-            if (shownSubtitle != null) {
-                Text(shownSubtitle, style = type.bodySmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    if (recurring) SeyirIcon(R.drawable.ic_seyir_repeat, tint = colors.onSurfaceVariant, size = 16.dp)
+                    Text(title, style = type.bodyLarge, fontWeight = FontWeight.Normal, maxLines = if (stacked) Int.MAX_VALUE else 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (shownSubtitle != null) {
+                    Text(shownSubtitle, style = type.bodySmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (stacked) Text(amount, style = amountStyle, color = amountColor)
             }
+            if (!stacked) Text(amount, style = amountStyle, color = amountColor, maxLines = 1)
         }
-        Text(
-            amount,
-            style = type.bodyLarge.copy(fontFeatureSettings = "tnum"),
-            fontWeight = FontWeight.SemiBold,
-            color = if (income) LocalMoneyColors.current.onIncomeContainer else colors.onSurface,
-            maxLines = 1,
-        )
     }
 }

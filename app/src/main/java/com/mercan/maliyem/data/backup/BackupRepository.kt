@@ -104,6 +104,15 @@ class RoomBackupRepository @Inject constructor(
             recurringRules.insertAll(ruleRows)
             transactions.insertAll(transactionRows)
             transfers.insertAll(transferRows)
+            val sqlite = db.openHelper.writableDatabase
+            // AUTOINCREMENT keeps previous high-water marks even after deleting all rows.
+            for (table in listOf("categories", "transactions", "accounts", "transfers", "recurring_rules", "budgets")) {
+                sqlite.execSQL("DELETE FROM sqlite_sequence WHERE name = ?", arrayOf(table))
+                sqlite.execSQL(
+                    "INSERT INTO sqlite_sequence (name, seq) SELECT ?, COALESCE(MAX(id), 0) FROM `$table`",
+                    arrayOf(table),
+                )
+            }
         }
         widgetUpdater.refresh()
     }

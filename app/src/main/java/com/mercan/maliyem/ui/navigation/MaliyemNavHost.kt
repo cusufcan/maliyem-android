@@ -133,7 +133,7 @@ fun MaliyemNavHost(
     val savedTransfer = stringResource(R.string.transfer_saved)
     val deletedLabel = stringResource(R.string.deleted)
     val undoLabel = stringResource(R.string.add_undo)
-    val undoError = stringResource(R.string.undo_failed)
+    val undoError = undoFailed?.let { stringResource(it) }
     LaunchedEffect(pendingUndo) {
         val message = when (pendingUndo) {
             null -> return@LaunchedEffect
@@ -147,8 +147,8 @@ fun MaliyemNavHost(
         val result = snackbar.showSnackbar(message, actionLabel = undoLabel, duration = SnackbarDuration.Short)
         app.finishUndo(pendingUndo, perform = result == SnackbarResult.ActionPerformed)
     }
-    LaunchedEffect(undoFailed) {
-        if (undoFailed) {
+    LaunchedEffect(undoError) {
+        if (undoError != null) {
             snackbar.showSnackbar(undoError)
             app.acknowledgeUndoFailure()
         }
@@ -176,9 +176,13 @@ fun MaliyemNavHost(
         if (quickEntry == null) return@LaunchedEffect
         // Sürmekte olan kaydın sonucu işlendikten sonra yeni taslağı aç.
         add.saving.first { !it }
-        add.reset()
-        add.setType(quickEntry)
-        openSheet()
+        add.saved.first { it == null }
+        if (add.hasDraft || editId != null) {
+            sheetOpen = true
+        } else {
+            add.setType(quickEntry, fromQuickEntry = true)
+            openSheet()
+        }
         onQuickEntryConsumed()
     }
 

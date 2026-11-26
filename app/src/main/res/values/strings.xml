@@ -131,11 +131,11 @@
     <string name="settings_theme_dark">Dark</string>
     <string name="settings_language">Language</string>
     <string name="settings_data">Data</string>
-    <string name="settings_data_body">Only on this device, no account</string>
+    <string name="settings_data_body">No account needed. Android may back up your records. Turn App Lock on again after restoring your device.</string>
     <string name="settings_backup">Back up data</string>
     <string name="settings_restore">Restore from backup</string>
     <string name="settings_csv">Export as CSV</string>
-    <string name="settings_restore_body">All current transactions, categories, accounts, transfers, and recurring rules will be replaced.\n\nTransactions in the backup: %1$d\nCategories in the backup: %2$d\nAccounts after restore: %3$d\nTransfers in the backup: %4$d\nRecurring rules in the backup: %5$d</string>
+    <string name="settings_restore_body">All current transactions, categories, accounts, transfers, recurring rules, and budgets will be replaced.\n\nTransactions in the backup: %1$d\nCategories in the backup: %2$d\nAccounts after restore: %3$d\nTransfers in the backup: %4$d\nRecurring rules in the backup: %5$d\nCategory budgets in the backup: %6$d\nOverall limit in the backup: %7$s</string>
     <string name="settings_restore_confirm">Restore</string>
     <string name="settings_restoring">Restoring…</string>
     <string name="settings_backup_saved">Backup saved</string>
@@ -162,7 +162,7 @@
     </plurals>
     <string name="categories_delete_empty">This category has no records.</string>
     <string name="empty_first_title">Income and expenses in one place</string>
-    <string name="empty_first_body">Works offline, no account needed. Your records stay on this phone only.</string>
+    <string name="empty_first_body">Works offline without an account. Android may back up your records. Turn App Lock on again after restoring your device.</string>
     <string name="empty_first_note">You start with ready-made categories; add your own later.</string>
     <string name="empty_first_add">Add first record</string>
     <string name="empty_month_title">No records in %1$s yet</string>
@@ -298,4 +298,14 @@
     <string name="app_lock_prompt_title">Authenticate for Maliyem</string>
     <string name="app_lock_use_screen_lock">Use screen lock</string>
     <string name="widget_amounts_hidden">Amounts hidden</string>
+    <string name="settings_backup_too_large">This backup exceeds the 20 MB limit.</string>
+    <string name="settings_backup_id_out_of_range">A record ID in this backup exceeds the limit of 9007199254740992.</string>
+    <string name="settings_restore_no_budget">None</string>
+    <string name="categories_delete_budget">The %1$s category limit will be removed.</string>
+    <string name="recurring_pause_note">When you resume, due dates during the pause are skipped.</string>
+    <string name="undo_related_record_missing">Could not undo because a linked account or record has changed.</string>
+    <plurals name="categories_delete_rules">
+        <item quantity="one">%d recurring rule will move to Other.</item>
+        <item quantity="other">%d recurring rules will move to Other.</item>
+    </plurals>
 </resources>

@@ -73,7 +73,21 @@ android {
     }
 }
 
+// Let Gradle cache the SDK used by the JVM Room tests, alongside the test dependencies.
+val robolectricSdk by configurations.creating { isTransitive = false }
+val robolectricSdkDirectory = layout.buildDirectory.dir("robolectric-sdk")
+val prepareRobolectricSdk by tasks.registering(Sync::class) {
+    from(robolectricSdk)
+    into(robolectricSdkDirectory)
+}
+tasks.withType<Test>().configureEach {
+    dependsOn(prepareRobolectricSdk)
+    inputs.files(robolectricSdk)
+    systemProperty("robolectric.dependency.dir", robolectricSdkDirectory.get().asFile.absolutePath)
+}
+
 dependencies {
+    robolectricSdk(libs.robolectric.sdk)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.biometric)
@@ -93,6 +107,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.glance.material3)
 
     implementation(libs.androidx.room.runtime)
@@ -100,5 +115,6 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
     testImplementation(libs.kotlinx.coroutines.test)
 }

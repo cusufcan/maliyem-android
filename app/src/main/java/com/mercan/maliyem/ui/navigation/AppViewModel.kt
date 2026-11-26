@@ -1,6 +1,8 @@
 package com.mercan.maliyem.ui.navigation
 
 import android.database.sqlite.SQLiteException
+import android.database.sqlite.SQLiteConstraintException
+import com.mercan.maliyem.R
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -62,7 +64,7 @@ class AppViewModel @Inject constructor(
     private val _undoActions = MutableStateFlow<List<UndoAction>>(emptyList())
     val undoActions = _undoActions.asStateFlow()
     private val undoWrites = Mutex()
-    private val _undoFailed = MutableStateFlow(false)
+    private val _undoFailed = MutableStateFlow<Int?>(null)
     val undoFailed = _undoFailed.asStateFlow()
 
     fun offerUndo(action: UndoAction) {
@@ -81,11 +83,13 @@ class AppViewModel @Inject constructor(
                         is UndoAction.Added -> if (action.entry.type == null) transfers.delete(action.entry.id)
                             else repository.delete(action.entry.id)
                         is UndoAction.DeletedTransfer -> transfers.add(action.entity)
-                        is UndoAction.Deleted -> if (!repository.restore(action.entity)) _undoFailed.value = true
+                        is UndoAction.Deleted -> if (!repository.restore(action.entity)) _undoFailed.value = R.string.undo_failed
                     }
                 }
+            } catch (_: SQLiteConstraintException) {
+                _undoFailed.value = R.string.undo_related_record_missing
             } catch (_: SQLiteException) {
-                _undoFailed.value = true
+                _undoFailed.value = R.string.undo_failed
             }
         }
     }
@@ -93,8 +97,8 @@ class AppViewModel @Inject constructor(
     /** Yedekte aynı kimlikler başka kayıtlara ait olabilir; eski "Geri al" işlemlerini kapatır. */
     suspend fun clearUndo() {
         _undoActions.value = emptyList()
-        undoWrites.withLock { _undoFailed.value = false }
+        undoWrites.withLock { _undoFailed.value = null }
     }
 
-    fun acknowledgeUndoFailure() { _undoFailed.value = false }
+    fun acknowledgeUndoFailure() { _undoFailed.value = null }
 }

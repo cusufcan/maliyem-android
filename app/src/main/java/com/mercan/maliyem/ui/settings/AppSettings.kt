@@ -57,7 +57,7 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
     val appLockTimeout: StateFlow<LockTimeout> = _appLockTimeout.asStateFlow()
 
     internal fun setAppLockEnabled(enabled: Boolean) {
-        prefs.edit { putBoolean(KEY_APP_LOCK_ENABLED, enabled) }
+        prefs.edit(commit = enabled) { putBoolean(KEY_APP_LOCK_ENABLED, enabled) }
         _appLockEnabled.value = enabled
     }
 

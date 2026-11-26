@@ -5,6 +5,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import com.mercan.maliyem.ui.components.ScreenLoading
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -71,29 +73,34 @@ private val types = listOf(TransactionType.EXPENSE, TransactionType.INCOME)
 @Composable
 fun BreakdownScreen(viewModel: BreakdownViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val current = state ?: return
+    val current = state ?: return ScreenLoading()
     val locale = LocalConfiguration.current.locales[0]
 
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.xl),
-        verticalArrangement = Arrangement.spacedBy(Spacing.md),
-    ) {
-        ScreenTitle(stringResource(R.string.nav_breakdown), monthTitle("LLLL yyyy", current.month, locale))
-        SeyirSegmented(
-            listOf(stringResource(R.string.add_expense), stringResource(R.string.add_income)),
-            types.indexOf(current.type),
-            { viewModel.setType(types[it]) },
-        )
-        AnimatedContent(
-            current,
-            transitionSpec = { slideFade(types.indexOf(targetState.type) > types.indexOf(initialState.type)) },
-            contentKey = { it.type },
-            label = "breakdownType",
-        ) { shown -> BreakdownBody(shown, locale) }
-        SubText(stringResource(R.string.breakdown_note), Modifier.padding(horizontal = Spacing.xs))
-        if (current.slices.isNotEmpty()) {
-            SubText(stringResource(R.string.breakdown_trend_note), Modifier.padding(horizontal = Spacing.xs))
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val empty = current.slices.isEmpty()
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight)
+                .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.xl),
+            verticalArrangement = if (empty) Arrangement.SpaceBetween else Arrangement.spacedBy(Spacing.md),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                ScreenTitle(stringResource(R.string.nav_breakdown), monthTitle("LLLL yyyy", current.month, locale))
+                SeyirSegmented(
+                    listOf(stringResource(R.string.add_expense), stringResource(R.string.add_income)),
+                    types.indexOf(current.type),
+                    { viewModel.setType(types[it]) },
+                )
+            }
+            AnimatedContent(
+                current,
+                transitionSpec = { slideFade(types.indexOf(targetState.type) > types.indexOf(initialState.type)) },
+                contentKey = { it.type },
+                label = "breakdownType",
+            ) { shown -> BreakdownBody(shown, locale) }
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                SubText(stringResource(R.string.breakdown_note), Modifier.padding(horizontal = Spacing.xs))
+                if (!empty) SubText(stringResource(R.string.breakdown_trend_note), Modifier.padding(horizontal = Spacing.xs))
+            }
         }
     }
 }

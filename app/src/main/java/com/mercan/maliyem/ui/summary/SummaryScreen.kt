@@ -24,7 +24,11 @@ import com.mercan.maliyem.ui.components.categoryName
 import com.mercan.maliyem.ui.components.monthTitle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.BoxWithConstraints
+import com.mercan.maliyem.ui.components.ScreenLoading
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -111,8 +115,8 @@ fun SummaryScreen(
             onOpenBudget(it)
         }
         when {
-            first && shown?.budgets?.isEmpty != false -> FirstLaunch(onAdd, accounts)
-            shown == null -> Unit
+            shown == null -> ScreenLoading()
+            first && shown.budgets.isEmpty -> FirstLaunch(onAdd, accounts)
             shown.isEmpty -> EmptyMonth(
                 shown, viewModel::previousMonth, viewModel::nextMonth, viewModel::selectMonth, onAdd, onSeeAll, accounts, openBudget,
             )
@@ -127,19 +131,22 @@ fun SummaryScreen(
 /** Pano 7 · İlk açılış. */
 @Composable
 private fun FirstLaunch(onAdd: () -> Unit, accounts: List<AccountBalance>) {
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.lg),
-    ) {
-        AccountsCard(accounts)
-        EmptyState(
-            R.drawable.ic_seyir_wallet,
-            stringResource(R.string.empty_first_title),
-            stringResource(R.string.empty_first_body),
-            Modifier.weight(1f),
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight)
+                .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.lg),
+            verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            SubText(stringResource(R.string.empty_first_note), Modifier.padding(top = 0.dp))
-            SeyirButton(stringResource(R.string.empty_first_add), onAdd, icon = R.drawable.ic_seyir_plus)
+            Column { AccountsCard(accounts) }
+            EmptyState(
+                R.drawable.ic_seyir_wallet,
+                stringResource(R.string.empty_first_title),
+                stringResource(R.string.empty_first_body),
+            ) {
+                SubText(stringResource(R.string.empty_first_note), Modifier.padding(top = 0.dp))
+                SeyirButton(stringResource(R.string.empty_first_add), onAdd, icon = R.drawable.ic_seyir_plus)
+            }
+            Spacer(Modifier.height(0.dp))
         }
     }
 }
@@ -158,49 +165,55 @@ private fun EmptyMonth(
 ) {
     val locale = LocalConfiguration.current.locales[0]
     val monthsIn = stringArrayResource(R.array.month_in)
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = 88.dp),
-        verticalArrangement = Arrangement.spacedBy(Spacing.md),
-    ) {
-        MonthHeader(
-            state.month, locale,
-            onPrevious = onPreviousMonth.takeIf { state.previousMonth != null },
-            onNext = onNextMonth.takeIf { state.nextMonth != null },
-        )
-        AccountsCard(accounts)
-        BudgetsCard(state.budgets, locale, onOpenBudget)
-        EmptyState(
-            R.drawable.ic_seyir_calendar,
-            stringResource(
-                if (state.hasTransfers) R.string.empty_month_transfers_title else R.string.empty_month_title,
-                monthsIn[state.month.monthValue - 1],
-            ),
-            stringResource(R.string.empty_month_body),
-            Modifier.weight(1f),
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight)
+                .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = 88.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            SeyirButton(stringResource(R.string.add_open), onAdd, icon = R.drawable.ic_seyir_plus)
-            if (state.hasTransfers) SeyirButton(stringResource(R.string.nav_transactions), onSeeAll, tonal = true)
-        }
-        state.previousNet?.let { (previous, net) ->
-            val colors = MaterialTheme.colorScheme
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(MaterialTheme.shapes.large)
-                    .background(colors.surfaceContainer).clickable(role = Role.Button) { onSelectMonth(previous) }
-                    .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                MonthHeader(
+                    state.month, locale,
+                    onPrevious = onPreviousMonth.takeIf { state.previousMonth != null },
+                    onNext = onNextMonth.takeIf { state.nextMonth != null },
+                )
+                AccountsCard(accounts)
+                BudgetsCard(state.budgets, locale, onOpenBudget)
+            }
+            EmptyState(
+                R.drawable.ic_seyir_calendar,
+                stringResource(
+                    if (state.hasTransfers) R.string.empty_month_transfers_title else R.string.empty_month_title,
+                    monthsIn[state.month.monthValue - 1],
+                ),
+                stringResource(R.string.empty_month_body),
+                Modifier.padding(top = Spacing.lg),
             ) {
-                Column(Modifier.weight(1f)) {
-                    SubText(stringResource(R.string.empty_month_last))
-                    Text(
-                        stringResource(R.string.empty_month_closed, monthTitle("LLLL", previous, locale), formatMoney(net, locale, signed = true)),
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"),
-                    )
+                SeyirButton(stringResource(R.string.add_open), onAdd, icon = R.drawable.ic_seyir_plus)
+                if (state.hasTransfers) SeyirButton(stringResource(R.string.nav_transactions), onSeeAll, tonal = true)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                state.previousNet?.let { (previous, net) ->
+                    val colors = MaterialTheme.colorScheme
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(MaterialTheme.shapes.large)
+                            .background(colors.surfaceContainer).clickable(role = Role.Button) { onSelectMonth(previous) }
+                            .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            SubText(stringResource(R.string.empty_month_last))
+                            Text(
+                                stringResource(R.string.empty_month_closed, monthTitle("LLLL", previous, locale), formatMoney(net, locale, signed = true)),
+                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"),
+                            )
+                        }
+                        SeyirIcon(R.drawable.ic_seyir_chevron_right, tint = colors.onSurfaceVariant)
+                    }
                 }
-                SeyirIcon(R.drawable.ic_seyir_chevron_right, tint = colors.onSurfaceVariant)
+                SeyirTrendCard(state.trend, locale, onSelectMonth)
             }
         }
-        SeyirTrendCard(state.trend, locale, onSelectMonth)
     }
 }
 

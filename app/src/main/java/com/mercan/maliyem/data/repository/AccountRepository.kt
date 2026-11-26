@@ -5,6 +5,8 @@ import com.mercan.maliyem.data.local.AccountEntity
 import com.mercan.maliyem.data.local.DefaultAccounts
 import com.mercan.maliyem.data.local.MaliyemDatabase
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
@@ -17,6 +19,7 @@ class AccountRepository @Inject constructor(
     fun observeBalances() = db.invalidationTracker.createFlow("accounts", "transactions", "transfers", "recurring_rules")
         .map { calculateBalances(dao.ledger()) }
         .distinctUntilChanged()
+        .flowOn(Dispatchers.Default)
 
     suspend fun add(name: String, icon: String, initialBalanceMinor: Long) =
         dao.append(AccountEntity(name = name, icon = icon, sortOrder = 0, initialBalanceMinor = initialBalanceMinor))

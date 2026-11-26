@@ -23,6 +23,12 @@ jobs:
       # Gradle bağımlılık önbelleği + wrapper doğrulaması.
       - uses: gradle/actions/setup-gradle@v6
 
+      - name: SQLite geçiş testi bağımlılığı
+        run: |
+          if ! sqlite3 --version; then
+            echo "::warning::sqlite3 bulunamadı. Room geçiş testleri atlanacak."
+          fi
+
       - name: Test, lint, derleme
         run: ./gradlew testDebugUnitTest lintDebug assembleDebug
 

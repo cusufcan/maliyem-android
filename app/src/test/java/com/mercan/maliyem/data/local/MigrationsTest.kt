@@ -235,6 +235,7 @@ class MigrationsTest {
         val process = try {
             ProcessBuilder("sqlite3", "-batch", "-bail", ":memory:").redirectErrorStream(true).start()
         } catch (e: IOException) {
+            System.err.println("SQLite geçiş testleri atlandı: sqlite3 çalıştırılamadı.")
             assumeNoException("SQLite komut satırı aracı bulunamadı", e)
             throw e
         }

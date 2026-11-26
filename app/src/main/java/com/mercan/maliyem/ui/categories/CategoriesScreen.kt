@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -28,6 +30,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import com.mercan.maliyem.util.formatMoney
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -176,10 +180,18 @@ fun CategoriesScreen(onBack: () -> Unit, viewModel: CategoriesViewModel = hiltVi
                 onDismissRequest = { confirmDelete = NONE },
                 title = { Text(stringResource(R.string.categories_delete_title, categoryName(item.category.key, item.category.name))) },
                 text = {
-                    Text(
-                        if (item.count > 0) pluralStringResource(R.plurals.categories_delete_body, item.count, item.count)
-                        else stringResource(R.string.categories_delete_empty),
-                    )
+                    val locale = LocalConfiguration.current.locales[0]
+                    Column(
+                        Modifier.verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        if (item.count > 0) Text(pluralStringResource(R.plurals.categories_delete_body, item.count, item.count))
+                        if (item.ruleCount > 0) Text(pluralStringResource(R.plurals.categories_delete_rules, item.ruleCount, item.ruleCount))
+                        item.budgetMinor?.let { Text(stringResource(R.string.categories_delete_budget, formatMoney(it, locale))) }
+                        if (item.count == 0 && item.ruleCount == 0 && item.budgetMinor == null) {
+                            Text(stringResource(R.string.categories_delete_empty))
+                        }
+                    }
                 },
                 confirmButton = {
                     TextButton({ viewModel.delete(item.category); confirmDelete = NONE }) { Text(stringResource(R.string.detail_delete)) }

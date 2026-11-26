@@ -34,6 +34,7 @@ import com.mercan.maliyem.ui.components.SeyirSegmented
 import com.mercan.maliyem.ui.components.SettingRow
 import com.mercan.maliyem.ui.theme.Spacing
 import java.time.LocalDate
+import com.mercan.maliyem.util.formatMoney
 
 @Composable
 fun SettingsScreen(
@@ -157,11 +158,18 @@ fun SettingsScreen(
             onDismissRequest = viewModel::dismissBackup,
             title = { Text(stringResource(R.string.settings_restore)) },
             text = {
-                Text(stringResource(
-                    R.string.settings_restore_body,
-                    pending.backup.transactions.size, pending.categoryCount,
-                    pending.backup.accounts.size, pending.backup.transfers.size, pending.backup.recurringRules.size,
-                ))
+                Text(
+                    text = stringResource(
+                        R.string.settings_restore_body,
+                        pending.backup.transactions.size, pending.categoryCount,
+                        pending.backup.accounts.size, pending.backup.transfers.size, pending.backup.recurringRules.size,
+                        pending.backup.budgets.size,
+                        pending.backup.overallBudgetMinor?.let {
+                            formatMoney(it, resources.configuration.locales[0])
+                        } ?: stringResource(R.string.settings_restore_no_budget),
+                    ),
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                )
             },
             confirmButton = {
                 TextButton(onClick = { viewModel.restoreBackup(beforeRestore) }, enabled = !dataBusy) {

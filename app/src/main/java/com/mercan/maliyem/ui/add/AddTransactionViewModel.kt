@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 private const val KEY_TYPE = "type"
+private const val KEY_TYPE_CHANGED = "typeChanged"
 private const val KEY_AMOUNT = "amount"
 private const val KEY_AMOUNT_LOCALE = "amountLocale"
 private const val KEY_CATEGORY = "category"
@@ -162,7 +163,8 @@ class AddTransactionViewModel @Inject constructor(
         return AddUiState(form, list, today, error, editId.value, parseAmount(form.amountText, locale), rows, selection.transfer, to, repeat)
     }
 
-    fun setType(value: TransactionType) {
+    fun setType(value: TransactionType, fromQuickEntry: Boolean = false) {
+        if (!fromQuickEntry) savedState[KEY_TYPE_CHANGED] = true
         savedState[KEY_TYPE] = value.name
         savedState[KEY_TRANSFER] = false
     }
@@ -292,9 +294,15 @@ class AddTransactionViewModel @Inject constructor(
         savedState[KEY_PREVIOUS_ACCOUNT] = accountId
     }
 
+    val hasDraft: Boolean
+        get() = _saving.value || _saved.value != null || editId.value != null || amount.value.isNotEmpty() ||
+            note.value.isNotEmpty() || savedState.get<Boolean>(KEY_TYPE_CHANGED) == true || category.value != null || date.value != null || account.value != null ||
+            toAccount.value != null || frequency.value != null || transfer.value || tried.value
+
     /** Sayfa kapanınca taslak atılır; tür seçimi bir sonraki kayıt için kalır. */
     fun reset() {
         // remove() kullanılırsa getStateFlow akışları anahtardan kopar.
+        savedState[KEY_TYPE_CHANGED] = false
         savedState[KEY_AMOUNT] = ""
         savedState[KEY_CATEGORY] = null
         savedState[KEY_DATE] = null

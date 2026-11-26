@@ -33,6 +33,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -49,6 +52,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -152,67 +156,100 @@ private fun AddTransactionContent(
     writeFailed: Boolean,
 ) {
     val form = state.form
-    Column(
-        Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState())
-            .padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.lg),
-        verticalArrangement = Arrangement.spacedBy(Spacing.md),
-    ) {
-        Text(
-            stringResource(when {
-                state.editId == null -> R.string.add_title
-                state.transfer -> R.string.transfer_edit_title
-                else -> R.string.edit_title
-            }),
-            Modifier.semantics { heading() },
-            style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp, lineHeight = 28.sp),
-            fontWeight = FontWeight.Bold,
-        )
-        if (state.editId == null || !state.transfer) {
-            TypeSelector(state, viewModel::setType, viewModel::selectTransfer)
+    val amountField = remember { BringIntoViewRequester() }
+    val categoryField = remember { BringIntoViewRequester() }
+    val accountField = remember { BringIntoViewRequester() }
+    var saveAttempts by remember { mutableIntStateOf(0) }
+    LaunchedEffect(state.error, saveAttempts) {
+        val field = when (state.error) {
+            AddFormError.CATEGORY_MISSING -> categoryField
+            AddFormError.ACCOUNT_MISSING -> accountField
+            null -> null
+            else -> amountField
         }
-        AmountField(
-            form.amountText,
-            form.type.takeUnless { state.transfer },
-            { viewModel.setAmount(it, locale) },
-            error = state.error?.takeUnless { it == AddFormError.CATEGORY_MISSING || it == AddFormError.ACCOUNT_MISSING },
-        )
-        val selected = state.accounts.firstOrNull { it.id == form.accountId }
-        if (state.transfer) {
-            if (state.canTransfer) {
-                AccountPicker(
-                    R.string.transfer_from, selected, state.activeAccounts,
-                    viewModel::setAccount,
-                )
-                AccountPicker(
-                    R.string.transfer_to, state.accounts.firstOrNull { it.id == state.toAccountId },
-                    state.activeAccounts.filter { it.id != form.accountId }, viewModel::setToAccount,
-                )
-            } else {
-                SubText(stringResource(R.string.transfer_need_accounts))
-            }
-        } else {
-            CategoryChips(
-                form.type, form.categoryId, state.categories, state.error == AddFormError.CATEGORY_MISSING,
-                viewModel::setCategory, viewModel::addCategory,
+        if (field != null) {
+            withFrameNanos { }
+            field.bringIntoView()
+        }
+    }
+
+    Column(Modifier.fillMaxWidth().imePadding().padding(horizontal = Spacing.lg)) {
+        Column(
+            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(bottom = Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Text(
+                stringResource(when {
+                    state.editId == null -> R.string.add_title
+                    state.transfer -> R.string.transfer_edit_title
+                    else -> R.string.edit_title
+                }),
+                Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp, lineHeight = 28.sp),
+                fontWeight = FontWeight.Bold,
             )
-            if (state.activeAccounts.size > 1 || selected?.archived == true) {
-                AccountPicker(R.string.account_label, selected, state.activeAccounts, viewModel::setAccount)
+            if (state.editId == null || !state.transfer) {
+                TypeSelector(state, { viewModel.setType(it) }, viewModel::selectTransfer)
             }
-        }
-        Column {
-            if (state.editId == null && !state.transfer) {
-                FrequencyPicker(state.frequency, viewModel::setFrequency, includeNone = true, enabled = !saving)
+            AmountField(
+                form.amountText,
+                form.type.takeUnless { state.transfer },
+                { viewModel.setAmount(it, locale) },
+                modifier = Modifier.bringIntoViewRequester(amountField),
+                error = state.error?.takeUnless { it == AddFormError.CATEGORY_MISSING || it == AddFormError.ACCOUNT_MISSING },
+            )
+            val selected = state.accounts.firstOrNull { it.id == form.accountId }
+            if (state.transfer) {
+                Column(Modifier.bringIntoViewRequester(accountField)) {
+                    if (state.canTransfer) {
+                        AccountPicker(
+                            R.string.transfer_from, selected, state.activeAccounts,
+                            viewModel::setAccount,
+                        )
+                        AccountPicker(
+                            R.string.transfer_to, state.accounts.firstOrNull { it.id == state.toAccountId },
+                            state.activeAccounts.filter { it.id != form.accountId }, viewModel::setToAccount,
+                        )
+                    } else {
+                        SubText(stringResource(R.string.transfer_need_accounts))
+                    }
+                }
+            } else {
+                Column(Modifier.bringIntoViewRequester(categoryField)) {
+                    CategoryChips(
+                        form.type, form.categoryId, state.categories, state.error == AddFormError.CATEGORY_MISSING,
+                        viewModel::setCategory, viewModel::addCategory,
+                    )
+                }
+                if (state.activeAccounts.size > 1 || selected?.archived == true || state.error == AddFormError.ACCOUNT_MISSING) {
+                    Column(Modifier.bringIntoViewRequester(accountField)) {
+                        AccountPicker(R.string.account_label, selected, state.activeAccounts, viewModel::setAccount)
+                        if (state.error == AddFormError.ACCOUNT_MISSING) SubText(stringResource(R.string.account_choose))
+                    }
+                }
+            }
+            Column {
+                if (state.editId == null && !state.transfer) {
+                    FrequencyPicker(state.frequency, viewModel::setFrequency, includeNone = true, enabled = !saving)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+                DateRow(form.date, state.today, locale, allowFuture = state.frequency != null, onPick = viewModel::setDate)
+                QuickDates(form.date, state.today, viewModel::setDate)
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                NoteRow(form.note, viewModel::setNote)
             }
-            DateRow(form.date, state.today, locale, allowFuture = state.frequency != null, onPick = viewModel::setDate)
-            QuickDates(form.date, state.today, viewModel::setDate)
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            NoteRow(form.note, viewModel::setNote)
         }
         // Tutar geçerliyse düğme ne kaydedileceğini söyler: "Kaydet · 412,85 ₺".
         val amountMinor = state.amountMinor?.takeIf { it > 0 }
         if (writeFailed) WriteError()
-        Button(viewModel::save, Modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = !saving && (!state.transfer || state.canTransfer)) {
+        Button(
+            onClick = {
+                saveAttempts++
+                viewModel.save()
+            },
+            modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.lg).heightIn(min = 48.dp),
+            enabled = !saving && (!state.transfer || state.canTransfer),
+        ) {
             AnimatedContent(amountMinor, transitionSpec = { crossFade() }, label = "saveLabel") { minor ->
                 Text(
                     if (minor != null) stringResource(R.string.add_save_amount, formatMoney(minor, locale)) else stringResource(R.string.add_save),
@@ -237,7 +274,7 @@ private fun TypeSelector(state: AddUiState, onSelect: (TransactionType) -> Unit,
 }
 
 @Composable
-private fun AmountField(text: String, type: TransactionType?, onChange: (String) -> Unit, error: AddFormError?) {
+private fun AmountField(text: String, type: TransactionType?, onChange: (String) -> Unit, error: AddFormError?, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     val income = type == TransactionType.INCOME
     val incomeColor = LocalMoneyColors.current.onIncomeContainer
@@ -256,7 +293,7 @@ private fun AmountField(text: String, type: TransactionType?, onChange: (String)
         Motion.fast(), label = "amountLine",
     )
     val signColor by animateColorAsState(if (income) incomeColor else colors.onSurfaceVariant, Motion.fast(), label = "amountSign")
-    Column {
+    Column(modifier) {
         BasicTextField(
             value = text,
             onValueChange = onChange,

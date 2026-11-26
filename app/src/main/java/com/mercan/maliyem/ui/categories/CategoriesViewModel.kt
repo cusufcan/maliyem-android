@@ -5,6 +5,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mercan.maliyem.data.local.CategoryEntity
+import com.mercan.maliyem.data.repository.BudgetRepository
+import com.mercan.maliyem.data.repository.RecurringRepository
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.repository.CategoryRepository
 import com.mercan.maliyem.data.repository.TransactionRepository
@@ -23,7 +25,7 @@ import kotlinx.coroutines.launch
 
 private const val KEY_TYPE = "type"
 
-data class CategoryItem(val category: CategoryEntity, val count: Int)
+data class CategoryItem(val category: CategoryEntity, val count: Int, val ruleCount: Int, val budgetMinor: Long?)
 
 data class CategoriesUiState(val type: TransactionType, val items: List<CategoryItem>)
 
@@ -32,16 +34,23 @@ class CategoriesViewModel @Inject constructor(
     private val savedState: SavedStateHandle,
     private val categories: CategoryRepository,
     transactions: TransactionRepository,
+    recurring: RecurringRepository,
+    budgets: BudgetRepository,
 ) : ViewModel() {
 
     private val type = savedState.getStateFlow(KEY_TYPE, TransactionType.EXPENSE.name).map(TransactionType::valueOf)
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val uiState: StateFlow<CategoriesUiState?> = type
-        .flatMapLatest { t -> categories.observeByType(t).map { t to it } }
-        .combine(transactions.observeCountsByCategory()) { (t, list), counts ->
-            CategoriesUiState(t, list.map { CategoryItem(it, counts[it.id] ?: 0) })
-        }
+    val uiState: StateFlow<CategoriesUiState?> = combine(
+        type.flatMapLatest { t -> categories.observeByType(t).map { t to it } },
+        transactions.observeCountsByCategory(),
+        recurring.observeAll(),
+        budgets.observeAll(),
+    ) { (t, list), counts, rules, limits ->
+        val ruleCounts = rules.groupingBy { it.categoryId }.eachCount()
+        val budgetLimits = limits.associate { it.categoryId to it.limitMinor }
+        CategoriesUiState(t, list.map { CategoryItem(it, counts[it.id] ?: 0, ruleCounts[it.id] ?: 0, budgetLimits[it.id]) })
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun setType(value: TransactionType) { savedState[KEY_TYPE] = value.name }
