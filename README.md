@@ -2,7 +2,17 @@
 
 A simple, private income and expense tracker for Android. Log what comes in and goes out, see the month's net at a glance and where the money went by category, all stored on your device.
 
-Work in progress: this is the project skeleton (theme, database schema, navigation). Screens come next.
+## Features
+
+- Expenses and income by category, with monthly summary and category breakdown
+- Multiple accounts (wallets) and transfers between them
+- Recurring transactions (weekly, monthly, yearly)
+- Search and filters
+- Monthly budgets per category and overall
+- Six-month trend chart
+- App shortcuts and a home screen widget
+- Optional biometric / device credential app lock
+- JSON backup and restore, CSV export (files you choose; no network access)
 
 ## Stack
 
