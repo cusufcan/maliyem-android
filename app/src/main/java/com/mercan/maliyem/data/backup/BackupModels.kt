@@ -15,10 +15,12 @@ data class BackupFile(
     val accounts: List<BackupAccount> = emptyList(),
     val transfers: List<BackupTransfer> = emptyList(),
     val recurringRules: List<BackupRecurringRule> = emptyList(),
+    val budgets: List<BackupBudget> = emptyList(),
+    val overallBudgetMinor: Long? = null,
 ) {
     companion object {
         const val FORMAT = "maliyem-backup"
-        const val VERSION = 3
+        const val VERSION = 4
     }
 }
 
@@ -80,5 +82,13 @@ data class BackupRecurringRule(
     val nextDate: String,
     val endDate: String? = null,
     val paused: Boolean = false,
+    val createdAt: Long,
+)
+
+@Serializable
+data class BackupBudget(
+    val id: Long,
+    val categoryId: Long,
+    val limitMinor: Long,
     val createdAt: Long,
 )

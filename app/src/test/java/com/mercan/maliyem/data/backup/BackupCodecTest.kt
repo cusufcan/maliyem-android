@@ -5,6 +5,7 @@ import com.mercan.maliyem.data.local.RecurringFrequency.MONTHLY
 import com.mercan.maliyem.data.local.TransactionType.EXPENSE
 import com.mercan.maliyem.data.local.TransactionType.INCOME
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -87,6 +88,8 @@ class BackupCodecTest {
 
         assertEquals(BackupFile.VERSION, result.backup.version)
         assertTrue(result.backup.recurringRules.isEmpty())
+        assertTrue(result.backup.budgets.isEmpty())
+        assertNull(result.backup.overallBudgetMinor)
         assertEquals(listOf(cash), result.backup.accounts)
         assertTrue(result.backup.transfers.isEmpty())
         assertEquals(1, result.categoryCount)
@@ -124,6 +127,8 @@ class BackupCodecTest {
             result.backup.transactions,
         )
         assertTrue(result.backup.recurringRules.isEmpty())
+        assertTrue(result.backup.budgets.isEmpty())
+        assertNull(result.backup.overallBudgetMinor)
     }
 
     private val rule = BackupRecurringRule(
@@ -133,11 +138,42 @@ class BackupCodecTest {
 
     @Test fun `v3 round trip keeps paused rules cursor and generated transaction links`() {
         val linked = backup.copy(
+            version = 3,
             recurringRules = listOf(rule),
             transactions = listOf(transaction.copy(recurringRuleId = rule.id)),
         )
-        val restored = BackupCodec.decode(BackupCodec.encode(linked)) as BackupDecodeResult.Valid
-        assertEquals(linked, restored.backup)
+        val v3 = BackupCodec.encode(linked)
+            .replace(",\"budgets\":[]", "")
+            .replace(",\"overallBudgetMinor\":null", "")
+        val restored = BackupCodec.decode(v3) as BackupDecodeResult.Valid
+        assertEquals(linked.copy(version = BackupFile.VERSION), restored.backup)
+    }
+
+    @Test fun `v4 round trip keeps category and overall budgets`() {
+        val withBudgets = backup.copy(
+            budgets = listOf(BackupBudget(9, expense.id, 40_000, 125)),
+            overallBudgetMinor = 100_000,
+        )
+        val restored = BackupCodec.decode(BackupCodec.encode(withBudgets)) as BackupDecodeResult.Valid
+        assertEquals(withBudgets, restored.backup)
+    }
+
+    @Test fun `rejects invalid budget limits ids and categories`() {
+        val budget = BackupBudget(9, expense.id, 40_000, 125)
+        assertInvalid(backup.copy(overallBudgetMinor = 0))
+        assertInvalid(backup.copy(overallBudgetMinor = -1))
+        assertInvalid(backup.copy(budgets = listOf(budget, budget.copy(categoryId = otherExpense.id))))
+        assertInvalid(backup.copy(budgets = listOf(budget, budget.copy(id = 10))))
+        for (invalid in listOf(
+            budget.copy(id = 0),
+            budget.copy(id = Long.MAX_VALUE),
+            budget.copy(categoryId = 99),
+            budget.copy(categoryId = income.id),
+            budget.copy(limitMinor = 0),
+            budget.copy(limitMinor = -1),
+        )) {
+            assertInvalid(backup.copy(budgets = listOf(invalid)))
+        }
     }
 
     @Test fun `rejects invalid rules and dangling transaction links`() {

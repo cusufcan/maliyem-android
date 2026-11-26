@@ -2,10 +2,15 @@ package com.mercan.maliyem.data.backup
 
 import com.mercan.maliyem.data.local.DefaultAccounts
 import com.mercan.maliyem.data.local.DefaultCategories
+import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.repository.occurrenceOnOrAfter
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 sealed interface BackupDecodeResult {
     /** [categoryCount] dosyadaki sayıdır; [backup] eksik "Diğer" kategorilerini de içerir. */
@@ -24,7 +29,13 @@ object BackupCodec {
 
     fun decode(content: String): BackupDecodeResult {
         val backup = try {
-            json.decodeFromString<BackupFile>(content.removePrefix("\uFEFF"))
+            val fields = json.parseToJsonElement(content.removePrefix("\uFEFF")).jsonObject
+            val version = fields["version"]?.jsonPrimitive?.intOrNull
+            // Eski dosyalar bu adlarla tanınmayan, farklı biçimde alanlar taşıyabilir.
+            val knownFields = if (version != null && version < 4) {
+                JsonObject(fields - setOf("budgets", "overallBudgetMinor"))
+            } else fields
+            json.decodeFromJsonElement(BackupFile.serializer(), knownFields)
         } catch (_: IllegalArgumentException) {
             return BackupDecodeResult.Invalid
         }
@@ -45,11 +56,16 @@ object BackupCodec {
             )
         } else file
 
-        val backup = if (file.version < 3) withAccounts.copy(
-            version = BackupFile.VERSION,
+        val withRules = if (file.version < 3) withAccounts.copy(
             recurringRules = emptyList(),
             transactions = withAccounts.transactions.map { it.copy(recurringRuleId = null) },
         ) else withAccounts
+
+        val backup = if (file.version < 4) withRules.copy(
+            version = BackupFile.VERSION,
+            budgets = emptyList(),
+            overallBudgetMinor = null,
+        ) else withRules
 
         val accountIds = backup.accounts.map { it.id }.toSet()
         val accountKeys = backup.accounts.mapNotNull { it.key }
@@ -74,6 +90,16 @@ object BackupCodec {
             categoriesByKey.size != categoriesWithKey.size ||
             categoriesById.keys.any { it <= 0 || it == Long.MAX_VALUE }
         ) return BackupDecodeResult.Invalid
+
+        if (backup.overallBudgetMinor?.let { it <= 0 } == true) return BackupDecodeResult.Invalid
+        val budgetIds = HashSet<Long>()
+        val budgetCategories = HashSet<Long>()
+        for (budget in backup.budgets) {
+            if (budget.id <= 0 || budget.id == Long.MAX_VALUE || !budgetIds.add(budget.id) ||
+                budget.limitMinor <= 0 || categoriesById[budget.categoryId]?.type != TransactionType.EXPENSE ||
+                !budgetCategories.add(budget.categoryId)
+            ) return BackupDecodeResult.Invalid
+        }
 
         val ruleIds = HashSet<Long>()
         for (rule in backup.recurringRules) {

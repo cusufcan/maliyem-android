@@ -3,9 +3,12 @@ package com.mercan.maliyem.data.backup
 import androidx.room.withTransaction
 import com.mercan.maliyem.data.local.AccountDao
 import com.mercan.maliyem.data.local.AccountEntity
+import com.mercan.maliyem.data.local.BudgetDao
+import com.mercan.maliyem.data.local.BudgetEntity
 import com.mercan.maliyem.data.local.CategoryDao
 import com.mercan.maliyem.data.local.CategoryEntity
 import com.mercan.maliyem.data.local.MaliyemDatabase
+import com.mercan.maliyem.data.local.OverallBudgetEntity
 import com.mercan.maliyem.data.local.RecurringRuleDao
 import com.mercan.maliyem.data.local.RecurringRuleEntity
 import com.mercan.maliyem.data.local.TransactionDao
@@ -28,6 +31,7 @@ class RoomBackupRepository @Inject constructor(
     private val accounts: AccountDao,
     private val transfers: TransferDao,
     private val recurringRules: RecurringRuleDao,
+    private val budgets: BudgetDao,
 ) : BackupRepository {
     /** Tablolar aynı anlık görüntüden okunur; dışa aktarımda bağlantılar korunur. */
     override suspend fun snapshot(): BackupFile = db.withTransaction {
@@ -51,6 +55,8 @@ class RoomBackupRepository @Inject constructor(
                     it.startDate.toString(), it.nextDate.toString(), it.endDate?.toString(), it.paused, it.createdAt,
                 )
             },
+            budgets = budgets.getAll().map { BackupBudget(it.id, it.categoryId, it.limitMinor, it.createdAt) },
+            overallBudgetMinor = budgets.getOverall()?.limitMinor,
             transfers = transfers.getAll().map {
                 BackupTransfer(it.id, it.fromAccountId, it.toAccountId, it.amountMinor, it.date.toString(), it.note, it.createdAt)
             },
@@ -80,13 +86,18 @@ class RoomBackupRepository @Inject constructor(
                 it.paused, it.createdAt,
             )
         }
+        val budgetRows = backup.budgets.map { BudgetEntity(it.id, it.categoryId, it.limitMinor, it.createdAt) }
         db.withTransaction {
+            budgets.deleteAll()
+            budgets.deleteOverall()
             transfers.deleteAll()
             transactions.deleteAll()
             recurringRules.deleteAll()
             accounts.deleteAll()
             categories.deleteAll()
             categories.insertAll(categoryRows)
+            budgets.insertAll(budgetRows)
+            backup.overallBudgetMinor?.let { budgets.saveOverall(OverallBudgetEntity(limitMinor = it)) }
             accounts.insertAll(accountRows)
             recurringRules.insertAll(ruleRows)
             transactions.insertAll(transactionRows)

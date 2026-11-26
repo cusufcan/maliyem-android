@@ -9,7 +9,12 @@ import java.time.YearMonth
 /** Bir kategorinin ay içindeki toplamı. */
 data class Slice(val categoryId: Long, val key: String?, val name: String?, val icon: String, val amountMinor: BigInteger)
 
-data class BreakdownUiState(val month: YearMonth, val type: TransactionType, val slices: List<Slice>) {
+data class BreakdownUiState(
+    val month: YearMonth,
+    val type: TransactionType,
+    val slices: List<Slice>,
+    val budgetLimits: Map<Long, Long> = emptyMap(),
+) {
     val totalMinor: BigInteger = slices.sumOf { it.amountMinor }
 
     /** Toplam içindeki pay, en yakın tam sayıya yuvarlanır. */

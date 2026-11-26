@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.toRoute
 import com.mercan.maliyem.data.local.AccountEntity
 import com.mercan.maliyem.data.local.CategoryEntity
 import com.mercan.maliyem.data.local.DefaultAccounts
@@ -14,6 +15,8 @@ import com.mercan.maliyem.data.repository.TransactionRepository
 import com.mercan.maliyem.data.repository.TransferRepository
 import com.mercan.maliyem.ui.CalendarDays
 import com.mercan.maliyem.ui.MonthSelection
+import com.mercan.maliyem.ui.budgets.OVERALL_BUDGET
+import com.mercan.maliyem.ui.navigation.BudgetTransactions
 import com.mercan.maliyem.ui.summary.adjacentMonths
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
@@ -64,7 +67,14 @@ class TransactionsViewModel @Inject constructor(
 
     init {
         if (savedState.get<String>(KEY_SESSION) != transactionsSession) {
-            savedState.remove<Bundle>(KEY_FILTERS)
+            val budgetFilters = if (savedState.contains("budgetCategoryId")) {
+                val id = savedState.toRoute<BudgetTransactions>().budgetCategoryId
+                TransactionsFilters(
+                    type = TransactionFilter.EXPENSE,
+                    categoryIds = if (id == OVERALL_BUDGET) emptySet() else setOf(id),
+                ).toBundle()
+            } else null
+            savedState[KEY_FILTERS] = budgetFilters
             savedState.remove<String>(KEY_SEARCH)
             savedState[KEY_SESSION] = transactionsSession
         }

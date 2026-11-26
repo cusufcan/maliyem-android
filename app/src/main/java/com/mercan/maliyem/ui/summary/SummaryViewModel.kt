@@ -3,10 +3,14 @@ package com.mercan.maliyem.ui.summary
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mercan.maliyem.data.repository.AccountRepository
+import com.mercan.maliyem.data.local.TransactionType
+import com.mercan.maliyem.data.repository.BudgetRepository
+import com.mercan.maliyem.data.repository.CategoryRepository
 import com.mercan.maliyem.data.repository.TransactionRepository
 import com.mercan.maliyem.data.repository.TransferRepository
 import com.mercan.maliyem.ui.CalendarDays
 import com.mercan.maliyem.ui.MonthSelection
+import com.mercan.maliyem.ui.budgets.buildMonthlyBudgets
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.YearMonth
 import javax.inject.Inject
@@ -27,6 +31,8 @@ class SummaryViewModel @Inject constructor(
     accounts: AccountRepository,
     transfers: TransferRepository,
     calendar: CalendarDays,
+    budgets: BudgetRepository,
+    categories: CategoryRepository,
 ) : ViewModel() {
 
     val activeAccounts = accounts.observeBalances().map { rows -> rows.filterNot { it.account.archived } }
@@ -43,10 +49,15 @@ class SummaryViewModel @Inject constructor(
         Navigation(month, previous, next, previousWithData, month in withTransfers)
     }.distinctUntilChanged()
         .flatMapLatest { (month, previous, next, previousWithData, hasTransfers) ->
-            repository.observeMonth(month).flatMapLatest { rows ->
-                val summary = buildSummary(rows, month).copy(
+            combine(
+                repository.observeMonth(month), budgets.observeAll(), budgets.observeOverall(),
+                categories.observeByType(TransactionType.EXPENSE),
+            ) { rows, limits, overall, expenseCategories ->
+                buildSummary(rows, month).copy(
                     previousMonth = previous, nextMonth = next, hasTransfers = hasTransfers,
+                    budgets = buildMonthlyBudgets(month, rows, limits, overall?.limitMinor, expenseCategories),
                 )
+            }.flatMapLatest { summary ->
                 if (summary.isEmpty && previousWithData != null) {
                     repository.observeMonth(previousWithData).map { earlier ->
                         if (earlier.isEmpty()) summary else summary.copy(

@@ -56,6 +56,8 @@ import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.ui.accounts.AccountsScreen
 import com.mercan.maliyem.ui.add.AddTransactionSheet
 import com.mercan.maliyem.ui.breakdown.BreakdownScreen
+import com.mercan.maliyem.ui.budgets.BudgetsScreen
+import com.mercan.maliyem.ui.budgets.OVERALL_BUDGET
 import com.mercan.maliyem.ui.categories.CategoriesScreen
 import com.mercan.maliyem.ui.detail.TransactionDetailScreen
 import com.mercan.maliyem.ui.recurring.RecurringRuleScreen
@@ -84,7 +86,8 @@ private val tabs = listOf(
 
 /** Alt ekranın hangi sekmeye ait sayıldığı: Kategoriler Ayarlar'a, Detay açıldığı sekmeye. */
 private fun tabIndexOf(destination: androidx.navigation.NavDestination?): Int =
-    tabs.indexOfFirst { destination?.hasRoute(it.route::class) == true }
+    if (destination?.hasRoute(BudgetTransactions::class) == true) 1
+    else tabs.indexOfFirst { destination?.hasRoute(it.route::class) == true }
 
 @Composable
 fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
@@ -93,7 +96,7 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
     val destination = backStackEntry?.destination
     val activeTab = when {
         destination?.hasRoute(Categories::class) == true || destination?.hasRoute(Accounts::class) == true ||
-            destination?.hasRoute(Recurring::class) == true -> tabs.lastIndex
+            destination?.hasRoute(Recurring::class) == true || destination?.hasRoute(Budgets::class) == true -> tabs.lastIndex
         destination?.hasRoute(RecurringRule::class) == true ->
             backStackEntry?.toRoute<RecurringRule>()?.tab?.takeIf { it in tabs.indices } ?: tabs.lastIndex
         destination?.hasRoute(TransactionDetail::class) == true ->
@@ -144,7 +147,7 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
     }
 
     val showFab = when {
-        destination?.hasRoute(Transactions::class) == true -> true
+        destination?.hasRoute(Transactions::class) == true || destination?.hasRoute(BudgetTransactions::class) == true -> true
         destination?.hasRoute(Summary::class) == true -> hasData == true && monthHasData
         else -> false
     }
@@ -217,11 +220,20 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
                     highlightId = highlightId,
                     firstLaunch = hasData == false,
                     onSeeAll = { openTab(Transactions) },
+                    onOpenBudget = { nav.navigate(BudgetTransactions(it ?: OVERALL_BUDGET)) },
                     onOpen = { nav.navigate(TransactionDetail(it)) },
                     onAdd = { openSheet() },
                 )
             }
             composable<Transactions> {
+                TransactionsScreen(
+                    highlightId = highlightId,
+                    onOpen = { nav.navigate(TransactionDetail(it)) },
+                    onOpenTransfer = { nav.navigate(TransactionDetail(it, transfer = true)) },
+                    highlightTransferId = highlightTransferId,
+                )
+            }
+            composable<BudgetTransactions> {
                 TransactionsScreen(
                     highlightId = highlightId,
                     onOpen = { nav.navigate(TransactionDetail(it)) },
@@ -235,6 +247,7 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
                     onCategories = { nav.navigate(Categories) },
                     onAccounts = { nav.navigate(Accounts) },
                     onRecurring = { nav.navigate(Recurring) },
+                    onBudgets = { nav.navigate(Budgets) },
                     snackbar = snackbar,
                     beforeRestore = app::clearUndo,
                 )
@@ -258,6 +271,7 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
                 RecurringRuleScreen(entry.toRoute<RecurringRule>().id, onBack = { nav.popBackStack() })
             }
             composable<Accounts> { AccountsScreen(onBack = { nav.popBackStack() }) }
+            composable<Budgets> { BudgetsScreen(onBack = { nav.popBackStack() }) }
             composable<Categories> { CategoriesScreen(onBack = { nav.popBackStack() }) }
         }
     }

@@ -249,4 +249,16 @@
     <string name="recurring_delete_title">Delete recurring rule?</string>
     <string name="recurring_delete_body">Transactions already created by this rule will be kept.</string>
     <string name="account_recurring_in_use">This account is used by a recurring rule and cannot be deleted.</string>
+    <!-- Bütçeler -->
+    <string name="settings_budgets">Budgets</string>
+    <string name="budget_overall">Overall monthly budget</string>
+    <string name="budget_no_limit">No limit</string>
+    <string name="budget_limit">Monthly limit</string>
+    <string name="budget_invalid_limit">Enter an amount greater than zero.</string>
+    <string name="budget_remove">Remove budget</string>
+    <string name="budget_write_failed">Could not save the budget change.</string>
+    <string name="budget_percent">%1$s%%</string>
+    <string name="budget_spent_limit">%1$s / %2$s</string>
+    <string name="budget_remaining">Remaining %1$s</string>
+    <string name="budget_over">Over by %1$s</string>
 </resources>

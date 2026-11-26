@@ -123,6 +123,64 @@ class MigrationsTest {
         assertEquals("9|1|\n10|1\n10|\n", result)
     }
 
+    @Test fun `v3 to v4 keeps existing rows and only cascades the deleted category budget`() {
+        val schema4 = schema(4)
+        val fresh = sqlite(createTables(schema4) + metadata(schema4))
+        val migrated = sqlite(
+            createTables(schema(3)) + """
+                INSERT INTO accounts VALUES (1, 'cash', NULL, 'wallet', 0, 300, 0);
+                INSERT INTO accounts VALUES (2, NULL, 'Card', 'card', 1, 200, 0);
+                INSERT INTO categories VALUES (6, 'EXPENSE', NULL, 'Market', 'cart', 1);
+                INSERT INTO categories VALUES (7, 'EXPENSE', 'other_expense', NULL, 'dots', 2);
+                INSERT INTO recurring_rules VALUES (8, 'EXPENSE', 1500, 6, 1, NULL, 'WEEKLY', 20000, 20007, NULL, 0, 123);
+                INSERT INTO transactions (id, type, amountMinor, categoryId, date, createdAt, accountId, recurringRuleId)
+                    VALUES (9, 'EXPENSE', 1500, 6, 20000, 123, 1, 8);
+                INSERT INTO transfers VALUES (10, 1, 2, 125, 20000, NULL, 124);
+                BEGIN;
+            """.trimIndent() + "\n" + migrationSql(MIGRATION_3_4) + """
+                COMMIT;
+                SELECT COUNT(*) FROM budgets;
+                SELECT COUNT(*) FROM overall_budget;
+                SELECT id, initialBalanceMinor FROM accounts ORDER BY id;
+                SELECT id, categoryId, nextDate FROM recurring_rules;
+                SELECT id, amountMinor, categoryId, accountId, recurringRuleId FROM transactions;
+                SELECT id, fromAccountId, toAccountId, amountMinor FROM transfers;
+                INSERT INTO budgets VALUES (1, 6, 2000, 125);
+                INSERT OR IGNORE INTO budgets VALUES (2, 6, 1000, 125);
+                SELECT COUNT(*) FROM budgets;
+                INSERT INTO budgets VALUES (3, 7, 5000, 125);
+                INSERT INTO overall_budget VALUES (1, 8000);
+                BEGIN;
+                UPDATE transactions SET categoryId = 7 WHERE categoryId = 6;
+                UPDATE recurring_rules SET categoryId = 7 WHERE categoryId = 6;
+                DELETE FROM categories WHERE id = 6;
+                COMMIT;
+                SELECT * FROM budgets;
+                SELECT * FROM overall_budget;
+                SELECT categoryId FROM transactions;
+                SELECT categoryId FROM recurring_rules;
+                PRAGMA foreign_key_check;
+            """.trimIndent() + "\n" + metadata(schema4),
+        )
+        assertEquals(
+            """
+                |0
+                |0
+                |1|300
+                |2|200
+                |8|6|20007
+                |9|1500|6|1|8
+                |10|1|2|125
+                |1
+                |3|7|5000|125
+                |1|8000
+                |7
+                |7
+                |""".trimMargin() + fresh,
+            migrated,
+        )
+    }
+
     private fun metadata(schema: JsonObject): String =
         schema.getValue("entities").jsonArray.joinToString("\n") { entity ->
             val table = entity.jsonObject.getValue("tableName").jsonPrimitive.content

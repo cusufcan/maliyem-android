@@ -125,6 +125,23 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .bar{height:8px;border-radius:4px;background:var(--h);margin-top:6px;display:flex;align-items:center;gap:8px}
 .bar i{display:block;height:100%;border-radius:4px;background:var(--p);transition:width .18s}
 .pc{font-size:12px;line-height:17px;color:var(--v);min-width:34px;text-align:right;font-variant-numeric:tabular-nums}
+.phone{--budget-warn:#78502F;--budget-over:#BA1A1A}
+.phone.dark{--budget-warn:#EDC7AA;--budget-over:#FFB4AB}
+.budget-card{padding:4px 0}
+.budget-card .lb{padding:8px 16px 0}
+.budget-row{--status:var(--v);display:flex;gap:8px;align-items:center;width:100%;padding:8px 16px}
+.budget-row+.budget-row{border-top:1px solid var(--olv)}
+.budget-row.warn{--status:var(--budget-warn)}
+.budget-row.over{--status:var(--budget-over)}
+.budget-row .status-text,.budget-row>svg{color:var(--status)}
+.budget-row .budget-body{display:grid;gap:4px;flex:1;min-width:0}
+.budget-row .budget-title{display:flex;justify-content:space-between;gap:8px}
+.budget-row .bar{height:4px;margin:0;background:var(--olv)}
+.budget-row .bar i{background:var(--status)}
+.budget-edit{position:absolute;z-index:5;top:50%;left:24px;right:24px;transform:translateY(-50%);display:grid;gap:12px;background:var(--c);border-radius:28px;padding:24px}
+.budget-edit h3{margin:0;font-size:22px;line-height:28px}
+.budget-edit label{display:grid;gap:4px}
+.budget-edit .remove{min-height:48px;color:var(--budget-over)}
 .strip{display:flex;height:16px;border-radius:8px;overflow:hidden;gap:2px}
 .strip i{background:var(--p)}
 .det{display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 0 8px}
@@ -168,7 +185,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 </svg>
 <div class="page">
 <h1>Maliyem</h1>
-<p class="intro">Seyir ile ilk sürüm panosu (sade kapsam: kayıt, kategori, aylık özet, dağılım). Veriler Kasım 2026 örneği; bütün toplamlar kuruş cinsinden tam sayılardan hesaplanır. İşlemler araması, Gider/Gelir seçicileri, kategori çipleri, “Kaydet”, “Sil”, “Geri al” ve ekran altındaki durum seçiciler çalışır; diğer düğmeler görüntüdür.</p>
+<p class="intro">Kasım 2026 verileriyle Maliyem ekranları. İşlemler aramasını, tür ve kategori filtrelerini, kayıt ve bütçe işlemlerini ekran örneklerinde deneyebilirsin.</p>
 <div class="ctls">
 <div class="grp" data-ctl="tema" role="group" aria-label="Tema"><button data-v="karma" aria-pressed="true">Karma</button><button data-v="acik" aria-pressed="false">Hepsi açık</button><button data-v="koyu" aria-pressed="false">Hepsi koyu</button></div>
 </div>
@@ -180,6 +197,8 @@ const C={"Market":["cart",0],"Kira":["home",0],"Faturalar":["bolt",0],"Ulaşım"
 // Kayıtlar: id, gün, kategori, not, tutar (kuruş). Gelir/gider kategoriden gelir.
 const T=[[1,1,"Maaş","Kasım maaşı",2850000],[2,1,"Kira","Ev kirası",1100000],[3,3,"Market","Haftalık alışveriş",116420],[4,5,"Faturalar","İnternet",39900],[5,8,"Ulaşım","İzmirim kart",50000],[6,10,"Market","Pazar",109890],[7,12,"Yeme içme","Akşam yemeği",64000],[8,14,"Sağlık","Eczane",45000],[9,16,"Faturalar","Su",30200],[10,17,"Market","Haftalık alışveriş",102465],[11,19,"Diğer","Kitap",38000],[12,20,"Faturalar","Doğalgaz",79900],[13,21,"Yeme içme","Doğum günü yemeği",114550],[14,22,"Ulaşım","İzmirim kart",50000],[15,23,"Market","Haftalık alışveriş",68480],[16,24,"Faturalar","Elektrik",64075],[17,25,"Serbest iş","Logo tasarımı",320000],[18,25,"Yeme içme","Kahve",8500],[19,26,"Ulaşım","İzmirim kart",25000],[20,26,"Diğer","Berber",60000],[21,26,"Market","Migros",41285]];
 const NEW=21;
+const overallBudget="Genel aylık bütçe";
+const budgetLimits={[overallBudget]:2800000,"Market":471000,"Kira":1100000,"Faturalar":200000};
 const inc=t=>C[t[2]][1]===1;
 const f=k=>(Math.abs(k)/100).toLocaleString("tr-TR",{minimumFractionDigits:2,maximumFractionDigits:2});
 const sg=(t)=>inc(t)?"+":"−";
@@ -193,16 +212,34 @@ const mo=(t,s="")=>`<div class="top"><button class="ib" aria-label="Önceki ay" 
 const hd=(t)=>`<div class="top"><button class="ib" aria-label="Geri" style="margin-left:-12px">${i("back")}</button><div><h2 style="font-size:22px;line-height:28px">${t}</h2></div></div>`;
 const row=(t,nw)=>`<button class="tx ${nw?"new":""}"><span class="ci">${i(C[t[2]][0])}</span><span class="m"><b>${t[3]}</b><span class="sub">${t[2]}${nw?" · az önce":""}</span></span><span class="a ${inc(t)?"g":""}">${sg(t)}${f(t[4])} ₺</span></button>`;
 const hero=(net,inC,outC)=>{const [a,b]=f(net).split(",");return `<div class="hero"><div class="eyebrow">Kasım neti</div><div class="big">${net<0?"−":"+"}${a}<small>,${b} ₺</small></div><div class="k">Gelirin %${Math.round(outC/inC*100)}'i harcandı</div></div>`};
+const budgetUsage=(title,spent,limit)=>{
+ const pc=Math.floor(spent*100/limit),delta=limit-spent;
+ const tone=delta<0?"over":pc>=80?"warn":"";
+ return `<button class="budget-row ${tone}" data-budget-open="${title}"><div class="budget-body">
+ <div class="budget-title"><span>${title}</span><span class="status-text num">%${pc}</span></div>
+ <span class="bar"><i style="width:${Math.min(spent*100/limit,100)}%"></i></span>
+ <span class="sub num">${f(spent)} ₺ / ${f(limit)} ₺</span>
+ <span class="sub status-text num">${delta<0?`Aşıldı (${f(delta)} ₺)`:`Kalan ${f(delta)} ₺`}</span>
+ </div>${i("next")}</button>`;
+};
+const budgetCard=xs=>{
+ const cats=Object.entries(budgetLimits).filter(([n])=>n!==overallBudget)
+   .map(([n,limit])=>[n,sum(xs,t=>t[2]===n),limit]).sort((a,b)=>b[1]/b[2]-a[1]/a[2]).slice(0,3);
+ const overall=budgetLimits[overallBudget];
+ return overall||cats.length?`<div class="card budget-card"><div class="lb">Bütçeler</div>
+ ${overall?budgetUsage(overallBudget,sum(xs,t=>!inc(t)),overall):""}${cats.map(args=>budgetUsage(...args)).join("")}</div>`:"";
+};
 const ozet=(st=0)=>{const xs=live(),gi=sum(xs,inc),gd=sum(xs,t=>!inc(t));const last=[...xs].reverse().slice(0,4);
  return `<div class="scr">${mo("Kasım 2026")}${hero(gi-gd,gi,gd)}
  <div class="pair"><div class="tile g"><div class="l">${i("in")}Gelir</div><b>${f(gi)} ₺</b></div><div class="tile"><div class="l">${i("out")}Gider</div><b>${f(gd)} ₺</b></div></div>
+ ${budgetCard(xs)}
  <div class="sec"><span class="eyebrow">Son işlemler</span><button class="lnk">Tümü</button></div>
  <div class="list">${last.map((t,k)=>row(t,st===1&&k===0)).join("")}</div></div>${fab}${nav(0)}
  ${st===1?`<div class="snk" role="status"><span>Gider kaydedildi</span><button data-undo>Geri al</button></div>`:""}`};
 const searchText=s=>s.normalize("NFD").toLowerCase().replace(/\p{M}/gu,"").replace(/ı/g,"i");
-const txResults=(query=null,flt=0,del=0)=>{
+const txResults=(query=null,flt=0,del=0,category=null)=>{
  const q=searchText(query?.trim()||"");
- const xs=live(del).filter(t=>(flt===0||flt===1&&!inc(t)||flt===2&&inc(t))&&
+ const xs=live(del).filter(t=>(flt===0||flt===1&&!inc(t)||flt===2&&inc(t))&&(!category||t[2]===category)&&
    (!q||[t[2],t[3],"Nakit"].some(x=>searchText(x).includes(q))||(t[4]/100).toFixed(2).startsWith(q.replace(",","."))));
  const days=[...new Set(xs.map(t=>t[1]))].sort((a,b)=>b-a);
  return `${query===null?mo("Kasım 2026",xs.length+" kayıt"):`<h3 class="tx-range">Kasım 2026</h3>
@@ -210,13 +247,13 @@ const txResults=(query=null,flt=0,del=0)=>{
  ${xs.length?"":`<div class="ctr"><h3>Eşleşen kayıt yok</h3><p>Başka bir arama deneyin veya filtreleri değiştirin.</p></div>`}
  ${days.map(d=>{const ds=xs.filter(t=>t[1]===d).reverse(),n=ds.reduce((a,t)=>a+(inc(t)?t[4]:-t[4]),0);return `<div class="dh"><span class="eyebrow">${d===26?"Bugün":d===25?"Dün":d+" Kasım "+wd(d)}</span><span class="sub num">${n<0?"−":"+"}${f(n)} ₺</span></div><div class="list">${ds.map(t=>row(t)).join("")}</div>`}).join("")}`};
 const txTypes=["Tümü","Gider","Gelir","Transfer"];
-const islem=(flt=0,del=0,search=false)=>{
+const islem=(flt=0,del=0,search=false,category=null)=>{
  const query=search?"İzmirim":null;
- return `<div class="scr" data-tx-type="${flt}"><div class="top">
+ return `<div class="scr" data-tx-type="${flt}" data-tx-category="${category||""}"><div class="top">
  ${search?`<div class="tx-search"><input data-tx-query aria-label="Ara" value="${query}"><button class="ib" data-tx-clear-search aria-label="Aramayı temizle ve kapat">${i("close")}</button></div>`:`<div><h2>İşlemler</h2></div><button class="ib" data-tx-search aria-label="Ara">${i("search")}</button>`}
  <button class="ib" data-tx-sheet aria-label="Filtreler">${i("filter")}</button></div>
- ${flt?`<div class="chips tx-active"><button aria-pressed="true" data-tx-clear-filter>${i("close")}${txTypes[flt]}</button><button data-tx-clear-filter>Temizle</button></div>`:""}
- <div class="tx-results">${txResults(query,flt,del)}</div></div>${fab}${nav(1)}
+ ${flt?`<div class="chips tx-active"><button aria-pressed="true" data-tx-clear-filter>${i("close")}${txTypes[flt]}</button>${category?`<button aria-pressed="true" data-tx-clear-category>${i("close")}${category}</button>`:""}<button data-tx-clear-filter>Temizle</button></div>`:""}
+ <div class="tx-results">${txResults(query,flt,del,category)}</div></div>${fab}${nav(1)}
  ${del?`<div class="snk" role="status"><span>Kayıt silindi</span><button data-undo>Geri al</button></div>`:""}`};
 const txOptions=(name,values,selected,attr)=>`<div class="eyebrow">${name}</div>
  <div class="chips" role="group" aria-label="${name}">${values.map((label,k)=>`<button ${attr}="${k}" aria-pressed="${k===selected}">${label}</button>`).join("")}</div>`;
@@ -241,7 +278,7 @@ const dag=(kind=0)=>{const xs=T.filter(t=>inc(t)===!!kind),tot=sum(xs,()=>1);con
  <div class="seg" role="group" aria-label="Tür">${["Gider","Gelir"].map((x,k)=>`<button data-dk="${k}" aria-pressed="${k===kind}">${x}</button>`).join("")}</div>
  <div class="card"><div class="sub">Toplam ${kind?"gelir":"gider"}</div><div class="big num" style="font-size:36px;line-height:40px;letter-spacing:-.02em">${f(tot)} ₺</div>
  <div class="sub" style="margin-top:4px">${by.length} kategori · en büyüğü ${by[0][0]} (%${Math.round(by[0][1]/tot*100)})</div></div>
- <div class="card dist" style="padding:4px 16px">${by.map(([n,v])=>`<div class="rw"><span class="ci">${i(C[n][0])}</span><div><div class="t"><span>${n}</span><span class="num">${f(v)} ₺</span></div><div class="bar"><span style="flex:1;height:8px;border-radius:4px;background:var(--h);display:block;overflow:hidden"><i style="width:${v/mx*100}%"></i></span><span class="pc">%${Math.round(v/tot*100)}</span></div></div></div>`).join("")}</div>
+ <div class="card dist" style="padding:4px 16px">${by.map(([n,v])=>`<div class="rw"><span class="ci">${i(C[n][0])}</span><div><div class="t"><span>${n}</span><span class="num">${f(v)} ₺</span></div><div class="bar"><span style="flex:1;height:8px;border-radius:4px;background:var(--h);display:block;overflow:hidden"><i style="width:${v/mx*100}%"></i></span><span class="pc">%${Math.round(v/tot*100)}</span></div>${!kind&&budgetLimits[n]?`<div class="sub num">${f(v)} ₺ / ${f(budgetLimits[n])} ₺</div>`:""}</div></div>`).join("")}</div>
  <div class="sub" style="padding:0 4px">Çubuklar en büyük kategoriye göre ölçeklenir; yüzde toplam içindeki paydır.</div></div>${nav(2)}`};
 const ayr=(st=0)=>{if(st===1)return islem(0,NEW);const t=T.find(x=>x[0]===NEW);const [a,b]=f(t[4]).split(",");
  return `<div class="scr nf">${hd("Kayıt")}<div class="det"><span class="ci">${i(C[t[2]][0])}</span><div class="sub">Gider</div><div class="big">−${a}<small>,${b} ₺</small></div></div>
@@ -258,7 +295,7 @@ const bos=(k=0)=>k?`<div class="scr"><div class="ctr"><div class="ic">${i("walle
  <button class="card rw" style="min-height:64px"><div><div class="sub">Geçen ay</div><b class="num">Kasım +${f(sum(T,inc)-sum(T,t=>!inc(t)))} ₺ ile kapandı</b></div>${i("next")}</button></div>${nav(0)}`;
 const segs=(o,s)=>`<div class="seg">${o.map((x,k)=>`<button data-seg aria-pressed="${k===s}">${x}</button>`).join("")}</div>`;
 const ayar=()=>`<div class="scr nf"><div class="top"><div><h2>Ayarlar</h2></div></div>
- <div class="card" style="padding:0 16px"><button class="rw">${i("tag")}<div>Kategoriler</div><span class="g">10</span>${i("next")}</button><div class="rw">${i("wallet")}<div>Para birimi</div><span class="g">Türk lirası (₺)</span></div></div>
+ <div class="card" style="padding:0 16px"><button class="rw">${i("tag")}<div>Kategoriler</div><span class="g">10</span>${i("next")}</button><button class="rw" data-budget-settings>${i("chart")}<div>Bütçeler</div>${i("next")}</button><div class="rw">${i("wallet")}<div>Para birimi</div><span class="g">Türk lirası (₺)</span></div></div>
  <div class="card"><div class="lb">Tema</div>${segs(["Sistem","Açık","Koyu"],0)}</div>
  <div class="card"><div class="lb">Dil</div>${segs(["Sistem","English","Türkçe"],0)}</div>
  <div class="card" style="padding:0 16px">
@@ -268,15 +305,27 @@ const ayar=()=>`<div class="scr nf"><div class="top"><div><h2>Ayarlar</h2></div>
   <button class="rw">${i("note")}<div>CSV olarak dışa aktar</div>${i("next")}</button>
   <div class="rw"><div>Sürüm</div><span class="g">1.1.0</span></div>
  </div></div>${nav(3)}`;
-const S=[["1 · Özet","Ayın neti tek bakışta. Gelir yeşil ve +, gider nötr ve −; renk tek başına anlam taşımaz.",ozet],
+const budgetSettings=(editing=null)=>{
+ const entries=[overallBudget,...Object.keys(C).filter(n=>!C[n][1])];
+ return `<div class="scr nf">${hd("Bütçeler")}${entries.map(n=>`<div class="card" style="padding:0 16px">
+ <button class="rw" data-budget-edit="${n}">${i(C[n]?.[0]||"wallet")}<div>${n}</div>
+ <span class="g num">${budgetLimits[n]?`${f(budgetLimits[n])} ₺`:"Limit yok"}</span>${i("next")}</button></div>`).join("")}</div>${nav(3)}
+ ${editing?`<div class="scrim"></div><div class="budget-edit" role="dialog" aria-label="${editing}">
+ <h3>${editing}</h3><label>Aylık limit
+ <input data-budget-limit class="tx-amount" inputmode="decimal" value="${budgetLimits[editing]?f(budgetLimits[editing]).replaceAll(".",""):""}"></label>
+ ${budgetLimits[editing]?`<button class="remove" data-budget-remove="${editing}">Bütçeyi kaldır</button>`:""}
+ <div class="acts"><button class="btn x" data-budget-cancel>Vazgeç</button><button class="btn" data-budget-save="${editing}">Kaydet</button></div></div>`:""}`;
+};
+const S=[["1 · Özet","Ayın neti ve bütçe kullanımı. Bütçe satırı seçili ayın giderlerini filtreler.",ozet],
 ["2 · İşlemler","Ay gezintisi, arama sonucu toplamları ve filtre alt sayfası. Örnek veri Kasım 2026 ile sınırlı.",k=>k===2?txSheet():islem(0,0,k===1),["Ay","Arama","Filtreler"],0],
 ["3 · Yeni kayıt","Alt sayfa. Gider/Gelir kategorileri değiştirir; “Kaydet” özete döner, yeni kayıt vurgulu ve geri alınabilir.",ekle,["Form","Kaydedildi"],0],
-["4 · Dağılım","Kategori payları yatay çubukla: halkadan daha kolay okunur, etiketler doğrudan yazılı.",()=>dag()],
+["4 · Dağılım","Kategori payları çubukta, bütçeli giderlerde harcanan tutar ve limit satırın altında.",()=>dag()],
 ["5 · Kayıt ayrıntısı","Düzenle ve sil. Silme onay sormaz; “Geri al” ile döner.",ayr,["Ayrıntı","Silindi"],0],
 ["6 · Kategoriler","Ayarlar’dan açılır. “Diğer” silinemez, silinen kategorinin kayıtları oraya geçer.",()=>kat()],
 ["7 · Boş durumlar","Yeni ayın ilk günü ve uygulamanın ilk açılışı.",bos,["Yeni ay","İlk açılış"],0],
-["8 · Ayarlar","Tema, dil, kategoriler ve veri işlemleri. Para birimi sabit.",ayar],
-["9 · Özet, koyu","Aynı ekran, koyu tema.",ozet]];
+["8 · Ayarlar","Kategoriler, bütçeler, tema, dil ve veri işlemleri.",ayar],
+["9 · Özet, koyu","Aynı ekran, koyu tema.",ozet],
+["10 · Bütçeler","Genel aylık limit ve gider kategorileri. Satıra dokununca limit düzenlenir.",k=>budgetSettings(k?"Market":null),["Liste","Limit düzenle"],0]];
 const B=document.getElementById("board");
 B.innerHTML=S.map((s,k)=>`<figure data-k="${k}"><figcaption><b>${s[0]}</b><span>${s[1]}</span></figcaption><div class="phone"><div class="in"><div class="status"><span>12.04</span><i></i></div><div class="body">${s[2](s[4])}</div><div class="gest"></div></div></div>${s[3]?`<div class="grp" role="group" aria-label="Durum">${s[3].map((x,j)=>`<button data-st="${j}" aria-pressed="${j===s[4]}">${x}</button>`).join("")}</div>`:""}</figure>`).join("");
 const press=b=>[...b.parentElement.children].forEach(x=>x.setAttribute("aria-pressed",x===b));
@@ -287,8 +336,20 @@ document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)r
  const fg=b.closest("figure"),body=fg&&fg.querySelector(".body"),d=b.dataset;
  if(d.v){press(b);theme(d.v)}
  else if(d.st)setSt(fg,+d.st);
- else if("txSearch" in d){body.innerHTML=islem(+body.querySelector("[data-tx-type]").dataset.txType,0,true);const input=body.querySelector("[data-tx-query]");input.value="";input.dispatchEvent(new Event("input",{bubbles:true}));input.focus()}
- else if("txClearSearch" in d)body.innerHTML=islem(+body.querySelector("[data-tx-type]").dataset.txType);
+ else if("budgetSettings" in d)body.innerHTML=budgetSettings();
+ else if("budgetOpen" in d)body.innerHTML=islem(1,0,false,d.budgetOpen===overallBudget?null:d.budgetOpen);
+ else if("budgetEdit" in d)body.innerHTML=budgetSettings(d.budgetEdit);
+ else if("budgetCancel" in d)body.innerHTML=budgetSettings();
+ else if("budgetRemove" in d){delete budgetLimits[d.budgetRemove];body.innerHTML=budgetSettings()}
+ else if("budgetSave" in d){
+  const input=body.querySelector("[data-budget-limit]"), value=input.value.trim().replace(",",".");
+  const minor=Math.round(Number(value)*100);
+  if(!/^\d+(\.\d{1,2})?$/.test(value)||!Number.isSafeInteger(minor)||minor<=0){input.setCustomValidity("Sıfırdan büyük bir tutar girin.");input.reportValidity();return}
+  budgetLimits[d.budgetSave]=minor;body.innerHTML=budgetSettings();
+ }
+ else if("txClearCategory" in d)body.innerHTML=islem(1);
+ else if("txSearch" in d){body.innerHTML=islem(+body.querySelector("[data-tx-type]").dataset.txType,0,true,body.querySelector("[data-tx-type]").dataset.txCategory);const input=body.querySelector("[data-tx-query]");input.value="";input.dispatchEvent(new Event("input",{bubbles:true}));input.focus()}
+ else if("txClearSearch" in d)body.innerHTML=islem(+body.querySelector("[data-tx-type]").dataset.txType,0,false,body.querySelector("[data-tx-type]").dataset.txCategory);
  else if("txSheet" in d)body.innerHTML=txSheet(+body.querySelector("[data-tx-type]").dataset.txType);
  else if("txClearFilter" in d)body.innerHTML=islem();
  else if("txApply" in d)body.innerHTML=islem(+body.querySelector('[data-tx-draft][aria-pressed="true"]').dataset.txDraft);
@@ -305,9 +366,10 @@ document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)r
 });
 document.addEventListener("input",e=>{
  const field=e.target;
+ if(field.matches("[data-budget-limit]"))field.setCustomValidity("");
  if(!field.matches("[data-tx-query]"))return;
  const screen=field.closest("[data-tx-type]");
- screen.querySelector(".tx-results").innerHTML=txResults(field.value,+screen.dataset.txType);
+ screen.querySelector(".tx-results").innerHTML=txResults(field.value,+screen.dataset.txType,0,screen.dataset.txCategory);
 });
 </script>
 </body>

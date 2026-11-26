@@ -51,6 +51,7 @@ import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.ui.components.CategoryCircle
 import com.mercan.maliyem.ui.components.EmptyState
 import com.mercan.maliyem.ui.components.ScreenTitle
+import com.mercan.maliyem.ui.budgets.budgetAmounts
 import com.mercan.maliyem.ui.components.SeyirCard
 import com.mercan.maliyem.ui.components.SeyirSegmented
 import com.mercan.maliyem.ui.components.SubText
@@ -171,6 +172,9 @@ private fun BreakdownBody(current: BreakdownUiState, locale: java.util.Locale) {
                                         },
                                 )
                                 SubText(stringResource(R.string.percent, current.percent(slice)), Modifier.widthIn(min = 34.dp), textAlign = TextAlign.End)
+                            }
+                            current.budgetLimits[slice.categoryId]?.let {
+                                SubText(budgetAmounts(slice.amountMinor, it, locale), Modifier.padding(top = Spacing.xs))
                             }
                         }
                     }

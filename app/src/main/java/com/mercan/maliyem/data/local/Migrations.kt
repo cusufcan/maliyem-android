@@ -82,3 +82,22 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         db.execSQL("CREATE INDEX index_transactions_recurringRuleId ON transactions (recurringRuleId)")
     }
 }
+
+/** Bütçe tablolarını boş ekler; mevcut kayıtlar yerinde kalır. */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE budgets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, categoryId INTEGER NOT NULL,
+                limitMinor INTEGER NOT NULL, createdAt INTEGER NOT NULL,
+                FOREIGN KEY(categoryId) REFERENCES categories(id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+        """.trimIndent())
+        db.execSQL("CREATE UNIQUE INDEX index_budgets_categoryId ON budgets (categoryId)")
+        db.execSQL("""
+            CREATE TABLE overall_budget (
+                id INTEGER PRIMARY KEY NOT NULL, limitMinor INTEGER NOT NULL
+            )
+        """.trimIndent())
+    }
+}

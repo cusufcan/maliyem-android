@@ -247,4 +247,16 @@
     <string name="recurring_delete_title">Tekrar kuralı silinsin mi?</string>
     <string name="recurring_delete_body">Bu kuralın daha önce oluşturduğu işlemler kalır.</string>
     <string name="account_recurring_in_use">Bu hesap bir tekrar kuralında kullanıldığı için silinemez.</string>
+    <!-- Bütçeler -->
+    <string name="settings_budgets">Bütçeler</string>
+    <string name="budget_overall">Genel aylık bütçe</string>
+    <string name="budget_no_limit">Limit yok</string>
+    <string name="budget_limit">Aylık limit</string>
+    <string name="budget_invalid_limit">Sıfırdan büyük bir tutar girin.</string>
+    <string name="budget_remove">Bütçeyi kaldır</string>
+    <string name="budget_write_failed">Bütçe değişikliği kaydedilemedi.</string>
+    <string name="budget_percent">%%%1$s</string>
+    <string name="budget_spent_limit">%1$s / %2$s</string>
+    <string name="budget_remaining">Kalan %1$s</string>
+    <string name="budget_over">Aşıldı (%1$s)</string>
 </resources>

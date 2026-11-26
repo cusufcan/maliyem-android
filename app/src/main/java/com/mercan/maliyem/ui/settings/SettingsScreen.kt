@@ -40,6 +40,7 @@ fun SettingsScreen(
     onCategories: () -> Unit,
     onAccounts: () -> Unit,
     onRecurring: () -> Unit,
+    onBudgets: () -> Unit,
     snackbar: SnackbarHostState,
     beforeRestore: suspend () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -91,6 +92,11 @@ fun SettingsScreen(
             SettingRow(
                 R.drawable.ic_seyir_repeat, stringResource(R.string.settings_recurring),
                 value = recurringCount?.toString(), onClick = onRecurring, horizontalPadding = 0.dp,
+            )
+            HorizontalDivider(color = divider)
+            SettingRow(
+                R.drawable.ic_seyir_breakdown, stringResource(R.string.settings_budgets),
+                onClick = onBudgets, horizontalPadding = 0.dp,
             )
             HorizontalDivider(color = divider)
             SettingRow(
