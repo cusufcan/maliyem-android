@@ -59,6 +59,20 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .tile .l svg{width:16px;height:16px}
 .tile b{font:700 20px/24px Inter,system-ui,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 .card{background:var(--c);border-radius:20px;padding:16px}
+.trend-card{display:grid;gap:8px}
+.trend-legend{display:flex;gap:12px}
+.trend-legend span{display:inline-flex;align-items:center;gap:4px}
+.trend-legend i{width:10px;height:10px}
+.trend-pairs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
+.trend-pairs button{display:grid;justify-items:center;gap:4px;padding:4px 0;border-radius:12px;font-size:11px;line-height:15px;color:var(--v)}
+.trend-pairs button[aria-pressed=true]{background:var(--pc);color:var(--opc);font-weight:700}
+.trend-pair{height:88px;width:100%;display:flex;justify-content:center;align-items:end;gap:4px}
+.trend-pair i{width:min(30%,16px);animation:trend-grow .18s ease-out;transform-origin:bottom}
+@keyframes trend-grow{from{transform:scaleY(0)}}
+.trend-income{background:var(--opos);border-radius:3px}
+.trend-expense{border:2px solid var(--v);border-radius:3px}
+.trend-pair .zero{height:2px;background:var(--v);border:0;border-radius:1px;animation:none}
+.dist .trend-amount{text-align:right}
 .sec{display:flex;align-items:center;justify-content:space-between;padding:4px 4px 0}
 .sec .lnk{font-weight:600;color:var(--p);min-height:48px;display:flex;align-items:center;margin:-12px 0}
 .tx{display:flex;align-items:center;gap:12px;min-height:64px;padding:8px 0;width:100%}
@@ -229,10 +243,44 @@ const budgetCard=xs=>{
  return overall||cats.length?`<div class="card budget-card"><div class="lb">Bütçeler</div>
  ${overall?budgetUsage(overallBudget,sum(xs,t=>!inc(t)),overall):""}${cats.map(args=>budgetUsage(...args)).join("")}</div>`:"";
 };
-const ozet=(st=0)=>{const xs=live(),gi=sum(xs,inc),gd=sum(xs,t=>!inc(t));const last=[...xs].reverse().slice(0,4);
- return `<div class="scr">${mo("Kasım 2026")}${hero(gi-gd,gi,gd)}
+const trendSample={[-5]:[.9,.85],[-4]:[1,.94],[-2]:[.88,1.05],[-1]:[.93,1.136],[0]:[1,1]};
+const trendRows=offset=>trendSample[offset]?live().map(t=>[...t.slice(0,4),Math.round(t[4]*trendSample[offset][inc(t)?0:1])]):[];
+const trendMonth=(offset,options={month:"long",year:"numeric"})=>{
+ const label=new Date(2026,10+offset,1).toLocaleDateString("tr-TR",options);
+ return label.charAt(0).toLocaleUpperCase("tr-TR")+label.slice(1);
+};
+const trendNav=offset=>{
+ const available=[...Object.keys(trendSample).map(Number),1].sort((a,b)=>a-b);
+ const prev=available.filter(m=>m<offset).at(-1),next=available.find(m=>m>offset);
+ return mo(trendMonth(offset))
+   .replace('aria-label="Önceki ay"',prev===undefined?'aria-label="Önceki ay" disabled':`aria-label="Önceki ay" data-trend-month="${prev}"`)
+   .replace('aria-label="Sonraki ay"',next===undefined?'aria-label="Sonraki ay" disabled':`aria-label="Sonraki ay" data-trend-month="${next}"`);
+};
+const trendTotals=offset=>{const xs=trendRows(offset);return [sum(xs,inc),sum(xs,t=>!inc(t))]};
+const signedMoney=k=>`${k<0?"−":k>0?"+":""}${f(k)} ₺`;
+const change=(current,previous)=>previous?Math.sign(current-previous)*Math.round(Math.abs(current-previous)*100/previous):null;
+const trendCard=offset=>{
+ const pairs=Array.from({length:6},(_,index)=>trendTotals(offset+index-5));
+ const max=Math.max(1,...pairs.flat()),[income,expense]=pairs[5],[pastIncome,pastExpense]=pairs[4];
+ const delta=change(expense,pastExpense);
+ const details=delta===null?"Geçen aya göre gider değişimi: —":delta===0?"Giderler geçen aya göre aynı kaldı":`Giderler geçen aya göre %${Math.abs(delta)} ${delta<0?"az":"fazla"}`;
+ return `<div class="card trend-card"><div class="lb">Son 6 ay</div>
+ <div class="sub trend-legend"><span><i class="trend-income"></i>Gelir</span><span><i class="trend-expense"></i>Gider</span></div>
+ <div class="trend-pairs" role="group" aria-label="Gelir ve gider eğilimi">${pairs.map(([gi,gd],index)=>{
+  const month=offset+index-5;
+  const bar=(kind,value)=>`<i class="trend-${kind} ${value?"":"zero"}" ${value?`style="height:max(3px,${value/max*100}%)"`:""}></i>`;
+  return `<button data-trend-month="${month}" aria-pressed="${month===offset}" aria-label="${trendMonth(month)}. Gelir ${f(gi)} ₺. Gider ${f(gd)} ₺. Net ${signedMoney(gi-gd)}."><span class="trend-pair">${bar("income",gi)}${bar("expense",gd)}</span>${trendMonth(month,{month:"short"})}</button>`;
+ }).join("")}</div>
+ <div class="sub num">Bu ayın neti: ${signedMoney(income-expense)} · Geçen ay: ${signedMoney(pastIncome-pastExpense)}</div>
+ <div class="sub">${details}</div></div>`;
+};
+const ozet=(st=0,offset=0)=>{
+ const xs=trendRows(offset),gi=sum(xs,inc),gd=sum(xs,t=>!inc(t));const last=[...xs].reverse().slice(0,4);
+ if(!xs.length)return bos(0,offset);
+ return `<div class="scr">${trendNav(offset)}${hero(gi-gd,gi,gd).replace("Kasım neti",trendMonth(offset,{month:"long"})+" neti")}
  <div class="pair"><div class="tile g"><div class="l">${i("in")}Gelir</div><b>${f(gi)} ₺</b></div><div class="tile"><div class="l">${i("out")}Gider</div><b>${f(gd)} ₺</b></div></div>
  ${budgetCard(xs)}
+ ${trendCard(offset)}
  <div class="sec"><span class="eyebrow">Son işlemler</span><button class="lnk">Tümü</button></div>
  <div class="list">${last.map((t,k)=>row(t,st===1&&k===0)).join("")}</div></div>${fab}${nav(0)}
  ${st===1?`<div class="snk" role="status"><span>Gider kaydedildi</span><button data-undo>Geri al</button></div>`:""}`};
@@ -273,13 +321,17 @@ const ekle=(st=0,kind=0)=>st===1?ozet(1):`${ozet().replace(fab,"")}<div class="s
  <div class="chips" role="group" aria-label="Kategori">${Object.entries(C).filter(([,v])=>v[1]===kind).map(([n,v],k)=>`<button data-chip aria-pressed="${k===0}">${i(v[0])}${n}</button>`).join("")}<button>${i("plus")}Yeni</button></div>
  <div><button class="rw">${i("cal")}<div>Bugün</div><span class="g">26 Kasım Perşembe</span></button><button class="rw">${i("note")}<div class="${kind?"":""}">${kind?"Logo tasarımı":"Migros"}</div><span class="g">Not</span></button></div>
  <button class="btn w" data-save>Kaydet</button></div>`;
+const categoryDelta=(name,value)=>{
+ const delta=change(value,sum(trendRows(-1),t=>t[2]===name));
+ return delta===null?"—":`${delta<0?"−":delta>0?"+":""}%${Math.abs(delta)}`;
+};
 const dag=(kind=0)=>{const xs=T.filter(t=>inc(t)===!!kind),tot=sum(xs,()=>1);const by=Object.keys(C).filter(n=>C[n][1]===kind).map(n=>[n,sum(xs,t=>t[2]===n)]).filter(x=>x[1]).sort((a,b)=>b[1]-a[1]);const mx=by[0][1];
  return `<div class="scr"><div class="top"><div><h2>Dağılım</h2><div class="sub">Kasım 2026</div></div></div>
  <div class="seg" role="group" aria-label="Tür">${["Gider","Gelir"].map((x,k)=>`<button data-dk="${k}" aria-pressed="${k===kind}">${x}</button>`).join("")}</div>
  <div class="card"><div class="sub">Toplam ${kind?"gelir":"gider"}</div><div class="big num" style="font-size:36px;line-height:40px;letter-spacing:-.02em">${f(tot)} ₺</div>
  <div class="sub" style="margin-top:4px">${by.length} kategori · en büyüğü ${by[0][0]} (%${Math.round(by[0][1]/tot*100)})</div></div>
- <div class="card dist" style="padding:4px 16px">${by.map(([n,v])=>`<div class="rw"><span class="ci">${i(C[n][0])}</span><div><div class="t"><span>${n}</span><span class="num">${f(v)} ₺</span></div><div class="bar"><span style="flex:1;height:8px;border-radius:4px;background:var(--h);display:block;overflow:hidden"><i style="width:${v/mx*100}%"></i></span><span class="pc">%${Math.round(v/tot*100)}</span></div>${!kind&&budgetLimits[n]?`<div class="sub num">${f(v)} ₺ / ${f(budgetLimits[n])} ₺</div>`:""}</div></div>`).join("")}</div>
- <div class="sub" style="padding:0 4px">Çubuklar en büyük kategoriye göre ölçeklenir; yüzde toplam içindeki paydır.</div></div>${nav(2)}`};
+ <div class="card dist" style="padding:4px 16px">${by.map(([n,v])=>`<div class="rw"><span class="ci">${i(C[n][0])}</span><div><div class="t"><span>${n}</span><div class="trend-amount"><span class="num">${f(v)} ₺</span><div class="sub" aria-label="${categoryDelta(n,v)} geçen aya göre">${categoryDelta(n,v)}</div></div></div><div class="bar"><span style="flex:1;height:8px;border-radius:4px;background:var(--h);display:block;overflow:hidden"><i style="width:${v/mx*100}%"></i></span><span class="pc">%${Math.round(v/tot*100)}</span></div>${!kind&&budgetLimits[n]?`<div class="sub num">${f(v)} ₺ / ${f(budgetLimits[n])} ₺</div>`:""}</div></div>`).join("")}</div>
+ <div class="sub" style="padding:0 4px">Çubuklar en büyük kategoriye göre ölçeklenir; yüzde toplam içindeki paydır.</div><div class="sub" style="padding:0 4px">Kategori değişimleri geçen aya göre gösterilir.</div></div>${nav(2)}`};
 const ayr=(st=0)=>{if(st===1)return islem(0,NEW);const t=T.find(x=>x[0]===NEW);const [a,b]=f(t[4]).split(",");
  return `<div class="scr nf">${hd("Kayıt")}<div class="det"><span class="ci">${i(C[t[2]][0])}</span><div class="sub">Gider</div><div class="big">−${a}<small>,${b} ₺</small></div></div>
  <div class="card" style="padding:0 16px"><div class="rw">${i("tag")}<div>Kategori</div><span class="g">${t[2]}</span></div><div class="rw">${i("cal")}<div>Tarih</div><span class="g">26 Kasım 2026</span></div><div class="rw">${i("note")}<div>Not</div><span class="g">${t[3]}</span></div></div>
@@ -290,9 +342,10 @@ const kat=(kind=0)=>{const ks=Object.entries(C).filter(([,v])=>v[1]===kind);
  <div class="list">${ks.map(([n,v])=>{const c=T.filter(t=>t[2]===n).length;return `<button class="tx"><span class="ci">${i(v[0])}</span><span class="m"><b>${n}</b><span class="sub">${c?c+" kayıt":"Kayıt yok"}${n==="Diğer"||n==="Diğer gelir"?" · silinemez":""}</span></span>${i("next")}</button>`}).join("")}</div>
  <button class="btn t">${i("plus")}Kategori ekle</button>
  <div class="sub" style="padding:0 4px">Silinen kategorinin kayıtları “Diğer”e geçer; kayıt kaybolmaz.</div></div>${nav(3)}`};
-const bos=(k=0)=>k?`<div class="scr"><div class="ctr"><div class="ic">${i("wallet")}</div><h3>Gelirin ve giderin tek yerde</h3><p>Hesap açmadan, internetsiz çalışır. Kayıtların yalnız bu telefonda durur.</p><p class="sub">Hazır kategorilerle başlarsın; istediğini sonra eklersin.</p><button class="btn">${i("plus")}İlk kaydı ekle</button></div></div>${nav(0)}`
- :`<div class="scr">${mo("Aralık 2026")}<div class="ctr"><div class="ic">${i("cal")}</div><h3>Aralık'ta henüz kayıt yok</h3><p>İlk gelirini ya da giderini ekleyince özet kendiliğinden dolar.</p><button class="btn">${i("plus")}Ekle</button></div>
- <button class="card rw" style="min-height:64px"><div><div class="sub">Geçen ay</div><b class="num">Kasım +${f(sum(T,inc)-sum(T,t=>!inc(t)))} ₺ ile kapandı</b></div>${i("next")}</button></div>${nav(0)}`;
+const bos=(k=0,offset=1)=>k?`<div class="scr"><div class="ctr"><div class="ic">${i("wallet")}</div><h3>Gelirin ve giderin tek yerde</h3><p>Hesap açmadan, internetsiz çalışır. Kayıtların yalnız bu telefonda durur.</p><p class="sub">Hazır kategorilerle başlarsın; istediğini sonra eklersin.</p><button class="btn">${i("plus")}İlk kaydı ekle</button></div></div>${nav(0)}`
+ :`<div class="scr">${trendNav(offset)}<div class="ctr"><div class="ic">${i("cal")}</div><h3>${trendMonth(offset,{month:"long"})} ayında henüz kayıt yok</h3><p>İlk gelirini ya da giderini ekleyince özet kendiliğinden dolar.</p><button class="btn">${i("plus")}Ekle</button></div>
+ ${(()=>{const prev=Object.keys(trendSample).map(Number).filter(m=>m<offset).sort((a,b)=>b-a)[0];if(prev===undefined)return "";const [gi,gd]=trendTotals(prev);return `<button class="card rw" data-trend-month="${prev}" style="min-height:64px"><div><div class="sub">Geçen ay</div><b class="num">${trendMonth(prev,{month:"long"})} ${signedMoney(gi-gd)} ile kapandı</b></div>${i("next")}</button>`})()}
+ ${trendCard(offset)}</div>${nav(0)}`;
 const segs=(o,s)=>`<div class="seg">${o.map((x,k)=>`<button data-seg aria-pressed="${k===s}">${x}</button>`).join("")}</div>`;
 const ayar=()=>`<div class="scr nf"><div class="top"><div><h2>Ayarlar</h2></div></div>
  <div class="card" style="padding:0 16px"><button class="rw">${i("tag")}<div>Kategoriler</div><span class="g">10</span>${i("next")}</button><button class="rw" data-budget-settings>${i("chart")}<div>Bütçeler</div>${i("next")}</button><div class="rw">${i("wallet")}<div>Para birimi</div><span class="g">Türk lirası (₺)</span></div></div>
@@ -316,10 +369,10 @@ const budgetSettings=(editing=null)=>{
  ${budgetLimits[editing]?`<button class="remove" data-budget-remove="${editing}">Bütçeyi kaldır</button>`:""}
  <div class="acts"><button class="btn x" data-budget-cancel>Vazgeç</button><button class="btn" data-budget-save="${editing}">Kaydet</button></div></div>`:""}`;
 };
-const S=[["1 · Özet","Ayın neti ve bütçe kullanımı. Bütçe satırı seçili ayın giderlerini filtreler.",ozet],
+const S=[["1 · Özet","Ayın neti, bütçe kullanımı ve son altı ay. Çubuk çifti seçili ayı değiştirir.",ozet],
 ["2 · İşlemler","Ay gezintisi, arama sonucu toplamları ve filtre alt sayfası. Örnek veri Kasım 2026 ile sınırlı.",k=>k===2?txSheet():islem(0,0,k===1),["Ay","Arama","Filtreler"],0],
 ["3 · Yeni kayıt","Alt sayfa. Gider/Gelir kategorileri değiştirir; “Kaydet” özete döner, yeni kayıt vurgulu ve geri alınabilir.",ekle,["Form","Kaydedildi"],0],
-["4 · Dağılım","Kategori payları çubukta, bütçeli giderlerde harcanan tutar ve limit satırın altında.",()=>dag()],
+["4 · Dağılım","Kategori tutarının yanında geçen aya göre değişim, altında toplam içindeki pay gösterilir.",()=>dag()],
 ["5 · Kayıt ayrıntısı","Düzenle ve sil. Silme onay sormaz; “Geri al” ile döner.",ayr,["Ayrıntı","Silindi"],0],
 ["6 · Kategoriler","Ayarlar’dan açılır. “Diğer” silinemez, silinen kategorinin kayıtları oraya geçer.",()=>kat()],
 ["7 · Boş durumlar","Yeni ayın ilk günü ve uygulamanın ilk açılışı.",bos,["Yeni ay","İlk açılış"],0],
@@ -336,6 +389,12 @@ document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)r
  const fg=b.closest("figure"),body=fg&&fg.querySelector(".body"),d=b.dataset;
  if(d.v){press(b);theme(d.v)}
  else if(d.st)setSt(fg,+d.st);
+ else if("trendMonth" in d){
+  const scr=body.querySelector(".scr"),top=scr.scrollTop,focused=document.activeElement===b;
+  body.innerHTML=ozet(0,+d.trendMonth);
+  if(focused)body.querySelector('.trend-pairs [aria-pressed="true"]').focus({preventScroll:true});
+  body.querySelector(".scr").scrollTop=top;
+ }
  else if("budgetSettings" in d)body.innerHTML=budgetSettings();
  else if("budgetOpen" in d)body.innerHTML=islem(1,0,false,d.budgetOpen===overallBudget?null:d.budgetOpen);
  else if("budgetEdit" in d)body.innerHTML=budgetSettings(d.budgetEdit);

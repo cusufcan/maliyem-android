@@ -4,6 +4,7 @@ import com.mercan.maliyem.data.local.TransactionDao
 import com.mercan.maliyem.data.local.TransactionEntity
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.local.TransactionWithCategory
+import com.mercan.maliyem.data.local.TrendEntry
 import java.time.LocalDate
 import java.time.YearMonth
 import javax.inject.Inject
@@ -15,6 +16,9 @@ import kotlinx.coroutines.flow.map
 interface TransactionRepository {
     /** [month] içindeki kayıtlar, en yeni başta. */
     fun observeMonth(month: YearMonth): Flow<List<TransactionWithCategory>>
+
+    /** İlk ve son ay dahil, eğilim hesabında kullanılan gelir ve gider kayıtları. */
+    fun observeTrendEntries(first: YearMonth, last: YearMonth): Flow<List<TrendEntry>>
 
     /** Tarih, tür, kategori ve hesap süzgeçlerini veritabanında uygular. */
     fun observeFiltered(
@@ -53,6 +57,9 @@ class RoomTransactionRepository @Inject constructor(
     private val dao: TransactionDao,
 ) : TransactionRepository {
     override fun observeMonth(month: YearMonth) = dao.observeRange(month.atDay(1), month.atEndOfMonth()).distinctUntilChanged()
+
+    override fun observeTrendEntries(first: YearMonth, last: YearMonth) =
+        dao.observeTrendEntries(first.atDay(1), last.atEndOfMonth()).distinctUntilChanged()
 
     override fun observeFiltered(
         from: LocalDate,

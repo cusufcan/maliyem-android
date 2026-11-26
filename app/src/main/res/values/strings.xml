@@ -28,6 +28,20 @@
     <string name="summary_expense">Expenses</string>
     <string name="summary_recent">Recent</string>
     <string name="summary_see_all">See all</string>
+
+    <string name="trend_title">Last 6 months</string>
+    <string name="trend_month_values">%1$s. Income %2$s. Expenses %3$s. Net %4$s.</string>
+    <string name="trend_net">Net this month: %1$s</string>
+    <string name="trend_net_comparison">Net this month: %1$s · Last month: %2$s</string>
+    <string name="trend_expense_up">Expenses are up %1$s%% from last month</string>
+    <string name="trend_expense_down">Expenses are down %1$s%% from last month</string>
+    <string name="trend_expense_steady">Expenses held steady from last month</string>
+    <string name="trend_expense_unavailable">Expense change from last month: %1$s</string>
+    <string name="trend_unavailable">—</string>
+    <string name="trend_delta">%1$s%2$s%%</string>
+    <string name="breakdown_trend_note">Change in each category is compared with last month.</string>
+    <string name="breakdown_trend_unavailable">No amount to compare with last month</string>
+    <string name="breakdown_trend_value">%1$s compared with last month</string>
     <string name="add_open">Add</string>
     <string name="add_title">New entry</string>
     <string name="add_expense">Expense</string>

@@ -70,6 +70,8 @@ import com.mercan.maliyem.ui.theme.MaliyemTheme
 import com.mercan.maliyem.ui.theme.MoneyHeroValue
 import com.mercan.maliyem.ui.theme.SeyirIcon
 import com.mercan.maliyem.ui.theme.Spacing
+import com.mercan.maliyem.ui.trend.MonthlyTrend
+import com.mercan.maliyem.ui.trend.trendMonths
 import com.mercan.maliyem.util.formatMoney
 import com.mercan.maliyem.util.splitFraction
 import java.time.YearMonth
@@ -116,7 +118,7 @@ fun SummaryScreen(
             )
             else -> SummaryContent(
                 shown, onPreviousMonth = viewModel::previousMonth, onNextMonth = viewModel::nextMonth, onSeeAll = onSeeAll,
-                highlightId = highlightId, onOpen = onOpen, accounts = accounts, onOpenBudget = openBudget,
+                highlightId = highlightId, onOpen = onOpen, accounts = accounts, onOpenBudget = openBudget, onSelectMonth = viewModel::selectMonth,
             )
         }
     }
@@ -158,7 +160,7 @@ private fun EmptyMonth(
     val monthsIn = stringArrayResource(R.array.month_in)
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.lg),
+            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         MonthHeader(
@@ -198,6 +200,7 @@ private fun EmptyMonth(
                 SeyirIcon(R.drawable.ic_seyir_chevron_right, tint = colors.onSurfaceVariant)
             }
         }
+        SeyirTrendCard(state.trend, locale, onSelectMonth)
     }
 }
 
@@ -212,6 +215,7 @@ fun SummaryContent(
     onOpen: (Long) -> Unit = {},
     accounts: List<AccountBalance> = emptyList(),
     onOpenBudget: (Long?) -> Unit = {},
+    onSelectMonth: (YearMonth) -> Unit = {},
 ) {
     val locale = LocalConfiguration.current.locales[0]
     Column(
@@ -239,6 +243,7 @@ fun SummaryContent(
         }
         AccountsCard(accounts)
         BudgetsCard(state.budgets, locale, onOpenBudget)
+        SeyirTrendCard(state.trend, locale, onSelectMonth)
         RecentSection(state, locale, onSeeAll, highlightId, onOpen)
     }
 }
@@ -351,6 +356,11 @@ private fun SummaryPreview() = MaliyemTheme {
             previousMonth = YearMonth.of(2026, 9),
             incomeMinor = 3_170_000.toBigInteger(),
             expenseMinor = 2_207_665.toBigInteger(),
+            trend = trendMonths(YearMonth.of(2026, 11)).mapIndexed { index, month ->
+                val income = listOf(2_850_000, 2_920_000, 0, 2_850_000, 2_850_000, 3_170_000)
+                val expense = listOf(2_150_000, 1_920_000, 0, 2_300_000, 2_510_000, 2_207_665)
+                MonthlyTrend(month, income[index].toBigInteger(), expense[index].toBigInteger())
+            },
             recent = listOf(
                 SummaryRow(21, TransactionType.EXPENSE, 41_285, "Migros", "groceries", null, "cart"),
                 SummaryRow(20, TransactionType.EXPENSE, 60_000, "Berber", DefaultCategories.OTHER_EXPENSE, null, "dots"),

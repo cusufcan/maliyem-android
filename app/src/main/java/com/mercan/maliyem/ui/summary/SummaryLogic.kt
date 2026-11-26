@@ -3,6 +3,7 @@ package com.mercan.maliyem.ui.summary
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.local.TransactionWithCategory
 import com.mercan.maliyem.ui.budgets.MonthlyBudgets
+import com.mercan.maliyem.ui.trend.MonthlyTrend
 import com.mercan.maliyem.util.roundedPercent
 import java.math.BigInteger
 import java.time.YearMonth
@@ -31,6 +32,7 @@ data class SummaryUiState(
     val previousNet: Pair<YearMonth, BigInteger>? = null,
     val hasTransfers: Boolean = false,
     val budgets: MonthlyBudgets = MonthlyBudgets(),
+    val trend: List<MonthlyTrend> = emptyList(),
 ) {
     val netMinor: BigInteger = incomeMinor - expenseMinor
     val isEmpty: Boolean get() = recent.isEmpty()

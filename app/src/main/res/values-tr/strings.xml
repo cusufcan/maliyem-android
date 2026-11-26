@@ -26,6 +26,20 @@
     <string name="summary_expense">Gider</string>
     <string name="summary_recent">Son işlemler</string>
     <string name="summary_see_all">Tümü</string>
+
+    <string name="trend_title">Son 6 ay</string>
+    <string name="trend_month_values">%1$s. Gelir %2$s. Gider %3$s. Net %4$s.</string>
+    <string name="trend_net">Bu ayın neti: %1$s</string>
+    <string name="trend_net_comparison">Bu ayın neti: %1$s · Geçen ay: %2$s</string>
+    <string name="trend_expense_up">Giderler geçen aya göre %%%1$s fazla</string>
+    <string name="trend_expense_down">Giderler geçen aya göre %%%1$s az</string>
+    <string name="trend_expense_steady">Giderler geçen aya göre aynı kaldı</string>
+    <string name="trend_expense_unavailable">Geçen aya göre gider değişimi: %1$s</string>
+    <string name="trend_unavailable">—</string>
+    <string name="trend_delta">%1$s%%%2$s</string>
+    <string name="breakdown_trend_note">Kategori değişimleri geçen aya göre gösterilir.</string>
+    <string name="breakdown_trend_unavailable">Geçen ay karşılaştırılacak tutar yok</string>
+    <string name="breakdown_trend_value">Geçen aya göre %1$s</string>
     <string name="add_open">Ekle</string>
     <string name="add_title">Yeni kayıt</string>
     <string name="add_expense">Gider</string>

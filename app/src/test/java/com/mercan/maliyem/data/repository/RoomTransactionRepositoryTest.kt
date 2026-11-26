@@ -6,6 +6,7 @@ import com.mercan.maliyem.data.local.TransactionDao
 import com.mercan.maliyem.data.local.TransactionEntity
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.local.TransactionWithCategory
+import com.mercan.maliyem.data.local.TrendEntry
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.flow.Flow
@@ -24,6 +25,10 @@ class RoomTransactionRepositoryTest {
     private class RangeDao : TransactionDao {
         var range: Pair<LocalDate, LocalDate>? = null
         override fun observeRange(from: LocalDate, to: LocalDate): Flow<List<TransactionWithCategory>> {
+            range = from to to
+            return emptyFlow()
+        }
+        override fun observeTrendEntries(from: LocalDate, to: LocalDate): Flow<List<TrendEntry>> {
             range = from to to
             return emptyFlow()
         }
@@ -75,6 +80,12 @@ class RoomTransactionRepositoryTest {
     @Test fun `february follows leap years`() {
         assertEquals(LocalDate.of(2027, 2, 28), rangeOf(YearMonth.of(2027, 2))!!.second)
         assertEquals(LocalDate.of(2028, 2, 29), rangeOf(YearMonth.of(2028, 2))!!.second)
+    }
+
+    @Test fun `trend range includes first and last days across years`() {
+        val dao = RangeDao()
+        RoomTransactionRepository(dao).observeTrendEntries(YearMonth.of(2027, 9), YearMonth.of(2028, 2))
+        assertEquals(LocalDate.of(2027, 9, 1) to LocalDate.of(2028, 2, 29), dao.range)
     }
 
     @Test fun `dates collapse into distinct months`() = runBlocking {

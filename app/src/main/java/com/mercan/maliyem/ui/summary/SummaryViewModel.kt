@@ -11,6 +11,8 @@ import com.mercan.maliyem.data.repository.TransferRepository
 import com.mercan.maliyem.ui.CalendarDays
 import com.mercan.maliyem.ui.MonthSelection
 import com.mercan.maliyem.ui.budgets.buildMonthlyBudgets
+import com.mercan.maliyem.ui.trend.buildTrend
+import com.mercan.maliyem.ui.trend.trendMonths
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.YearMonth
 import javax.inject.Inject
@@ -49,12 +51,14 @@ class SummaryViewModel @Inject constructor(
         Navigation(month, previous, next, previousWithData, month in withTransfers)
     }.distinctUntilChanged()
         .flatMapLatest { (month, previous, next, previousWithData, hasTransfers) ->
+            val window = trendMonths(month)
             combine(
                 repository.observeMonth(month), budgets.observeAll(), budgets.observeOverall(),
                 categories.observeByType(TransactionType.EXPENSE),
-            ) { rows, limits, overall, expenseCategories ->
+                repository.observeTrendEntries(window.first(), month).map { buildTrend(window, it) },
+            ) { rows, limits, overall, expenseCategories, trend ->
                 buildSummary(rows, month).copy(
-                    previousMonth = previous, nextMonth = next, hasTransfers = hasTransfers,
+                    previousMonth = previous, nextMonth = next, hasTransfers = hasTransfers, trend = trend,
                     budgets = buildMonthlyBudgets(month, rows, limits, overall?.limitMinor, expenseCategories),
                 )
             }.flatMapLatest { summary ->

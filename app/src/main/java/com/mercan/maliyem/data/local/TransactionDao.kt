@@ -11,12 +11,19 @@ import kotlinx.coroutines.flow.Flow
 /** Kategori başına kayıt sayısı (Kategoriler ekranı). */
 data class CategoryCount(val categoryId: Long, val count: Int)
 
+/** Eğilim toplamları için gerekli işlem alanları. */
+data class TrendEntry(val date: LocalDate, val type: TransactionType, val categoryId: Long, val amountMinor: Long)
+
 @Dao
 interface TransactionDao {
     /** [from] ve [to] dahil; ay görünümü için ayın ilk ve son günü verilir. */
     @Transaction
     @Query("SELECT * FROM transactions WHERE date BETWEEN :from AND :to ORDER BY date DESC, createdAt DESC, id DESC")
     fun observeRange(from: LocalDate, to: LocalDate): Flow<List<TransactionWithCategory>>
+
+    /** Tarih sınırları dahil. Transferler ayrı tabloda olduğu için bu okumaya girmez. */
+    @Query("SELECT date, type, categoryId, amountMinor FROM transactions WHERE date BETWEEN :from AND :to")
+    fun observeTrendEntries(from: LocalDate, to: LocalDate): Flow<List<TrendEntry>>
 
     /** Tarih sınırları dahil; boş kimlik listeleri o alanın tüm değerlerini kapsar. */
     @Transaction
