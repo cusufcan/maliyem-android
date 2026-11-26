@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,6 +53,7 @@ import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.ui.components.CategoryCircle
 import com.mercan.maliyem.ui.components.EmptyState
 import com.mercan.maliyem.ui.components.ScreenTitle
+import com.mercan.maliyem.ui.budgets.budgetAmounts
 import com.mercan.maliyem.ui.components.SeyirCard
 import com.mercan.maliyem.ui.components.SeyirSegmented
 import com.mercan.maliyem.ui.components.SubText
@@ -89,6 +92,9 @@ fun BreakdownScreen(viewModel: BreakdownViewModel = hiltViewModel()) {
             label = "breakdownType",
         ) { shown -> BreakdownBody(shown, locale) }
         SubText(stringResource(R.string.breakdown_note), Modifier.padding(horizontal = Spacing.xs))
+        if (current.slices.isNotEmpty()) {
+            SubText(stringResource(R.string.breakdown_trend_note), Modifier.padding(horizontal = Spacing.xs))
+        }
     }
 }
 
@@ -149,10 +155,23 @@ private fun BreakdownBody(current: BreakdownUiState, locale: java.util.Locale) {
                                     style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp, fontWeight = FontWeight.Medium),
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
-                                Text(
-                                    formatMoney(slice.amountMinor, locale),
-                                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum"),
-                                )
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        formatMoney(slice.amountMinor, locale),
+                                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum"),
+                                        textAlign = TextAlign.End,
+                                    )
+                                    val change = current.change(slice)
+                                    val delta = when (change?.signum()) {
+                                        null -> stringResource(R.string.trend_unavailable)
+                                        -1 -> stringResource(R.string.trend_delta, "−", change.abs().toString())
+                                        1 -> stringResource(R.string.trend_delta, "+", change.toString())
+                                        else -> stringResource(R.string.trend_delta, "", change.toString())
+                                    }
+                                    val description = if (change == null) stringResource(R.string.breakdown_trend_unavailable)
+                                        else stringResource(R.string.breakdown_trend_value, delta)
+                                    SubText(delta, Modifier.clearAndSetSemantics { contentDescription = description }, textAlign = TextAlign.End)
+                                }
                             }
                             Row(
                                 Modifier.padding(top = 6.dp),
@@ -171,6 +190,9 @@ private fun BreakdownBody(current: BreakdownUiState, locale: java.util.Locale) {
                                         },
                                 )
                                 SubText(stringResource(R.string.percent, current.percent(slice)), Modifier.widthIn(min = 34.dp), textAlign = TextAlign.End)
+                            }
+                            current.budgetLimits[slice.categoryId]?.let {
+                                SubText(budgetAmounts(slice.amountMinor, it, locale), Modifier.padding(top = Spacing.xs))
                             }
                         }
                     }

@@ -1,6 +1,8 @@
 package com.mercan.maliyem.ui.add
 
 import com.mercan.maliyem.data.local.CategoryEntity
+import com.mercan.maliyem.data.local.DefaultAccounts
+import com.mercan.maliyem.util.parseMoney
 import com.mercan.maliyem.data.local.TransactionType
 import java.time.LocalDate
 import java.util.Locale
@@ -15,7 +17,7 @@ class AddTransactionLogicTest {
     private val date = LocalDate.of(2026, 11, 26)
 
     private fun form(amount: String = "120,50", category: Long? = 1, note: String = "") =
-        AddForm(TransactionType.EXPENSE, amount, category, date, note)
+        AddForm(TransactionType.EXPENSE, amount, category, date, note, accountId = 1)
 
     @Test fun `amount parses in both locales`() {
         assertEquals(12_050L, parseAmount("120,50", tr))
@@ -86,6 +88,40 @@ class AddTransactionLogicTest {
         for (locale in listOf(tr, en, ar)) {
             assertEquals(12_050L, parseAmount(amountInputText(12_050, locale), locale))
             assertEquals(Long.MAX_VALUE, parseAmount(amountInputText(Long.MAX_VALUE, locale), locale))
+        }
+    }
+
+    @Test fun `new records fall back to active cash and edits may keep the original archived account`() {
+        val cash = DefaultAccounts.cash()
+        val card = cash.copy(id = 4, key = null, name = "Card")
+        val archived = card.copy(id = 5, archived = true)
+        val accounts = listOf(card, archived, cash)
+
+        assertEquals(card.id, pickAccount(card.id, null, accounts))
+        assertEquals(cash.id, pickAccount(archived.id, null, accounts))
+        assertEquals(archived.id, pickAccount(archived.id, archived.id, accounts))
+        assertEquals(card.id, pickAccount(null, null, listOf(cash.copy(archived = true), card)))
+    }
+
+    @Test fun `transfer form requires two different accounts and a positive amount`() {
+        val form = form(note = "  Card top up  ").copy(accountId = 4)
+        val transfer = checkNotNull(buildTransfer(form, 7, 1_500, 123))
+
+        assertEquals(4L, transfer.fromAccountId)
+        assertEquals(7L, transfer.toAccountId)
+        assertEquals(1_500L, transfer.amountMinor)
+        assertEquals(date, transfer.date)
+        assertEquals("Card top up", transfer.note)
+        assertNull(buildTransfer(form, 4, 1_500, 123))
+        assertNull(buildTransfer(form, 7, 0, 123))
+        assertNull(buildTransfer(form.copy(accountId = null), 7, 1_500, 123))
+    }
+
+    @Test fun `opening balance text round trips signed amounts`() {
+        for (locale in listOf(tr, en)) {
+            for (minor in listOf(-5L, -101L, Long.MIN_VALUE, 0, Long.MAX_VALUE)) {
+                assertEquals(minor, parseMoney(amountInputText(minor, locale), locale, alternateDecimal = true, allowNegative = true))
+            }
         }
     }
 }

@@ -33,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -52,10 +53,16 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.mercan.maliyem.R
 import com.mercan.maliyem.data.local.TransactionType
+import com.mercan.maliyem.ui.accounts.AccountsScreen
 import com.mercan.maliyem.ui.add.AddTransactionSheet
+import com.mercan.maliyem.ui.add.AddTransactionViewModel
 import com.mercan.maliyem.ui.breakdown.BreakdownScreen
+import com.mercan.maliyem.ui.budgets.BudgetsScreen
+import com.mercan.maliyem.ui.budgets.OVERALL_BUDGET
 import com.mercan.maliyem.ui.categories.CategoriesScreen
 import com.mercan.maliyem.ui.detail.TransactionDetailScreen
+import com.mercan.maliyem.ui.recurring.RecurringRuleScreen
+import com.mercan.maliyem.ui.recurring.RecurringScreen
 import com.mercan.maliyem.ui.settings.SettingsScreen
 import com.mercan.maliyem.ui.summary.SummaryScreen
 import com.mercan.maliyem.ui.theme.SeyirIcon
@@ -64,6 +71,8 @@ import com.mercan.maliyem.ui.theme.SeyirTabIndicatorHeight
 import com.mercan.maliyem.ui.theme.SeyirTabIndicatorWidth
 import com.mercan.maliyem.ui.theme.SeyirTabVerticalPadding
 import com.mercan.maliyem.ui.transactions.TransactionsScreen
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 private class TopLevelItem(val route: Any, val labelRes: Int, val icon: Int)
 
@@ -79,15 +88,25 @@ private val tabs = listOf(
 
 /** Alt ekranın hangi sekmeye ait sayıldığı: Kategoriler Ayarlar'a, Detay açıldığı sekmeye. */
 private fun tabIndexOf(destination: androidx.navigation.NavDestination?): Int =
-    tabs.indexOfFirst { destination?.hasRoute(it.route::class) == true }
+    if (destination?.hasRoute(BudgetTransactions::class) == true) 1
+    else tabs.indexOfFirst { destination?.hasRoute(it.route::class) == true }
 
 @Composable
-fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
+fun MaliyemNavHost(
+    quickEntry: TransactionType?,
+    onQuickEntryConsumed: () -> Unit,
+    securityCard: @Composable () -> Unit,
+    app: AppViewModel = hiltViewModel(),
+) {
+    val add: AddTransactionViewModel = hiltViewModel()
     val nav = rememberNavController()
     val backStackEntry by nav.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
     val activeTab = when {
-        destination?.hasRoute(Categories::class) == true -> tabs.lastIndex
+        destination?.hasRoute(Categories::class) == true || destination?.hasRoute(Accounts::class) == true ||
+            destination?.hasRoute(Recurring::class) == true || destination?.hasRoute(Budgets::class) == true -> tabs.lastIndex
+        destination?.hasRoute(RecurringRule::class) == true ->
+            backStackEntry?.toRoute<RecurringRule>()?.tab?.takeIf { it in tabs.indices } ?: tabs.lastIndex
         destination?.hasRoute(TransactionDetail::class) == true ->
             tabIndexOf(nav.previousBackStackEntry?.destination).takeIf { it >= 0 } ?: 1
         else -> tabIndexOf(destination).coerceAtLeast(0)
@@ -97,23 +116,33 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
     val hasData by app.hasData.collectAsStateWithLifecycle()
     val monthHasData by app.monthHasData.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val ruleSaved = stringResource(R.string.recurring_saved)
     // Ekle/Düzenle alt sayfası ve snackbar uygulama düzeyinde; her sekme aynısını kullanır (ADR-0010).
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var editId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editTransfer by rememberSaveable { mutableStateOf(false) }
     val undoActions by app.undoActions.collectAsStateWithLifecycle()
     val pendingUndo = undoActions.firstOrNull()
-    val highlightId by rememberUpdatedState((pendingUndo as? UndoAction.Added)?.entry?.id)
+    val addedEntry = (pendingUndo as? UndoAction.Added)?.entry
+    val highlightId by rememberUpdatedState(addedEntry?.takeIf { it.type != null }?.id)
+    val highlightTransferId by rememberUpdatedState(addedEntry?.takeIf { it.type == null }?.id)
     val undoFailed by app.undoFailed.collectAsStateWithLifecycle()
     val savedExpense = stringResource(R.string.add_saved_expense)
     val savedIncome = stringResource(R.string.add_saved_income)
+    val savedTransfer = stringResource(R.string.transfer_saved)
     val deletedLabel = stringResource(R.string.deleted)
     val undoLabel = stringResource(R.string.add_undo)
     val undoError = stringResource(R.string.undo_failed)
     LaunchedEffect(pendingUndo) {
         val message = when (pendingUndo) {
             null -> return@LaunchedEffect
-            is UndoAction.Added -> if (pendingUndo.entry.type == TransactionType.INCOME) savedIncome else savedExpense
-            is UndoAction.Deleted -> deletedLabel
+            is UndoAction.Added -> when (pendingUndo.entry.type) {
+                TransactionType.INCOME -> savedIncome
+                TransactionType.EXPENSE -> savedExpense
+                null -> savedTransfer
+            }
+            is UndoAction.Deleted, is UndoAction.DeletedTransfer -> deletedLabel
         }
         val result = snackbar.showSnackbar(message, actionLabel = undoLabel, duration = SnackbarDuration.Short)
         app.finishUndo(pendingUndo, perform = result == SnackbarResult.ActionPerformed)
@@ -126,7 +155,7 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
     }
 
     val showFab = when {
-        destination?.hasRoute(Transactions::class) == true -> true
+        destination?.hasRoute(Transactions::class) == true || destination?.hasRoute(BudgetTransactions::class) == true -> true
         destination?.hasRoute(Summary::class) == true -> hasData == true && monthHasData
         else -> false
     }
@@ -137,9 +166,20 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
         restoreState = true
     }
 
-    fun openSheet(id: Long? = null) {
+    fun openSheet(id: Long? = null, transfer: Boolean = false) {
         editId = id
+        editTransfer = transfer
         sheetOpen = true
+    }
+
+    LaunchedEffect(quickEntry) {
+        if (quickEntry == null) return@LaunchedEffect
+        // Sürmekte olan kaydın sonucu işlendikten sonra yeni taslağı aç.
+        add.saving.first { !it }
+        add.reset()
+        add.setType(quickEntry)
+        openSheet()
+        onQuickEntryConsumed()
     }
 
     Scaffold(
@@ -198,28 +238,59 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
                     highlightId = highlightId,
                     firstLaunch = hasData == false,
                     onSeeAll = { openTab(Transactions) },
+                    onOpenBudget = { nav.navigate(BudgetTransactions(it ?: OVERALL_BUDGET)) },
                     onOpen = { nav.navigate(TransactionDetail(it)) },
                     onAdd = { openSheet() },
                 )
             }
             composable<Transactions> {
-                TransactionsScreen(highlightId = highlightId, onOpen = { nav.navigate(TransactionDetail(it)) })
+                TransactionsScreen(
+                    highlightId = highlightId,
+                    onOpen = { nav.navigate(TransactionDetail(it)) },
+                    onOpenTransfer = { nav.navigate(TransactionDetail(it, transfer = true)) },
+                    highlightTransferId = highlightTransferId,
+                )
+            }
+            composable<BudgetTransactions> {
+                TransactionsScreen(
+                    highlightId = highlightId,
+                    onOpen = { nav.navigate(TransactionDetail(it)) },
+                    onOpenTransfer = { nav.navigate(TransactionDetail(it, transfer = true)) },
+                    highlightTransferId = highlightTransferId,
+                )
             }
             composable<Breakdown> { BreakdownScreen() }
-            composable<Settings> { SettingsScreen(onCategories = { nav.navigate(Categories) }) }
-            composable<TransactionDetail> {
+            composable<Settings> {
+                SettingsScreen(
+                    onCategories = { nav.navigate(Categories) },
+                    onAccounts = { nav.navigate(Accounts) },
+                    onRecurring = { nav.navigate(Recurring) },
+                    onBudgets = { nav.navigate(Budgets) },
+                    snackbar = snackbar,
+                    beforeRestore = app::clearUndo,
+                    securityCard = securityCard,
+                )
+            }
+            composable<TransactionDetail> { entry ->
+                val route = entry.toRoute<TransactionDetail>()
                 TransactionDetailScreen(
                     onBack = { nav.popBackStack() },
-                    onEdit = { openSheet(it) },
-                    onDeleted = { entity ->
-                        val activeEntry = nav.currentBackStackEntry
-                        if (activeEntry?.destination?.hasRoute(TransactionDetail::class) == true &&
-                            activeEntry.toRoute<TransactionDetail>().id == entity.id
-                        ) nav.popBackStack()
-                        app.offerUndo(UndoAction.Deleted(entity))
+                    onEdit = { openSheet(route.id, route.transfer) },
+                    onOpenRule = { nav.navigate(RecurringRule(it, activeTab)) },
+                    onDeleted = { action ->
+                        if (nav.currentBackStackEntry == entry) nav.popBackStack()
+                        app.offerUndo(action)
                     },
                 )
             }
+            composable<Recurring> {
+                RecurringScreen(onBack = { nav.popBackStack() }, onOpen = { nav.navigate(RecurringRule(it)) })
+            }
+            composable<RecurringRule> { entry ->
+                RecurringRuleScreen(entry.toRoute<RecurringRule>().id, onBack = { nav.popBackStack() })
+            }
+            composable<Accounts> { AccountsScreen(onBack = { nav.popBackStack() }) }
+            composable<Budgets> { BudgetsScreen(onBack = { nav.popBackStack() }) }
             composable<Categories> { CategoriesScreen(onBack = { nav.popBackStack() }) }
         }
     }
@@ -228,9 +299,12 @@ fun MaliyemNavHost(app: AppViewModel = hiltViewModel()) {
         AddTransactionSheet(
             onDismiss = { sheetOpen = false },
             editId = editId,
+            editTransfer = editTransfer,
+            viewModel = add,
             onSaved = { entry ->
                 sheetOpen = false
-                if (!entry.edited) app.offerUndo(UndoAction.Added(entry))
+                if (entry.recurring) scope.launch { snackbar.showSnackbar(ruleSaved) }
+                else if (!entry.edited) app.offerUndo(UndoAction.Added(entry))
             },
         )
     }

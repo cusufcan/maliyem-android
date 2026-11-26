@@ -19,7 +19,7 @@ class SummaryLogicTest {
 
     private fun row(id: Long, type: TransactionType, minor: Long, day: Int, createdAt: Long = id) =
         TransactionWithCategory(
-            TransactionEntity(id, type, minor, 1, LocalDate.of(2026, 11, day), "not $id", createdAt),
+            TransactionEntity(id, type, minor, 1, LocalDate.of(2026, 11, day), "not $id", createdAt, accountId = 1),
             category,
         )
 
@@ -58,6 +58,16 @@ class SummaryLogicTest {
         assertTrue(s.isEmpty)
         assertEquals(0.toBigInteger(), s.netMinor)
         assertNull(s.spentPercent)
+    }
+
+    @Test fun `a transfer only month has no income expense or net`() {
+        val summary = buildSummary(emptyList(), november).copy(hasTransfers = true)
+
+        assertTrue(summary.isEmpty)
+        assertTrue(summary.recent.isEmpty())
+        assertEquals(0.toBigInteger(), summary.incomeMinor)
+        assertEquals(0.toBigInteger(), summary.expenseMinor)
+        assertEquals(0.toBigInteger(), summary.netMinor)
     }
 
     @Test fun `recent keeps newest four by date then creation`() {

@@ -48,7 +48,6 @@ import com.mercan.maliyem.ui.theme.categoryIcons
  * Kategori ekleme/düzenleme kutusu. Kategoriler ekranı ve Ekle sayfası ("+ Yeni") ortak kullanır (ADR-0017).
  * [category] null ise yeni kategori açılır.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CategoryDialog(
     category: CategoryEntity?,
@@ -71,28 +70,7 @@ internal fun CategoryDialog(
                     label = { Text(stringResource(R.string.categories_name)) }, singleLine = true,
                 )
                 SubText(stringResource(R.string.categories_icon))
-                FlowRow(
-                    Modifier.fillMaxWidth().selectableGroup(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    maxItemsInEachRow = 5,
-                ) {
-                    categoryIcons.forEach { (key, def) ->
-                        val selected = key == icon
-                        val label = stringResource(def.label)
-                        val bg by animateColorAsState(if (selected) colors.primaryContainer else colors.surfaceContainerHigh, Motion.fast(), label = "iconBg")
-                        val ring by animateColorAsState(if (selected) colors.primary else Color.Transparent, Motion.fast(), label = "iconRing")
-                        val tint by animateColorAsState(if (selected) colors.onPrimaryContainer else colors.onSurfaceVariant, Motion.fast(), label = "iconTint")
-                        Box(
-                            Modifier.size(48.dp).clip(CircleShape).background(bg).border(2.dp, ring, CircleShape)
-                                .selectable(selected, role = Role.RadioButton) { icon = key }
-                                .semantics { contentDescription = label },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            SeyirIcon(def.drawable, tint = tint)
-                        }
-                    }
-                }
+                CategoryIconPicker(icon) { icon = it }
             }
         },
         confirmButton = {
@@ -105,4 +83,33 @@ internal fun CategoryDialog(
             }
         },
     )
+}
+
+/** Kategori ve hesap formlarında aynı simge seti kullanılır. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun CategoryIconPicker(icon: String, onSelect: (String) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    FlowRow(
+        Modifier.fillMaxWidth().selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        maxItemsInEachRow = 5,
+    ) {
+        categoryIcons.forEach { (key, def) ->
+            val selected = key == icon
+            val label = stringResource(def.label)
+            val bg by animateColorAsState(if (selected) colors.primaryContainer else colors.surfaceContainerHigh, Motion.fast(), label = "iconBg")
+            val ring by animateColorAsState(if (selected) colors.primary else Color.Transparent, Motion.fast(), label = "iconRing")
+            val tint by animateColorAsState(if (selected) colors.onPrimaryContainer else colors.onSurfaceVariant, Motion.fast(), label = "iconTint")
+            Box(
+                Modifier.size(48.dp).clip(CircleShape).background(bg).border(2.dp, ring, CircleShape)
+                    .selectable(selected, role = Role.RadioButton) { onSelect(key) }
+                    .semantics { contentDescription = label },
+                contentAlignment = Alignment.Center,
+            ) {
+                SeyirIcon(def.drawable, tint = tint)
+            }
+        }
+    }
 }

@@ -12,6 +12,9 @@ interface CategoryDao {
     @Query("SELECT * FROM categories ORDER BY type, sortOrder, id")
     fun observeAll(): Flow<List<CategoryEntity>>
 
+    @Query("SELECT * FROM categories ORDER BY type, sortOrder, id")
+    suspend fun getAll(): List<CategoryEntity>
+
     @Insert
     suspend fun insertAll(categories: List<CategoryEntity>)
 
@@ -34,15 +37,22 @@ interface CategoryDao {
     @Query("UPDATE transactions SET categoryId = :to WHERE categoryId = :from")
     suspend fun moveTransactions(from: Long, to: Long)
 
+    @Query("UPDATE recurring_rules SET categoryId = :to WHERE categoryId = :from")
+    suspend fun moveRecurringRules(from: Long, to: Long)
+
     @Query("DELETE FROM categories WHERE id = :id")
     suspend fun deleteById(id: Long)
 
-    /** Kayıtlar önce [fallbackKey] kategorisine taşınır, sonra kategori silinir; ikisi tek işlemde (ADR-0011). */
+    @Query("DELETE FROM categories")
+    suspend fun deleteAll()
+
+    /** Kayıtlar ve kurallar [fallbackKey] kategorisine taşınır, ardından kategori aynı işlemde silinir. */
     @Transaction
     suspend fun deleteMovingTransactions(id: Long, fallbackKey: String) {
         val fallback = idOfKey(fallbackKey) ?: return
         if (fallback == id) return
         moveTransactions(id, fallback)
+        moveRecurringRules(id, fallback)
         deleteById(id)
     }
 }

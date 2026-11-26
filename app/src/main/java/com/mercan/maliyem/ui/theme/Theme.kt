@@ -25,6 +25,7 @@ fun MaliyemTheme(
     CompositionLocalProvider(
         LocalMoneyColors provides if (darkTheme) DarkMoneyColors else LightMoneyColors,
         LocalSelectionColors provides if (darkTheme) DarkSelectionColors else LightSelectionColors,
+        LocalBudgetWarning provides if (darkTheme) DarkBudgetWarning else LightBudgetWarning,
     ) {
         MaterialTheme(
             colorScheme = if (darkTheme) DarkColors else LightColors,

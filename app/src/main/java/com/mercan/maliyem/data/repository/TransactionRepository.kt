@@ -2,7 +2,10 @@ package com.mercan.maliyem.data.repository
 
 import com.mercan.maliyem.data.local.TransactionDao
 import com.mercan.maliyem.data.local.TransactionEntity
+import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.local.TransactionWithCategory
+import com.mercan.maliyem.data.local.TrendEntry
+import com.mercan.maliyem.widget.WidgetUpdater
 import java.time.LocalDate
 import java.time.YearMonth
 import javax.inject.Inject
@@ -14,6 +17,18 @@ import kotlinx.coroutines.flow.map
 interface TransactionRepository {
     /** [month] içindeki kayıtlar, en yeni başta. */
     fun observeMonth(month: YearMonth): Flow<List<TransactionWithCategory>>
+
+    /** İlk ve son ay dahil, eğilim hesabında kullanılan gelir ve gider kayıtları. */
+    fun observeTrendEntries(first: YearMonth, last: YearMonth): Flow<List<TrendEntry>>
+
+    /** Tarih, tür, kategori ve hesap süzgeçlerini veritabanında uygular. */
+    fun observeFiltered(
+        from: LocalDate,
+        to: LocalDate,
+        type: TransactionType?,
+        categoryIds: Set<Long>,
+        accountIds: Set<Long>,
+    ): Flow<List<TransactionWithCategory>>
 
     /** En az bir kaydı olan aylar. */
     fun observeMonthsWithData(): Flow<Set<YearMonth>>
@@ -41,8 +56,21 @@ interface TransactionRepository {
 
 class RoomTransactionRepository @Inject constructor(
     private val dao: TransactionDao,
+    private val widgetUpdater: WidgetUpdater,
 ) : TransactionRepository {
     override fun observeMonth(month: YearMonth) = dao.observeRange(month.atDay(1), month.atEndOfMonth()).distinctUntilChanged()
+
+    override fun observeTrendEntries(first: YearMonth, last: YearMonth) =
+        dao.observeTrendEntries(first.atDay(1), last.atEndOfMonth()).distinctUntilChanged()
+
+    override fun observeFiltered(
+        from: LocalDate,
+        to: LocalDate,
+        type: TransactionType?,
+        categoryIds: Set<Long>,
+        accountIds: Set<Long>,
+    ) = dao.observeFiltered(from, to, type, categoryIds.toList(), accountIds.toList(), categoryIds.isEmpty(), accountIds.isEmpty())
+        .distinctUntilChanged()
 
     override fun observeMonthsWithData() = dao.observeDates().map { dates -> dates.mapTo(HashSet(), YearMonth::from) }.distinctUntilChanged()
 
@@ -52,13 +80,15 @@ class RoomTransactionRepository @Inject constructor(
 
     override suspend fun get(id: Long) = dao.getById(id)
 
-    override suspend fun add(transaction: TransactionEntity) = dao.insert(transaction)
+    override suspend fun add(transaction: TransactionEntity) = dao.insert(transaction).also { widgetUpdater.refresh() }
 
-    override suspend fun update(transaction: TransactionEntity): Boolean = dao.update(transaction) > 0
+    override suspend fun update(transaction: TransactionEntity): Boolean =
+        (dao.updateKeepingRule(transaction) > 0).also { if (it) widgetUpdater.refresh() }
 
-    override suspend fun delete(id: Long) = dao.deleteById(id)
+    override suspend fun delete(id: Long) = dao.deleteById(id).also { widgetUpdater.refresh() }
 
-    override suspend fun deleteAndGet(id: Long) = dao.deleteAndGet(id)
+    override suspend fun deleteAndGet(id: Long) = dao.deleteAndGet(id).also { if (it != null) widgetUpdater.refresh() }
 
-    override suspend fun restore(transaction: TransactionEntity) = dao.restore(transaction, fallbackKey(transaction.type))
+    override suspend fun restore(transaction: TransactionEntity) =
+        dao.restore(transaction, fallbackKey(transaction.type)).also { if (it) widgetUpdater.refresh() }
 }

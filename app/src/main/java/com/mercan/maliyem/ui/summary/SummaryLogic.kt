@@ -2,6 +2,8 @@ package com.mercan.maliyem.ui.summary
 
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.local.TransactionWithCategory
+import com.mercan.maliyem.ui.budgets.MonthlyBudgets
+import com.mercan.maliyem.ui.trend.MonthlyTrend
 import com.mercan.maliyem.util.roundedPercent
 import java.math.BigInteger
 import java.time.YearMonth
@@ -15,6 +17,7 @@ data class SummaryRow(
     val categoryKey: String?,
     val categoryName: String?,
     val icon: String,
+    val recurring: Boolean = false,
 )
 
 data class SummaryUiState(
@@ -27,6 +30,9 @@ data class SummaryUiState(
     val nextMonth: YearMonth? = null,
     /** Boş ay kartı: kaydı olan bir önceki ayın neti. */
     val previousNet: Pair<YearMonth, BigInteger>? = null,
+    val hasTransfers: Boolean = false,
+    val budgets: MonthlyBudgets = MonthlyBudgets(),
+    val trend: List<MonthlyTrend> = emptyList(),
 ) {
     val netMinor: BigInteger = incomeMinor - expenseMinor
     val isEmpty: Boolean get() = recent.isEmpty()
@@ -51,7 +57,7 @@ fun buildSummary(rows: List<TransactionWithCategory>, month: YearMonth): Summary
     val recent = rows
         .sortedWith(compareByDescending<TransactionWithCategory> { it.transaction.date }.thenByDescending { it.transaction.createdAt }.thenByDescending { it.transaction.id })
         .take(RECENT_COUNT)
-        .map { (t, c) -> SummaryRow(t.id, t.type, t.amountMinor, t.note, c.key, c.name, c.icon) }
+        .map { (t, c) -> SummaryRow(t.id, t.type, t.amountMinor, t.note, c.key, c.name, c.icon, t.recurringRuleId != null) }
     return SummaryUiState(month, income, expense, recent)
 }
 

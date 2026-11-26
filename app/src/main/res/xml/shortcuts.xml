@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_expense"
+        android:icon="@drawable/ic_seyir_arrow_out"
+        android:shortcutShortLabel="@string/shortcut_new_expense">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="maliyem://quick-entry/expense"
+            android:targetPackage="com.mercan.maliyem"
+            android:targetClass="com.mercan.maliyem.quickentry.QuickEntryActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="new_income"
+        android:icon="@drawable/ic_seyir_arrow_in"
+        android:shortcutShortLabel="@string/shortcut_new_income">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="maliyem://quick-entry/income"
+            android:targetPackage="com.mercan.maliyem"
+            android:targetClass="com.mercan.maliyem.quickentry.QuickEntryActivity" />
+    </shortcut>
+</shortcuts>

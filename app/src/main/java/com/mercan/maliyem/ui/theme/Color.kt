@@ -83,3 +83,8 @@ val LightSelectionColors = SelectionColors(Color(0xFF644789), Color(0xFFFFFFFF))
 val DarkSelectionColors = SelectionColors(Color(0xFFDBB8FF), Color(0xFF381E72))
 
 val LocalSelectionColors = staticCompositionLocalOf { LightSelectionColors }
+
+/** Bütçe sınırına yaklaşan harcamalar için Seyir uyarı tonu. */
+internal val LightBudgetWarning = Color(0xFF78502F)
+internal val DarkBudgetWarning = Color(0xFFEDC7AA)
+internal val LocalBudgetWarning = staticCompositionLocalOf { LightBudgetWarning }

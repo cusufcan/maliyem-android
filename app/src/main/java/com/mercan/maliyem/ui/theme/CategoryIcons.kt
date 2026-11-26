@@ -35,6 +35,7 @@ internal val categoryIcons: Map<String, CategoryIconDef> = linkedMapOf(
     "pill" to CategoryIconDef(R.drawable.ic_seyir_cat_pill, R.string.icon_pill),
     "scissors" to CategoryIconDef(R.drawable.ic_seyir_cat_scissors, R.string.icon_scissors),
     "building" to CategoryIconDef(R.drawable.ic_seyir_cat_building, R.string.icon_building),
+    "wallet" to CategoryIconDef(R.drawable.ic_seyir_wallet, R.string.icon_wallet),
     "card" to CategoryIconDef(R.drawable.ic_seyir_cat_card, R.string.icon_card),
     "piggy" to CategoryIconDef(R.drawable.ic_seyir_cat_piggy, R.string.icon_piggy),
     "chart" to CategoryIconDef(R.drawable.ic_seyir_cat_chart, R.string.icon_chart),
@@ -47,4 +48,7 @@ internal val categoryIcons: Map<String, CategoryIconDef> = linkedMapOf(
 
 /** Veritabanındaki simge anahtarını çizime çevirir; bilinmeyen anahtar "dots" olur. */
 @DrawableRes
-internal fun categoryIcon(key: String): Int = categoryIcons[key]?.drawable ?: R.drawable.ic_seyir_dots
+internal fun categoryIcon(key: String): Int = when (key) {
+    "transfer" -> R.drawable.ic_seyir_transfer
+    else -> categoryIcons[key]?.drawable ?: R.drawable.ic_seyir_dots
+}

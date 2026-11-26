@@ -4,6 +4,7 @@ import com.mercan.maliyem.data.local.CategoryEntity
 import com.mercan.maliyem.data.local.TransactionEntity
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.local.TransactionWithCategory
+import com.mercan.maliyem.data.local.TrendEntry
 import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
@@ -16,7 +17,7 @@ class BreakdownLogicTest {
     private val salary = CategoryEntity(3, TransactionType.INCOME, "salary", null, "briefcase", 0)
 
     private fun tx(id: Long, amount: Long, c: CategoryEntity) =
-        TransactionWithCategory(TransactionEntity(id, c.type, amount, c.id, LocalDate.of(2026, 11, 1), null, id), c)
+        TransactionWithCategory(TransactionEntity(id, c.type, amount, c.id, LocalDate.of(2026, 11, 1), null, id, accountId = 1), c)
 
     private val rows = listOf(tx(1, 10_000, market), tx(2, 30_000, rent), tx(3, 20_000, market), tx(4, 99_000, salary))
 
@@ -36,6 +37,22 @@ class BreakdownLogicTest {
 
     @Test fun incomeOnlyIncludesIncome() {
         assertEquals(listOf(3L), buildSlices(rows, TransactionType.INCOME).map { it.categoryId })
+    }
+
+    @Test fun comparesEachCategoryWithItsOwnPreviousTotal() {
+        val month = YearMonth.of(2026, 11)
+        val previous = month.minusMonths(1).atEndOfMonth()
+        val earlier = listOf(
+            TrendEntry(previous, TransactionType.EXPENSE, market.id, 10_000),
+            TrendEntry(previous, TransactionType.EXPENSE, market.id, 15_000),
+            TrendEntry(previous, TransactionType.INCOME, salary.id, 110_000),
+        )
+        val expense = TransactionType.EXPENSE
+        val income = TransactionType.INCOME
+        val expenses = BreakdownUiState(month, expense, buildSlices(rows, expense), previousTotals = previousCategoryTotals(earlier, expense))
+        val incomes = BreakdownUiState(month, income, buildSlices(rows, income), previousTotals = previousCategoryTotals(earlier, income))
+        assertEquals(listOf(20.toBigInteger(), null), expenses.slices.map(expenses::change))
+        assertEquals((-10).toBigInteger(), incomes.change(incomes.slices.single()))
     }
 
     @Test fun aggregatesAndRanksCategoriesWithoutLongOverflow() {

@@ -5,21 +5,25 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
-import com.mercan.maliyem.data.local.TransactionEntity
 import com.mercan.maliyem.data.local.TransactionWithCategory
+import com.mercan.maliyem.data.local.TransferEntity
+import com.mercan.maliyem.data.repository.AccountRepository
+import com.mercan.maliyem.data.repository.RecurringRepository
 import com.mercan.maliyem.data.repository.TransactionRepository
+import com.mercan.maliyem.data.repository.TransferRepository
 import com.mercan.maliyem.ui.navigation.TransactionDetail
+import com.mercan.maliyem.ui.navigation.UndoAction
 import com.mercan.maliyem.util.roundedPercent
-import java.math.BigInteger
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.math.BigInteger
 import java.time.YearMonth
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -34,6 +38,8 @@ sealed interface DetailUiState {
             else roundedPercent(item.transaction.amountMinor.toBigInteger(), categoryMonthMinor).toInt()
     }
 
+    data class Transfer(val item: TransferEntity) : DetailUiState
+
     data object Missing : DetailUiState
 }
 
@@ -41,13 +47,19 @@ sealed interface DetailUiState {
 class TransactionDetailViewModel @Inject constructor(
     savedState: SavedStateHandle,
     private val repository: TransactionRepository,
+    private val transfers: TransferRepository,
+    accounts: AccountRepository,
+    recurring: RecurringRepository,
 ) : ViewModel() {
 
-    private val id = savedState.toRoute<TransactionDetail>().id
+    val route = savedState.toRoute<TransactionDetail>()
+    private val id = route.id
+
+    val accounts = accounts.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** null: yükleniyor. */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val uiState: StateFlow<DetailUiState?> = repository.observeDate(id)
+    private val record = repository.observeDate(id)
         .map { it?.let(YearMonth::from) }
         .distinctUntilChanged()
         .flatMapLatest { month ->
@@ -60,11 +72,21 @@ class TransactionDetailViewModel @Inject constructor(
                 DetailUiState.Record(item, total)
             }
         }
+
+    val uiState: StateFlow<DetailUiState?> = (
+        if (route.transfer) transfers.observe(id).map { it?.let(DetailUiState::Transfer) ?: DetailUiState.Missing }
+        else record
+    ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val rule = uiState.map { (it as? DetailUiState.Record)?.item?.transaction?.recurringRuleId }
+        .distinctUntilChanged()
+        .flatMapLatest { id -> if (id == null) flowOf(null) else recurring.observe(id) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _deleting = MutableStateFlow(false)
     val deleting = _deleting.asStateFlow()
-    private val _deleted = MutableStateFlow<TransactionEntity?>(null)
+    private val _deleted = MutableStateFlow<UndoAction?>(null)
     val deleted = _deleted.asStateFlow()
     private val _deleteFailed = MutableStateFlow(false)
     val deleteFailed = _deleteFailed.asStateFlow()
@@ -75,7 +97,10 @@ class TransactionDetailViewModel @Inject constructor(
         _deleteFailed.value = false
         viewModelScope.launch {
             try {
-                _deleted.value = repository.deleteAndGet(id)
+                val deleted = if (route.transfer) transfers.deleteAndGet(id)?.let(UndoAction::DeletedTransfer)
+                    else repository.deleteAndGet(id)?.let(UndoAction::Deleted)
+                _deleted.value = deleted
+                if (deleted == null) _deleteFailed.value = true
             } catch (_: SQLiteException) {
                 _deleteFailed.value = true
             } finally {

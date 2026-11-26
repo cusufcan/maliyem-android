@@ -55,10 +55,12 @@ fun formatMoney(minor: BigInteger, locale: Locale, signed: Boolean = false): Str
 fun parseMoney(input: String, locale: Locale): Long? =
     parseMoney(input, locale, alternateDecimal = false)
 
-internal fun parseMoney(input: String, locale: Locale, alternateDecimal: Boolean): Long? {
+internal fun parseMoney(input: String, locale: Locale, alternateDecimal: Boolean, allowNegative: Boolean = false): Long? {
     val decimal = moneyDecimalSeparator(locale)
     val group = if (decimal == ',') '.' else ','
-    val trimmed = input.trim()
+    val raw = input.trim()
+    val negative = allowNegative && (raw.startsWith('-') || raw.startsWith(MINUS))
+    val trimmed = if (negative) raw.drop(1).trimStart() else raw
     val number = when {
         trimmed.startsWith(LIRA) -> trimmed.drop(1).trimStart()
         trimmed.endsWith(LIRA) -> trimmed.dropLast(1).trimEnd()
@@ -83,8 +85,10 @@ internal fun parseMoney(input: String, locale: Locale, alternateDecimal: Boolean
     if (fraction.length > 2) return null
 
     return try {
-        val wholeMinor = Math.multiplyExact(whole.ifEmpty { "0" }.toLong(), 100L)
-        Math.addExact(wholeMinor, fraction.padEnd(2, '0').toLong())
+        val wholeMinor = whole.ifEmpty { "0" }.toLong()
+        val cents = fraction.padEnd(2, '0').toLong()
+        if (negative) Math.subtractExact(Math.multiplyExact(-wholeMinor, 100L), cents)
+        else Math.addExact(Math.multiplyExact(wholeMinor, 100L), cents)
     } catch (_: ArithmeticException) {
         null
     } catch (_: NumberFormatException) {

@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -171,20 +169,6 @@ fun SeyirSegmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit
     }
 }
 
-/** Pano .chips.f: çerçeveli süzgeç çipleri; seçili olan dolu. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun FilterChips(options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
-    val colors = MaterialTheme.colorScheme
-    val sel = LocalSelectionColors.current
-    val shape = RoundedCornerShape(12.dp)
-    FlowRow(modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        options.forEachIndexed { index, label ->
-            SeyirChip(label, index == selected, { onSelect(index) }, role = Role.RadioButton)
-        }
-    }
-}
-
 /** Pano .chip: çerçeveli çip; seçilince dolar, renk geçişi 150 ms (pano: .15s). */
 @Composable
 fun SeyirChip(
@@ -194,6 +178,7 @@ fun SeyirChip(
     modifier: Modifier = Modifier,
     @DrawableRes icon: Int? = null,
     role: Role = Role.RadioButton,
+    enabled: Boolean = true,
 ) {
     val colors = MaterialTheme.colorScheme
     val sel = LocalSelectionColors.current
@@ -201,8 +186,8 @@ fun SeyirChip(
     val background by animateColorAsState(if (selected) sel.container else Color.Transparent, Motion.fast(), label = "chipBg")
     val border by animateColorAsState(if (selected) sel.container else colors.outlineVariant, Motion.fast(), label = "chipBorder")
     val content by animateColorAsState(if (selected) sel.content else colors.onSurfaceVariant, Motion.fast(), label = "chipText")
-    val action = if (role == Role.Button) Modifier.clickable(role = role, onClick = onClick)
-        else Modifier.selectable(selected, role = role, onClick = onClick)
+    val action = if (role == Role.Button) Modifier.clickable(enabled = enabled, role = role, onClick = onClick)
+        else Modifier.selectable(selected, enabled = enabled, role = role, onClick = onClick)
     Row(
         modifier.heightIn(min = 48.dp).clip(shape).background(background).border(1.dp, border, shape)
             .then(action)
@@ -241,10 +226,13 @@ fun SettingRow(
     subtitle: String? = null,
     onClick: (() -> Unit)? = null,
     horizontalPadding: androidx.compose.ui.unit.Dp = Spacing.lg,
+    enabled: Boolean = true,
 ) {
     val colors = MaterialTheme.colorScheme
     Row(
-        modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+        modifier.fillMaxWidth().then(
+            if (onClick != null) Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick) else Modifier,
+        )
             .heightIn(min = 56.dp).padding(horizontal = horizontalPadding, vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),

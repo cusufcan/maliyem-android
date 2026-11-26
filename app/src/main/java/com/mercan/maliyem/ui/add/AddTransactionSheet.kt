@@ -37,17 +37,13 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -81,15 +77,17 @@ import com.mercan.maliyem.ui.components.SeyirSegmented
 import com.mercan.maliyem.ui.components.categoryName
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
+import com.mercan.maliyem.ui.accounts.AccountPicker
+import com.mercan.maliyem.ui.components.DateSelectionDialog
+import com.mercan.maliyem.ui.components.SubText
+import com.mercan.maliyem.ui.recurring.FrequencyPicker
 import com.mercan.maliyem.data.local.CategoryEntity
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.ui.theme.MoneyInputValue
 import com.mercan.maliyem.ui.theme.SeyirIcon
 import com.mercan.maliyem.ui.theme.Spacing
 import com.mercan.maliyem.ui.theme.categoryIcon
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -100,6 +98,7 @@ fun AddTransactionSheet(
     onDismiss: () -> Unit,
     onSaved: (SavedEntry) -> Unit,
     editId: Long? = null,
+    editTransfer: Boolean = false,
     viewModel: AddTransactionViewModel = hiltViewModel(),
 ) {
     val canChangeSheet = remember(viewModel) {
@@ -109,8 +108,8 @@ fun AddTransactionSheet(
     }
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = canChangeSheet)
     val locale = LocalConfiguration.current.locales[0]
-    var ready by remember(editId, locale) { mutableStateOf<Boolean?>(null) }
-    LaunchedEffect(viewModel, editId, locale) { ready = viewModel.prepare(editId, locale) }
+    var ready by remember(editId, editTransfer, locale) { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(viewModel, editId, editTransfer, locale) { ready = viewModel.prepare(editId, editTransfer, locale) }
     val onSavedCurrent by rememberUpdatedState(onSaved)
     val saved by viewModel.saved.collectAsStateWithLifecycle()
     LaunchedEffect(saved) {
@@ -135,7 +134,7 @@ fun AddTransactionSheet(
     ) {
         when (ready) {
             false -> WriteError(Modifier.padding(Spacing.lg))
-            true -> state?.takeIf { it.editId == editId }?.let {
+            true -> state?.takeIf { it.editId == editId && (editId == null || it.transfer == editTransfer) }?.let {
                 AddTransactionContent(it, locale, viewModel, saving, writeFailed)
             }
             null -> Unit
@@ -159,24 +158,53 @@ private fun AddTransactionContent(
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         Text(
-            stringResource(if (state.editId != null) R.string.edit_title else R.string.add_title),
+            stringResource(when {
+                state.editId == null -> R.string.add_title
+                state.transfer -> R.string.transfer_edit_title
+                else -> R.string.edit_title
+            }),
             Modifier.semantics { heading() },
             style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp, lineHeight = 28.sp),
             fontWeight = FontWeight.Bold,
         )
-        TypeSelector(form.type, viewModel::setType)
+        if (state.editId == null || !state.transfer) {
+            TypeSelector(state, viewModel::setType, viewModel::selectTransfer)
+        }
         AmountField(
             form.amountText,
-            form.type,
+            form.type.takeUnless { state.transfer },
             { viewModel.setAmount(it, locale) },
-            error = state.error?.takeIf { it != AddFormError.CATEGORY_MISSING },
+            error = state.error?.takeUnless { it == AddFormError.CATEGORY_MISSING || it == AddFormError.ACCOUNT_MISSING },
         )
-        CategoryChips(
-            form.type, form.categoryId, state.categories, state.error == AddFormError.CATEGORY_MISSING,
-            viewModel::setCategory, viewModel::addCategory,
-        )
+        val selected = state.accounts.firstOrNull { it.id == form.accountId }
+        if (state.transfer) {
+            if (state.canTransfer) {
+                AccountPicker(
+                    R.string.transfer_from, selected, state.activeAccounts,
+                    viewModel::setAccount,
+                )
+                AccountPicker(
+                    R.string.transfer_to, state.accounts.firstOrNull { it.id == state.toAccountId },
+                    state.activeAccounts.filter { it.id != form.accountId }, viewModel::setToAccount,
+                )
+            } else {
+                SubText(stringResource(R.string.transfer_need_accounts))
+            }
+        } else {
+            CategoryChips(
+                form.type, form.categoryId, state.categories, state.error == AddFormError.CATEGORY_MISSING,
+                viewModel::setCategory, viewModel::addCategory,
+            )
+            if (state.activeAccounts.size > 1 || selected?.archived == true) {
+                AccountPicker(R.string.account_label, selected, state.activeAccounts, viewModel::setAccount)
+            }
+        }
         Column {
-            DateRow(form.date, state.today, locale, viewModel::setDate)
+            if (state.editId == null && !state.transfer) {
+                FrequencyPicker(state.frequency, viewModel::setFrequency, includeNone = true, enabled = !saving)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
+            DateRow(form.date, state.today, locale, allowFuture = state.frequency != null, onPick = viewModel::setDate)
             QuickDates(form.date, state.today, viewModel::setDate)
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             NoteRow(form.note, viewModel::setNote)
@@ -184,7 +212,7 @@ private fun AddTransactionContent(
         // Tutar geçerliyse düğme ne kaydedileceğini söyler: "Kaydet · 412,85 ₺".
         val amountMinor = state.amountMinor?.takeIf { it > 0 }
         if (writeFailed) WriteError()
-        Button(viewModel::save, Modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = !saving) {
+        Button(viewModel::save, Modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = !saving && (!state.transfer || state.canTransfer)) {
             AnimatedContent(amountMinor, transitionSpec = { crossFade() }, label = "saveLabel") { minor ->
                 Text(
                     if (minor != null) stringResource(R.string.add_save_amount, formatMoney(minor, locale)) else stringResource(R.string.add_save),
@@ -196,18 +224,20 @@ private fun AddTransactionContent(
 }
 
 @Composable
-private fun TypeSelector(selected: TransactionType, onSelect: (TransactionType) -> Unit) {
-    val options = listOf(TransactionType.EXPENSE, TransactionType.INCOME)
+private fun TypeSelector(state: AddUiState, onSelect: (TransactionType) -> Unit, onTransfer: () -> Unit) {
+    val types = listOf(TransactionType.EXPENSE, TransactionType.INCOME)
+    val labels = listOf(R.string.add_expense, R.string.add_income) +
+        if (state.editId == null) listOf(R.string.add_transfer) else emptyList()
     SeyirSegmented(
-        options = listOf(stringResource(R.string.add_expense), stringResource(R.string.add_income)),
-        selected = options.indexOf(selected),
-        onSelect = { onSelect(options[it]) },
+        options = labels.map { stringResource(it) },
+        selected = if (state.transfer) types.size else types.indexOf(state.form.type),
+        onSelect = { if (it == types.size) onTransfer() else onSelect(types[it]) },
         modifier = Modifier.fillMaxWidth(),
     )
 }
 
 @Composable
-private fun AmountField(text: String, type: TransactionType, onChange: (String) -> Unit, error: AddFormError?) {
+private fun AmountField(text: String, type: TransactionType?, onChange: (String) -> Unit, error: AddFormError?) {
     val colors = MaterialTheme.colorScheme
     val income = type == TransactionType.INCOME
     val incomeColor = LocalMoneyColors.current.onIncomeContainer
@@ -241,8 +271,10 @@ private fun AmountField(text: String, type: TransactionType, onChange: (String) 
             decorationBox = { inner ->
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        AnimatedContent(income, transitionSpec = { countSlide(targetState) }, label = "amountSign") { inc ->
-                            Text(if (inc) "+" else "−", style = MoneyInputValue, color = signColor, modifier = Modifier.padding(end = Spacing.xs))
+                        if (type != null) {
+                            AnimatedContent(income, transitionSpec = { countSlide(targetState) }, label = "amountSign") { inc ->
+                                Text(if (inc) "+" else "−", style = MoneyInputValue, color = signColor, modifier = Modifier.padding(end = Spacing.xs))
+                            }
                         }
                         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                             if (text.isEmpty()) {
@@ -270,6 +302,7 @@ private fun errorRes(error: AddFormError) = when (error) {
     AddFormError.AMOUNT_INVALID -> R.string.add_error_amount_invalid
     AddFormError.AMOUNT_ZERO -> R.string.add_error_amount_zero
     AddFormError.CATEGORY_MISSING -> R.string.add_error_category
+    AddFormError.ACCOUNT_MISSING -> R.string.account_choose
 }
 
 @Composable
@@ -369,9 +402,14 @@ private fun SheetRow(icon: Int, modifier: Modifier = Modifier, content: @Composa
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DateRow(date: LocalDate, today: LocalDate, locale: Locale, onPick: (LocalDate) -> Unit) {
+private fun DateRow(
+    date: LocalDate,
+    today: LocalDate,
+    locale: Locale,
+    allowFuture: Boolean,
+    onPick: (LocalDate) -> Unit,
+) {
     var open by rememberSaveable { mutableStateOf(false) }
     // Bugünse sol "Bugün", sağ tam tarih; değilse sol tarih, sağ yalnız haftanın günü (tekrar olmasın).
     val isToday = date == today
@@ -386,32 +424,12 @@ private fun DateRow(date: LocalDate, today: LocalDate, locale: Locale, onPick: (
         Text(full, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
     }
     if (open) {
-        // DatePicker UTC gece yarısı milisaniyesiyle çalışır; yerel saat dilimi karışmasın diye UTC'ye çevrilir.
-        val todayMillis = today.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-        val picker = rememberDatePickerState(
-            initialSelectedDateMillis = date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
-            yearRange = minOf(1900, date.year, today.year)..maxOf(2100, date.year, today.year),
-            selectableDates = remember(today) {
-                object : SelectableDates {
-                    override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis <= todayMillis
-                    override fun isSelectableYear(year: Int) = year <= today.year
-                }
-            },
+        DateSelectionDialog(
+            initial = date,
+            onDismiss = { open = false },
+            onPick = onPick,
+            latest = today.takeUnless { allowFuture },
         )
-        DatePickerDialog(
-            onDismissRequest = { open = false },
-            confirmButton = {
-                val selected = picker.selectedDateMillis?.takeIf { it <= todayMillis }
-                TextButton(
-                    onClick = {
-                        selected?.let { onPick(Instant.ofEpochMilli(it).atOffset(ZoneOffset.UTC).toLocalDate()) }
-                        open = false
-                    },
-                    enabled = selected != null,
-                ) { Text(stringResource(R.string.add_pick)) }
-            },
-            dismissButton = { TextButton({ open = false }) { Text(stringResource(R.string.add_cancel)) } },
-        ) { DatePicker(picker) }
     }
 }
 

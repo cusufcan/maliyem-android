@@ -17,6 +17,7 @@ import androidx.compose.ui.res.stringArrayResource
 import com.mercan.maliyem.ui.components.EmptyState
 import com.mercan.maliyem.ui.components.Eyebrow
 import com.mercan.maliyem.ui.components.MonthHeader
+import com.mercan.maliyem.ui.budgets.BudgetsCard
 import com.mercan.maliyem.ui.components.SeyirButton
 import com.mercan.maliyem.ui.components.SubText
 import com.mercan.maliyem.ui.components.categoryName
@@ -59,6 +60,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
+import com.mercan.maliyem.data.repository.AccountBalance
+import com.mercan.maliyem.ui.accounts.AccountsCard
 import com.mercan.maliyem.data.local.DefaultCategories
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.ui.components.TransactionRow
@@ -67,6 +70,8 @@ import com.mercan.maliyem.ui.theme.MaliyemTheme
 import com.mercan.maliyem.ui.theme.MoneyHeroValue
 import com.mercan.maliyem.ui.theme.SeyirIcon
 import com.mercan.maliyem.ui.theme.Spacing
+import com.mercan.maliyem.ui.trend.MonthlyTrend
+import com.mercan.maliyem.ui.trend.trendMonths
 import com.mercan.maliyem.util.formatMoney
 import com.mercan.maliyem.util.splitFraction
 import java.time.YearMonth
@@ -83,9 +88,11 @@ fun SummaryScreen(
     onSeeAll: () -> Unit,
     onOpen: (Long) -> Unit,
     onAdd: () -> Unit,
+    onOpenBudget: (Long?) -> Unit,
     viewModel: SummaryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val accounts by viewModel.activeAccounts.collectAsStateWithLifecycle()
     // İlk açılış, boş ay ve dolu ay arası solarak; ay değişimi yönlü kayarak geçer (ADR-0016).
     AnimatedContent(
         firstLaunch to state,
@@ -99,13 +106,19 @@ fun SummaryScreen(
         contentKey = { (first, s) -> if (first) "first" else s?.let { it.month to it.isEmpty } },
         label = "summary",
     ) { (first, shown) ->
+        val openBudget: (Long?) -> Unit = {
+            shown?.let { viewModel.selectMonth(it.month) }
+            onOpenBudget(it)
+        }
         when {
-            first -> FirstLaunch(onAdd)
+            first && shown?.budgets?.isEmpty != false -> FirstLaunch(onAdd, accounts)
             shown == null -> Unit
-            shown.isEmpty -> EmptyMonth(shown, viewModel::previousMonth, viewModel::nextMonth, viewModel::selectMonth, onAdd)
+            shown.isEmpty -> EmptyMonth(
+                shown, viewModel::previousMonth, viewModel::nextMonth, viewModel::selectMonth, onAdd, onSeeAll, accounts, openBudget,
+            )
             else -> SummaryContent(
                 shown, onPreviousMonth = viewModel::previousMonth, onNextMonth = viewModel::nextMonth, onSeeAll = onSeeAll,
-                highlightId = highlightId, onOpen = onOpen,
+                highlightId = highlightId, onOpen = onOpen, accounts = accounts, onOpenBudget = openBudget, onSelectMonth = viewModel::selectMonth,
             )
         }
     }
@@ -113,11 +126,12 @@ fun SummaryScreen(
 
 /** Pano 7 · İlk açılış. */
 @Composable
-private fun FirstLaunch(onAdd: () -> Unit) {
+private fun FirstLaunch(onAdd: () -> Unit, accounts: List<AccountBalance>) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState())
             .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.lg),
     ) {
+        AccountsCard(accounts)
         EmptyState(
             R.drawable.ic_seyir_wallet,
             stringResource(R.string.empty_first_title),
@@ -138,12 +152,15 @@ private fun EmptyMonth(
     onNextMonth: () -> Unit,
     onSelectMonth: (YearMonth) -> Unit,
     onAdd: () -> Unit,
+    onSeeAll: () -> Unit,
+    accounts: List<AccountBalance>,
+    onOpenBudget: (Long?) -> Unit,
 ) {
     val locale = LocalConfiguration.current.locales[0]
     val monthsIn = stringArrayResource(R.array.month_in)
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.lg),
+            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         MonthHeader(
@@ -151,13 +168,19 @@ private fun EmptyMonth(
             onPrevious = onPreviousMonth.takeIf { state.previousMonth != null },
             onNext = onNextMonth.takeIf { state.nextMonth != null },
         )
+        AccountsCard(accounts)
+        BudgetsCard(state.budgets, locale, onOpenBudget)
         EmptyState(
             R.drawable.ic_seyir_calendar,
-            stringResource(R.string.empty_month_title, monthsIn[state.month.monthValue - 1]),
+            stringResource(
+                if (state.hasTransfers) R.string.empty_month_transfers_title else R.string.empty_month_title,
+                monthsIn[state.month.monthValue - 1],
+            ),
             stringResource(R.string.empty_month_body),
             Modifier.weight(1f),
         ) {
             SeyirButton(stringResource(R.string.add_open), onAdd, icon = R.drawable.ic_seyir_plus)
+            if (state.hasTransfers) SeyirButton(stringResource(R.string.nav_transactions), onSeeAll, tonal = true)
         }
         state.previousNet?.let { (previous, net) ->
             val colors = MaterialTheme.colorScheme
@@ -177,6 +200,7 @@ private fun EmptyMonth(
                 SeyirIcon(R.drawable.ic_seyir_chevron_right, tint = colors.onSurfaceVariant)
             }
         }
+        SeyirTrendCard(state.trend, locale, onSelectMonth)
     }
 }
 
@@ -189,6 +213,9 @@ fun SummaryContent(
     modifier: Modifier = Modifier,
     highlightId: Long? = null,
     onOpen: (Long) -> Unit = {},
+    accounts: List<AccountBalance> = emptyList(),
+    onOpenBudget: (Long?) -> Unit = {},
+    onSelectMonth: (YearMonth) -> Unit = {},
 ) {
     val locale = LocalConfiguration.current.locales[0]
     Column(
@@ -214,6 +241,9 @@ fun SummaryContent(
                 MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.colorScheme.onSurface, Modifier.weight(1f),
             )
         }
+        AccountsCard(accounts)
+        BudgetsCard(state.budgets, locale, onOpenBudget)
+        SeyirTrendCard(state.trend, locale, onSelectMonth)
         RecentSection(state, locale, onSeeAll, highlightId, onOpen)
     }
 }
@@ -306,6 +336,7 @@ private fun RecentSection(state: SummaryUiState, locale: Locale, onSeeAll: () ->
                 icon = row.icon,
                 amount = formatMoney(if (income) row.amountMinor else -row.amountMinor, locale, signed = true),
                 income = income,
+                recurring = row.recurring,
                 modifier = Modifier
                     .graphicsLayer { alpha = appear.value; translationY = (appear.value - 1f) * 6.dp.toPx() }
                     .clickable(role = Role.Button) { onOpen(row.id) },
@@ -325,6 +356,11 @@ private fun SummaryPreview() = MaliyemTheme {
             previousMonth = YearMonth.of(2026, 9),
             incomeMinor = 3_170_000.toBigInteger(),
             expenseMinor = 2_207_665.toBigInteger(),
+            trend = trendMonths(YearMonth.of(2026, 11)).mapIndexed { index, month ->
+                val income = listOf(2_850_000, 2_920_000, 0, 2_850_000, 2_850_000, 3_170_000)
+                val expense = listOf(2_150_000, 1_920_000, 0, 2_300_000, 2_510_000, 2_207_665)
+                MonthlyTrend(month, income[index].toBigInteger(), expense[index].toBigInteger())
+            },
             recent = listOf(
                 SummaryRow(21, TransactionType.EXPENSE, 41_285, "Migros", "groceries", null, "cart"),
                 SummaryRow(20, TransactionType.EXPENSE, 60_000, "Berber", DefaultCategories.OTHER_EXPENSE, null, "dots"),

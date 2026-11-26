@@ -2,9 +2,17 @@ package com.mercan.maliyem.ui.summary
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mercan.maliyem.data.repository.AccountRepository
+import com.mercan.maliyem.data.local.TransactionType
+import com.mercan.maliyem.data.repository.BudgetRepository
+import com.mercan.maliyem.data.repository.CategoryRepository
 import com.mercan.maliyem.data.repository.TransactionRepository
+import com.mercan.maliyem.data.repository.TransferRepository
 import com.mercan.maliyem.ui.CalendarDays
 import com.mercan.maliyem.ui.MonthSelection
+import com.mercan.maliyem.ui.budgets.buildMonthlyBudgets
+import com.mercan.maliyem.ui.trend.buildTrend
+import com.mercan.maliyem.ui.trend.trendMonths
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.YearMonth
 import javax.inject.Inject
@@ -22,20 +30,38 @@ import kotlinx.coroutines.flow.stateIn
 class SummaryViewModel @Inject constructor(
     private val months: MonthSelection,
     private val repository: TransactionRepository,
+    accounts: AccountRepository,
+    transfers: TransferRepository,
     calendar: CalendarDays,
+    budgets: BudgetRepository,
+    categories: CategoryRepository,
 ) : ViewModel() {
+
+    val activeAccounts = accounts.observeBalances().map { rows -> rows.filterNot { it.account.archived } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val currentMonth = calendar.days.map(YearMonth::from).distinctUntilChanged()
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val uiState: StateFlow<SummaryUiState?> = combine(months.month, repository.observeMonthsWithData(), currentMonth) { month, withData, today ->
-        val (previous, next) = adjacentMonths(month, withData, today)
+    val uiState: StateFlow<SummaryUiState?> = combine(
+        months.month, repository.observeMonthsWithData(), currentMonth, transfers.observeMonthsWithData(),
+    ) { month, withData, today, withTransfers ->
+        val (previous, next) = adjacentMonths(month, withData + withTransfers, today)
         val previousWithData = withData.filter { it < month }.maxOrNull()
-        Navigation(month, previous, next, previousWithData)
+        Navigation(month, previous, next, previousWithData, month in withTransfers)
     }.distinctUntilChanged()
-        .flatMapLatest { (month, previous, next, previousWithData) ->
-            repository.observeMonth(month).flatMapLatest { rows ->
-                val summary = buildSummary(rows, month).copy(previousMonth = previous, nextMonth = next)
+        .flatMapLatest { (month, previous, next, previousWithData, hasTransfers) ->
+            val window = trendMonths(month)
+            combine(
+                repository.observeMonth(month), budgets.observeAll(), budgets.observeOverall(),
+                categories.observeByType(TransactionType.EXPENSE),
+                repository.observeTrendEntries(window.first(), month).map { buildTrend(window, it) },
+            ) { rows, limits, overall, expenseCategories, trend ->
+                buildSummary(rows, month).copy(
+                    previousMonth = previous, nextMonth = next, hasTransfers = hasTransfers, trend = trend,
+                    budgets = buildMonthlyBudgets(month, rows, limits, overall?.limitMinor, expenseCategories),
+                )
+            }.flatMapLatest { summary ->
                 if (summary.isEmpty && previousWithData != null) {
                     repository.observeMonth(previousWithData).map { earlier ->
                         if (earlier.isEmpty()) summary else summary.copy(
@@ -52,6 +78,7 @@ class SummaryViewModel @Inject constructor(
         val previous: YearMonth?,
         val next: YearMonth?,
         val previousWithData: YearMonth?,
+        val hasTransfers: Boolean,
     )
 
     fun selectMonth(month: YearMonth) = months.select(month)
