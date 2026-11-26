@@ -1,5 +1,7 @@
 package com.mercan.maliyem.di
 
+import com.mercan.maliyem.data.repository.CategoryRepository
+import com.mercan.maliyem.data.repository.RoomCategoryRepository
 import com.mercan.maliyem.data.repository.RoomTransactionRepository
 import com.mercan.maliyem.data.repository.TransactionRepository
 import dagger.Binds
@@ -11,4 +13,6 @@ import dagger.hilt.components.SingletonComponent
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
     @Binds abstract fun bindTransactionRepository(impl: RoomTransactionRepository): TransactionRepository
+
+    @Binds abstract fun bindCategoryRepository(impl: RoomCategoryRepository): CategoryRepository
 }

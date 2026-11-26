@@ -16,8 +16,15 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE date BETWEEN :from AND :to ORDER BY date DESC, createdAt DESC")
     fun observeRange(from: LocalDate, to: LocalDate): Flow<List<TransactionWithCategory>>
 
+    /** Kaydı olan günler; ay gezintisi boş ayları atlasın diye. */
+    @Query("SELECT DISTINCT date FROM transactions")
+    fun observeDates(): Flow<List<LocalDate>>
+
     @Insert
     suspend fun insert(transaction: TransactionEntity): Long
+
+    @Query("DELETE FROM transactions WHERE id = :id")
+    suspend fun deleteById(id: Long)
 
     @Update
     suspend fun update(transaction: TransactionEntity)

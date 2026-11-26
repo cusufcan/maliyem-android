@@ -53,5 +53,8 @@ internal val SeyirTypography = Typography(
 /** Özet ekranındaki ay neti: altı basamaklı tutar sığsın diye 64/68. */
 internal val MoneyHeroValue = seyirText(64, 68, FontWeight.Bold, -.035f, numeric = true)
 
+/** Yeni kayıt sayfasındaki tutar girişi. */
+internal val MoneyInputValue = seyirText(44, 52, FontWeight.Bold, -.02f, numeric = true)
+
 /** Hero tutarın kuruş ve ₺ kısmı. */
 internal val MoneyHeroFraction = seyirText(24, 28, FontWeight.Bold, -.01f, numeric = true)

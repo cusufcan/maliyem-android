@@ -27,4 +27,23 @@
     <string name="summary_recent">Son işlemler</string>
     <string name="summary_see_all">Tümü</string>
     <string name="summary_empty">Bu ay henüz kayıt yok.</string>
+    <string name="add_open">Ekle</string>
+    <string name="add_title">Yeni kayıt</string>
+    <string name="add_expense">Gider</string>
+    <string name="add_income">Gelir</string>
+    <string name="add_amount">Tutar</string>
+    <string name="add_today">Bugün</string>
+    <string name="add_note">Not</string>
+    <string name="add_note_hint">Not ekle</string>
+    <string name="add_save">Kaydet</string>
+    <string name="add_error_amount_empty">Tutar girin</string>
+    <string name="add_error_amount_invalid">Geçerli bir tutar girin</string>
+    <string name="add_error_amount_zero">Tutar sıfırdan büyük olmalı</string>
+    <string name="add_error_category">Kategori seçin</string>
+    <string name="add_saved_expense">Gider kaydedildi</string>
+    <string name="add_saved_income">Gelir kaydedildi</string>
+    <string name="add_undo">Geri al</string>
+    <string name="add_just_now">az önce</string>
+    <string name="add_pick">Tamam</string>
+    <string name="add_cancel">Vazgeç</string>
 </resources>

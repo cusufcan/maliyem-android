@@ -14,11 +14,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.mercan.maliyem.R
 import com.mercan.maliyem.ui.theme.LocalMoneyColors
 import com.mercan.maliyem.ui.theme.SeyirIcon
 import com.mercan.maliyem.ui.theme.Spacing
@@ -36,12 +40,18 @@ fun TransactionRow(
     amount: String,
     income: Boolean,
     modifier: Modifier = Modifier,
+    highlighted: Boolean = false,
+    horizontalPadding: Dp = 0.dp,
 ) {
     val colors = MaterialTheme.colorScheme
     val type = MaterialTheme.typography
-    val label = listOfNotNull(title, subtitle, amount).joinToString(", ")
+    val justNow = stringResource(R.string.add_just_now)
+    // Yeni eklenen kayıt "az önce" ile işaretlenir; snackbar kapanınca vurgu kalkar.
+    val shownSubtitle = if (highlighted) listOfNotNull(subtitle, justNow).joinToString(" · ") else subtitle
+    val label = listOfNotNull(title, shownSubtitle, amount).joinToString(", ")
     Row(
-        modifier.heightIn(min = 64.dp).padding(vertical = Spacing.sm).clearAndSetSemantics { contentDescription = label },
+        modifier.background(if (highlighted) colors.primaryContainer else Color.Transparent)
+            .heightIn(min = 64.dp).padding(horizontal = horizontalPadding, vertical = Spacing.sm).clearAndSetSemantics { contentDescription = label },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
@@ -53,8 +63,8 @@ fun TransactionRow(
         }
         Column(Modifier.weight(1f)) {
             Text(title, style = type.bodyLarge, fontWeight = FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (subtitle != null) {
-                Text(subtitle, style = type.bodySmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (shownSubtitle != null) {
+                Text(shownSubtitle, style = type.bodySmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         Text(

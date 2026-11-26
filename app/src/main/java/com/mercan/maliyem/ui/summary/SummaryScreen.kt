@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -14,15 +15,27 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
@@ -43,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
 import com.mercan.maliyem.data.local.DefaultCategories
 import com.mercan.maliyem.data.local.TransactionType
+import com.mercan.maliyem.ui.add.AddTransactionSheet
 import com.mercan.maliyem.ui.components.TransactionRow
 import com.mercan.maliyem.ui.theme.LocalMoneyColors
 import com.mercan.maliyem.ui.theme.MaliyemTheme
@@ -54,12 +68,54 @@ import com.mercan.maliyem.util.splitFraction
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 @Composable
 fun SummaryScreen(onSeeAll: () -> Unit, viewModel: SummaryViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    state?.let {
-        SummaryContent(it, onPreviousMonth = viewModel::previousMonth, onNextMonth = viewModel::nextMonth, onSeeAll = onSeeAll)
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    // Alt sayfa ayrı rota değil, bu ekranın durumu (ADR-0008).
+    var sheetOpen by rememberSaveable { mutableStateOf(false) }
+    var highlightId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val savedExpense = stringResource(R.string.add_saved_expense)
+    val savedIncome = stringResource(R.string.add_saved_income)
+    val undoLabel = stringResource(R.string.add_undo)
+    Scaffold(
+        containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets(0),
+        snackbarHost = { SnackbarHost(snackbar) },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { sheetOpen = true },
+                icon = { SeyirIcon(R.drawable.ic_seyir_plus) },
+                text = { Text(stringResource(R.string.add_open), fontWeight = FontWeight.SemiBold) },
+                shape = MaterialTheme.shapes.medium,
+            )
+        },
+    ) { padding ->
+        state?.let {
+            SummaryContent(
+                it, onPreviousMonth = viewModel::previousMonth, onNextMonth = viewModel::nextMonth, onSeeAll = onSeeAll,
+                modifier = Modifier.padding(padding), highlightId = highlightId,
+            )
+        }
+    }
+    if (sheetOpen) {
+        AddTransactionSheet(
+            onDismiss = { sheetOpen = false },
+            onSaved = { entry ->
+                sheetOpen = false
+                viewModel.showMonth(entry.date)
+                highlightId = entry.id
+                scope.launch {
+                    val message = if (entry.type == TransactionType.INCOME) savedIncome else savedExpense
+                    val result = snackbar.showSnackbar(message, actionLabel = undoLabel, duration = SnackbarDuration.Short)
+                    if (result == SnackbarResult.ActionPerformed) viewModel.undo(entry.id)
+                    highlightId = null
+                }
+            },
+        )
     }
 }
 
@@ -70,14 +126,20 @@ fun SummaryContent(
     onNextMonth: () -> Unit,
     onSeeAll: () -> Unit,
     modifier: Modifier = Modifier,
+    highlightId: Long? = null,
 ) {
     val locale = LocalConfiguration.current.locales[0]
     Column(
         modifier.fillMaxSize().verticalScroll(rememberScrollState())
-            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.lg),
+            // Alttaki ek boşluk son satırın Ekle düğmesinin altında kalmaması için.
+            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.lg + 72.dp),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
-        MonthHeader(state.month, locale, onPreviousMonth, onNextMonth)
+        MonthHeader(
+            state.month, locale,
+            onPrevious = onPreviousMonth.takeIf { state.previousMonth != null },
+            onNext = onNextMonth.takeIf { state.nextMonth != null },
+        )
         Hero(state, locale)
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
             val money = LocalMoneyColors.current
@@ -90,7 +152,7 @@ fun SummaryContent(
                 MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.colorScheme.onSurface, Modifier.weight(1f),
             )
         }
-        RecentSection(state, locale, onSeeAll)
+        RecentSection(state, locale, onSeeAll, highlightId)
     }
 }
 
@@ -98,12 +160,14 @@ private fun monthTitle(pattern: String, month: YearMonth, locale: Locale) =
     DateTimeFormatter.ofPattern(pattern, locale).format(month).replaceFirstChar { it.titlecase(locale) }
 
 @Composable
-private fun MonthHeader(month: YearMonth, locale: Locale, onPrevious: () -> Unit, onNext: () -> Unit) {
+private fun MonthHeader(month: YearMonth, locale: Locale, onPrevious: (() -> Unit)?, onNext: (() -> Unit)?) {
     val tint = MaterialTheme.colorScheme.onSurfaceVariant
+    // Gidilecek ay yoksa düğme pasif; M3'ün pasif içerik saydamlığı (%38).
+    fun tintFor(action: (() -> Unit)?) = if (action != null) tint else tint.copy(alpha = .38f)
     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
         // İkon kenarla hizalansın diye 48 dp düğme 12 dp dışarı taşar (pano: margin −12).
-        IconButton(onPrevious, Modifier.offset(x = (-12).dp)) {
-            SeyirIcon(R.drawable.ic_seyir_chevron_left, description = stringResource(R.string.summary_previous_month), tint = tint)
+        IconButton(onPrevious ?: {}, Modifier.offset(x = (-12).dp), enabled = onPrevious != null) {
+            SeyirIcon(R.drawable.ic_seyir_chevron_left, description = stringResource(R.string.summary_previous_month), tint = tintFor(onPrevious))
         }
         Text(
             monthTitle("LLLL yyyy", month, locale),
@@ -111,8 +175,8 @@ private fun MonthHeader(month: YearMonth, locale: Locale, onPrevious: () -> Unit
             style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp, lineHeight = 28.sp),
             textAlign = TextAlign.Center,
         )
-        IconButton(onNext, Modifier.offset(x = 12.dp)) {
-            SeyirIcon(R.drawable.ic_seyir_chevron_right, description = stringResource(R.string.summary_next_month), tint = tint)
+        IconButton(onNext ?: {}, Modifier.offset(x = 12.dp), enabled = onNext != null) {
+            SeyirIcon(R.drawable.ic_seyir_chevron_right, description = stringResource(R.string.summary_next_month), tint = tintFor(onNext))
         }
     }
 }
@@ -177,7 +241,7 @@ private fun Tile(icon: Int, label: String, amount: String, background: Color, co
 }
 
 @Composable
-private fun RecentSection(state: SummaryUiState, locale: Locale, onSeeAll: () -> Unit) {
+private fun RecentSection(state: SummaryUiState, locale: Locale, onSeeAll: () -> Unit, highlightId: Long?) {
     val colors = MaterialTheme.colorScheme
     Row(
         Modifier.fillMaxWidth().padding(start = Spacing.xs, top = Spacing.xs),
@@ -191,7 +255,7 @@ private fun RecentSection(state: SummaryUiState, locale: Locale, onSeeAll: () ->
         }
     }
     Column(
-        Modifier.fillMaxWidth().background(colors.surfaceContainer, MaterialTheme.shapes.large).padding(horizontal = Spacing.lg),
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(colors.surfaceContainer),
     ) {
         if (state.isEmpty) {
             Box(Modifier.fillMaxWidth().padding(vertical = Spacing.xl), contentAlignment = Alignment.Center) {
@@ -199,7 +263,7 @@ private fun RecentSection(state: SummaryUiState, locale: Locale, onSeeAll: () ->
             }
         }
         state.recent.forEachIndexed { index, row ->
-            if (index > 0) HorizontalDivider(color = colors.outlineVariant)
+            if (index > 0) HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = colors.outlineVariant)
             val category = DefaultCategories.nameRes(row.categoryKey)?.let { stringResource(it) } ?: row.categoryName.orEmpty()
             val income = row.type == TransactionType.INCOME
             TransactionRow(
@@ -208,6 +272,8 @@ private fun RecentSection(state: SummaryUiState, locale: Locale, onSeeAll: () ->
                 icon = row.icon,
                 amount = formatMoney(if (income) row.amountMinor else -row.amountMinor, locale, signed = true),
                 income = income,
+                highlighted = row.id == highlightId,
+                horizontalPadding = Spacing.lg,
             )
         }
     }
@@ -219,6 +285,7 @@ private fun SummaryPreview() = MaliyemTheme {
     SummaryContent(
         SummaryUiState(
             month = YearMonth.of(2026, 11),
+            previousMonth = YearMonth.of(2026, 9),
             incomeMinor = 3_170_000,
             expenseMinor = 2_207_665,
             recent = listOf(
@@ -228,5 +295,6 @@ private fun SummaryPreview() = MaliyemTheme {
             ),
         ),
         onPreviousMonth = {}, onNextMonth = {}, onSeeAll = {},
+        highlightId = 21,
     )
 }

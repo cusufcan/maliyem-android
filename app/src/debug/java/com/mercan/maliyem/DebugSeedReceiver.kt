@@ -16,7 +16,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-/** Panodaki Kasım örneğini içinde bulunulan aya ekler. Yalnız debug derlemesinde var. */
+/**
+ * Panodaki Kasım örneğini içinde bulunulan aya (ya da `--ei monthOffset -3` ile 3 ay öncesine) ekler.
+ * Yalnız debug derlemesinde var.
+ */
 @AndroidEntryPoint
 class DebugSeedReceiver : BroadcastReceiver() {
     @Inject lateinit var categories: CategoryDao
@@ -28,7 +31,7 @@ class DebugSeedReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val byKey = categories.observeAll().first { it.isNotEmpty() }.associateBy { it.key }
-                val month = YearMonth.now(clock)
+                val month = YearMonth.now(clock).plusMonths(intent.getIntExtra("monthOffset", 0).toLong())
                 val now = clock.millis()
                 SAMPLE.forEachIndexed { index, (day, key, note, amount) ->
                     val category = byKey.getValue(key)

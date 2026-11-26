@@ -72,4 +72,23 @@ class SummaryLogicTest {
         assertEquals("cart", r.icon)
         assertEquals("not 1", r.note)
     }
+
+    private val nov = YearMonth.of(2026, 11)
+
+    @Test fun `navigation skips empty months`() {
+        val withData = setOf(YearMonth.of(2026, 6), YearMonth.of(2026, 9))
+        assertEquals(YearMonth.of(2026, 6) to nov, adjacentMonths(YearMonth.of(2026, 9), withData, nov))
+        assertEquals(YearMonth.of(2026, 9) to null, adjacentMonths(nov, withData, nov))
+        assertEquals(null to YearMonth.of(2026, 9), adjacentMonths(YearMonth.of(2026, 6), withData, nov))
+    }
+
+    @Test fun `no data keeps only current month`() {
+        assertEquals(null to null, adjacentMonths(nov, emptySet(), nov))
+    }
+
+    @Test fun `future month with data is reachable`() {
+        val jan = YearMonth.of(2027, 1)
+        assertEquals(null to jan, adjacentMonths(nov, setOf(jan), nov))
+        assertEquals(nov to null, adjacentMonths(jan, setOf(jan), nov))
+    }
 }

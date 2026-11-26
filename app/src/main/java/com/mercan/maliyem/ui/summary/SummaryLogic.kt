@@ -20,6 +20,9 @@ data class SummaryUiState(
     val incomeMinor: Long = 0,
     val expenseMinor: Long = 0,
     val recent: List<SummaryRow> = emptyList(),
+    /** ‹ › hedefleri; gidilecek ay yoksa null ve düğme pasif. */
+    val previousMonth: YearMonth? = null,
+    val nextMonth: YearMonth? = null,
 ) {
     val netMinor: Long get() = incomeMinor - expenseMinor
     val isEmpty: Boolean get() = recent.isEmpty()
@@ -46,4 +49,13 @@ fun buildSummary(rows: List<TransactionWithCategory>, month: YearMonth): Summary
         .take(RECENT_COUNT)
         .map { (t, c) -> SummaryRow(t.id, t.type, t.amountMinor, t.note, c.key, c.name, c.icon) }
     return SummaryUiState(month, income, expense, recent)
+}
+
+/**
+ * ‹ › ile gidilecek aylar: yalnız kaydı olan aylar ve [today]; aradaki boş aylar atlanır.
+ * Bu ay boş olsa da gösterilir, çünkü yeni kayıt oraya girer.
+ */
+fun adjacentMonths(current: YearMonth, withData: Set<YearMonth>, today: YearMonth): Pair<YearMonth?, YearMonth?> {
+    val months = withData + today
+    return months.filter { it < current }.maxOrNull() to months.filter { it > current }.minOrNull()
 }
