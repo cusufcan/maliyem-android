@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.mercan.maliyem.data.local.AccountEntity
 import com.mercan.maliyem.data.local.CategoryEntity
+import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.local.DefaultAccounts
 import com.mercan.maliyem.data.local.DefaultCategories
 import com.mercan.maliyem.data.repository.AccountRepository
@@ -44,6 +45,7 @@ internal val transactionsSession = UUID.randomUUID().toString()
 private const val KEY_SESSION = "session"
 private const val KEY_FILTERS = "filters"
 private const val KEY_SEARCH = "search"
+private const val KEY_CATEGORY_MONTH = "categoryMonth"
 
 internal data class TransactionsPeriod(
     val month: YearMonth,
@@ -65,15 +67,17 @@ class TransactionsViewModel @Inject constructor(
     calendar: CalendarDays,
 ) : ViewModel() {
 
+    private val categoryRoute = if (savedState.contains("budgetCategoryId")) savedState.toRoute<BudgetTransactions>() else null
+    private val categoryMonth = categoryRoute?.yearMonth?.let { savedState.getStateFlow(KEY_CATEGORY_MONTH, it) }
+
     init {
         if (savedState.get<String>(KEY_SESSION) != transactionsSession) {
-            val budgetFilters = if (savedState.contains("budgetCategoryId")) {
-                val id = savedState.toRoute<BudgetTransactions>().budgetCategoryId
+            val budgetFilters = categoryRoute?.let { route ->
                 TransactionsFilters(
-                    type = TransactionFilter.EXPENSE,
-                    categoryIds = if (id == OVERALL_BUDGET) emptySet() else setOf(id),
+                    type = if (route.type == TransactionType.INCOME.name) TransactionFilter.INCOME else TransactionFilter.EXPENSE,
+                    categoryIds = if (route.budgetCategoryId == OVERALL_BUDGET) emptySet() else setOf(route.budgetCategoryId),
                 ).toBundle()
-            } else null
+            }
             savedState[KEY_FILTERS] = budgetFilters
             savedState.remove<String>(KEY_SEARCH)
             savedState[KEY_SESSION] = transactionsSession
@@ -95,7 +99,8 @@ class TransactionsViewModel @Inject constructor(
         ) to choices
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    private val dates = combine(months.month, calendar.days) { month, today -> month to today }
+    private val selectedMonth = categoryMonth?.map(YearMonth::parse) ?: months.month
+    private val dates = combine(selectedMonth, calendar.days) { month, today -> month to today }
 
     internal val period = combine(
         dates, repository.observeMonthsWithData(), transfers.observeMonthsWithData(),
@@ -144,7 +149,10 @@ class TransactionsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     internal fun setLocalizedNames(names: Map<Int, String>) { localizedNames.value = names }
-    fun selectMonth(month: YearMonth) { months.select(month) }
+    fun selectMonth(month: YearMonth) {
+        if (categoryMonth != null) savedState[KEY_CATEGORY_MONTH] = month.toString()
+        else months.select(month)
+    }
     fun setSearch(text: String?) { savedState[KEY_SEARCH] = text }
     fun setFilters(filters: TransactionsFilters) { savedState[KEY_FILTERS] = filters.toBundle() }
 }

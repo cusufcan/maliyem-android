@@ -1,36 +1,19 @@
 package com.mercan.maliyem.ui.summary
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.key
-import androidx.compose.runtime.remember
-import androidx.compose.ui.graphics.graphicsLayer
-import com.mercan.maliyem.ui.theme.Motion
-import com.mercan.maliyem.ui.theme.countSlide
-import com.mercan.maliyem.ui.theme.crossFade
-import com.mercan.maliyem.ui.theme.slideFade
-import androidx.compose.foundation.clickable
-import androidx.compose.ui.res.stringArrayResource
-import com.mercan.maliyem.ui.components.EmptyState
-import com.mercan.maliyem.ui.components.Eyebrow
-import com.mercan.maliyem.ui.components.MonthHeader
-import com.mercan.maliyem.ui.budgets.BudgetsCard
-import com.mercan.maliyem.ui.components.SeyirButton
-import com.mercan.maliyem.ui.components.SubText
-import com.mercan.maliyem.ui.components.categoryName
-import com.mercan.maliyem.ui.components.monthTitle
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.BoxWithConstraints
-import com.mercan.maliyem.ui.components.ScreenLoading
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -40,22 +23,28 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -64,17 +53,34 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
-import com.mercan.maliyem.data.repository.AccountBalance
-import com.mercan.maliyem.ui.accounts.AccountsCard
 import com.mercan.maliyem.data.local.DefaultCategories
 import com.mercan.maliyem.data.local.TransactionType
+import com.mercan.maliyem.data.repository.AccountBalance
+import com.mercan.maliyem.ui.accounts.AccountsCard
+import com.mercan.maliyem.ui.budgets.BudgetsCard
+import com.mercan.maliyem.ui.components.EmptyState
+import com.mercan.maliyem.ui.components.Eyebrow
+import com.mercan.maliyem.ui.components.MonthHeader
+import com.mercan.maliyem.ui.components.ScreenLoading
+import com.mercan.maliyem.ui.components.SeyirActionButton
+import com.mercan.maliyem.ui.components.SeyirButton
+import com.mercan.maliyem.ui.components.SeyirCard
+import com.mercan.maliyem.ui.components.SeyirFabClearance
+import com.mercan.maliyem.ui.components.SubText
 import com.mercan.maliyem.ui.components.TransactionRow
+import com.mercan.maliyem.ui.components.categoryName
+import com.mercan.maliyem.ui.components.monthTitle
 import com.mercan.maliyem.ui.goals.GoalsCard
 import com.mercan.maliyem.ui.theme.LocalMoneyColors
+import com.mercan.maliyem.ui.theme.LocalReducedMotion
 import com.mercan.maliyem.ui.theme.MaliyemTheme
 import com.mercan.maliyem.ui.theme.MoneyHeroValue
+import com.mercan.maliyem.ui.theme.Motion
 import com.mercan.maliyem.ui.theme.SeyirIcon
 import com.mercan.maliyem.ui.theme.Spacing
+import com.mercan.maliyem.ui.theme.countSlide
+import com.mercan.maliyem.ui.theme.crossFade
+import com.mercan.maliyem.ui.theme.slideFade
 import com.mercan.maliyem.ui.trend.MonthlyTrend
 import com.mercan.maliyem.ui.trend.trendMonths
 import com.mercan.maliyem.util.formatMoney
@@ -122,7 +128,7 @@ fun SummaryScreen(
         }
         when {
             shown == null -> ScreenLoading()
-            first && shown.budgets.isEmpty -> FirstLaunch(onAdd, accounts, goalsCard, onOpenYearlyReport)
+            first && shown.budgets.isEmpty -> FirstLaunch(onAdd, accounts, goalsCard)
             shown.isEmpty -> EmptyMonth(
                 shown, viewModel::previousMonth, viewModel::nextMonth, viewModel::selectMonth, onAdd, onSeeAll, accounts, openBudget, goalsCard, onOpenYearlyReport,
             )
@@ -141,7 +147,6 @@ private fun FirstLaunch(
     onAdd: () -> Unit,
     accounts: List<AccountBalance>,
     goalsCard: @Composable () -> Unit,
-    onOpenYearlyReport: () -> Unit,
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         Column(
@@ -150,7 +155,6 @@ private fun FirstLaunch(
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                YearlyReportAction(onOpenYearlyReport)
                 AccountsCard(accounts)
                 goalsCard()
             }
@@ -159,7 +163,7 @@ private fun FirstLaunch(
                 stringResource(R.string.empty_first_title),
                 stringResource(R.string.empty_first_body),
             ) {
-                SubText(stringResource(R.string.empty_first_note), Modifier.padding(top = 0.dp))
+                SubText(stringResource(R.string.empty_first_note), textAlign = TextAlign.Center)
                 SeyirButton(stringResource(R.string.empty_first_add), onAdd, icon = R.drawable.ic_seyir_plus)
             }
             Spacer(Modifier.height(0.dp))
@@ -186,7 +190,7 @@ private fun EmptyMonth(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight)
-                .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = 88.dp),
+                .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = SeyirFabClearance),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
@@ -195,7 +199,6 @@ private fun EmptyMonth(
                     onPrevious = onPreviousMonth.takeIf { state.previousMonth != null },
                     onNext = onNextMonth.takeIf { state.nextMonth != null },
                 )
-                YearlyReportAction(onOpenYearlyReport)
                 AccountsCard(accounts)
                 BudgetsCard(state.budgets, locale, onOpenBudget)
                 goalsCard()
@@ -215,20 +218,20 @@ private fun EmptyMonth(
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 state.previousNet?.let { (previous, net) ->
                     val colors = MaterialTheme.colorScheme
-                    Row(
-                        Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(MaterialTheme.shapes.large)
-                            .background(colors.surfaceContainer).clickable(role = Role.Button) { onSelectMonth(previous) }
-                            .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
-                        verticalAlignment = Alignment.CenterVertically,
+                    SeyirCard(
+                        padding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.sm),
+                        onClick = { onSelectMonth(previous) },
                     ) {
-                        Column(Modifier.weight(1f)) {
-                            SubText(stringResource(R.string.empty_month_last))
-                            Text(
-                                stringResource(R.string.empty_month_closed, monthTitle("LLLL", previous, locale), formatMoney(net, locale, signed = true)),
-                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"),
-                            )
+                        Row(Modifier.heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                SubText(stringResource(R.string.empty_month_last))
+                                Text(
+                                    stringResource(R.string.empty_month_closed, monthTitle("LLLL", previous, locale), formatMoney(net, locale, signed = true)),
+                                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"),
+                                )
+                            }
+                            SeyirIcon(R.drawable.ic_seyir_chevron_right, tint = colors.onSurfaceVariant)
                         }
-                        SeyirIcon(R.drawable.ic_seyir_chevron_right, tint = colors.onSurfaceVariant)
                     }
                 }
                 SeyirTrendCard(state.trend, locale, onSelectMonth, onOpenYearlyReport)
@@ -256,8 +259,7 @@ fun SummaryContent(
     val locale = LocalConfiguration.current.locales[0]
     Column(
         modifier.fillMaxSize().verticalScroll(rememberScrollState())
-            // Alttaki 88 dp (pano .scr) son satırın Ekle düğmesinin altında kalmaması için.
-            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = 88.dp),
+            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = SeyirFabClearance),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         MonthHeader(
@@ -277,18 +279,12 @@ fun SummaryContent(
                 MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.colorScheme.onSurface, Modifier.weight(1f),
             )
         }
-        onOpenYearlyReport?.let { YearlyReportAction(it) }
         AccountsCard(accounts)
         BudgetsCard(state.budgets, locale, onOpenBudget)
         goalsCard()
         SeyirTrendCard(state.trend, locale, onSelectMonth, onOpenYearlyReport)
         RecentSection(state, locale, onSeeAll, highlightId, onOpen, onOpenReceipt)
     }
-}
-
-@Composable
-private fun YearlyReportAction(onClick: () -> Unit) {
-    SeyirButton(stringResource(R.string.yearly_report), onClick, icon = R.drawable.ic_seyir_breakdown, tonal = true)
 }
 
 @Composable
@@ -358,35 +354,57 @@ private fun RecentSection(state: SummaryUiState, locale: Locale, onSeeAll: () ->
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Eyebrow(stringResource(R.string.summary_recent), Modifier.weight(1f).semantics { heading() })
-        TextButton(onSeeAll) {
-            Text(stringResource(R.string.summary_see_all), fontWeight = FontWeight.SemiBold)
-        }
+        SeyirActionButton(stringResource(R.string.summary_see_all), onSeeAll)
     }
     Column(
         // Satır eklenip silinince kart boyu sıçramadan değişir.
-        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(colors.surfaceContainer).animateContentSize(Motion.enter()),
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(colors.surfaceContainer),
     ) {
-        state.recent.forEachIndexed { index, row -> key(row.id) {
-            // Pano "nw": yeni kaydedilen satır yukarıdan 6 dp kayarak ve solarak gelir (200 ms).
-            val appear = remember { Animatable(if (row.id == highlightId) 0f else 1f) }
-            LaunchedEffect(Unit) { appear.animateTo(1f, Motion.enter()) }
-            if (index > 0) HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = colors.outlineVariant)
-            val category = categoryName(row.categoryKey, row.categoryName)
-            val income = row.type == TransactionType.INCOME
-            TransactionRow(
-                title = row.note ?: category,
-                subtitle = category.takeIf { row.note != null },
-                icon = row.icon,
-                amount = formatMoney(if (income) row.amountMinor else -row.amountMinor, locale, signed = true),
-                income = income,
-                recurring = row.recurring,
-                onOpen = { onOpen(row.id) },
-                onOpenReceipt = row.receiptPath?.let { path -> { onOpenReceipt(path) } },
-                modifier = Modifier.graphicsLayer { alpha = appear.value; translationY = (appear.value - 1f) * 6.dp.toPx() },
-                highlighted = row.id == highlightId,
-                horizontalPadding = Spacing.lg,
-            )
-        } }
+        val reducedMotion = LocalReducedMotion.current
+        val rows = state.recent
+        val currentIds = rows.mapTo(mutableSetOf()) { it.id }
+        val previousRows = remember { mutableStateMapOf<Long, Pair<Int, SummaryRow>>() }
+        SideEffect {
+            rows.forEachIndexed { index, row -> previousRows[row.id] = index to row }
+        }
+        val rendered = rows.toMutableList()
+        previousRows.values.filter { (_, row) -> row.id !in currentIds }.sortedBy { it.first }
+            .forEach { (index, row) -> rendered.add(index.coerceAtMost(rendered.size), row) }
+        rendered.forEachIndexed { index, row ->
+            key(row.id) {
+                val visible = row.id in currentIds
+                val visibility = remember {
+                    MutableTransitionState(visible && (reducedMotion || row.id != highlightId))
+                }
+                visibility.targetState = visible
+                LaunchedEffect(visible, visibility.isIdle, visibility.currentState) {
+                    if (!visible && visibility.isIdle && !visibility.currentState) previousRows.remove(row.id)
+                }
+                val enter = if (reducedMotion || row.id != highlightId) Motion.expand() else {
+                    val offset = with(LocalDensity.current) { 6.dp.roundToPx() }
+                    Motion.expand() + slideInVertically(Motion.enter()) { -offset }
+                }
+                AnimatedVisibility(visibility, enter = enter, exit = Motion.collapse()) {
+                    Column {
+                        if (index > 0) HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = colors.outlineVariant)
+                        val category = categoryName(row.categoryKey, row.categoryName)
+                        val income = row.type == TransactionType.INCOME
+                        TransactionRow(
+                            title = row.note ?: category,
+                            subtitle = category.takeIf { row.note != null },
+                            icon = row.icon,
+                            amount = formatMoney(if (income) row.amountMinor else -row.amountMinor, locale, signed = true),
+                            income = income,
+                            recurring = row.recurring,
+                            onOpen = { onOpen(row.id) },
+                            onOpenReceipt = row.receiptPath?.let { path -> { onOpenReceipt(path) } },
+                            highlighted = row.id == highlightId,
+                            horizontalPadding = Spacing.lg,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

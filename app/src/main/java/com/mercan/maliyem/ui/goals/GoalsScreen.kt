@@ -1,22 +1,19 @@
 package com.mercan.maliyem.ui.goals
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -26,24 +23,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
 import com.mercan.maliyem.data.local.GoalBalance
 import com.mercan.maliyem.data.local.GoalEntryEntity
+import com.mercan.maliyem.ui.components.ActionTone
 import com.mercan.maliyem.ui.components.BackHeader
 import com.mercan.maliyem.ui.components.CardLabel
+import com.mercan.maliyem.ui.components.CategoryCircle
 import com.mercan.maliyem.ui.components.EmptyState
 import com.mercan.maliyem.ui.components.ScreenLoading
-import com.mercan.maliyem.ui.components.CategoryCircle
+import com.mercan.maliyem.ui.components.SeyirActionButton
 import com.mercan.maliyem.ui.components.SeyirButton
 import com.mercan.maliyem.ui.components.SeyirCard
+import com.mercan.maliyem.ui.components.SeyirFabClearance
+import com.mercan.maliyem.ui.components.SeyirListScaffold
 import com.mercan.maliyem.ui.components.SeyirSegmented
 import com.mercan.maliyem.ui.components.SubText
 import com.mercan.maliyem.ui.theme.LocalMoneyColors
 import com.mercan.maliyem.ui.theme.Motion
 import com.mercan.maliyem.ui.theme.Spacing
+import com.mercan.maliyem.ui.theme.seyirAnimateItem
 import com.mercan.maliyem.util.formatMoney
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -63,36 +65,50 @@ fun GoalsScreen(onBack: () -> Unit, onOpen: (Long) -> Unit, viewModel: GoalsView
             viewModel.resetWrite()
         }
     }
-    Column(Modifier.fillMaxSize().padding(top = Spacing.sm)) {
-        Column(Modifier.padding(horizontal = Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            BackHeader(stringResource(R.string.goals_title), onBack)
-            SeyirSegmented(
-                listOf(stringResource(R.string.goals_active), stringResource(R.string.account_archived)),
-                if (showArchived) 1 else 0,
-                { showArchived = it == 1 },
-            )
-        }
-        val shown = balances?.filter { it.goal.archived == showArchived }
-        if (shown == null) {
-            ScreenLoading()
-        } else {
-            LazyColumn(contentPadding = GoalPagePadding, verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                if (!showArchived && shown.isNotEmpty()) {
-                    item { NewGoalButton { creating = true } }
-                }
-                if (shown.isEmpty()) {
-                    item {
+    val listState = rememberLazyListState()
+    SeyirListScaffold(
+        addLabel = if (showArchived) null else stringResource(R.string.goal_new),
+        listState = listState,
+        onAdd = { creating = true },
+    ) {
+        Column(Modifier.fillMaxSize().padding(top = Spacing.sm)) {
+            Column(Modifier.padding(horizontal = Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                BackHeader(stringResource(R.string.goals_title), onBack)
+                SeyirSegmented(
+                    listOf(stringResource(R.string.goals_active), stringResource(R.string.account_archived)),
+                    if (showArchived) 1 else 0,
+                    { showArchived = it == 1 },
+                )
+            }
+            val shown = balances?.filter { it.goal.archived == showArchived }
+            if (shown == null) {
+                ScreenLoading()
+            } else {
+                Box(Modifier.weight(1f)) {
+                    LazyColumn(
+                        Modifier.fillMaxSize(),
+                        state = listState,
+                        contentPadding = PaddingValues(
+                            start = Spacing.lg, top = Spacing.md, end = Spacing.lg,
+                            bottom = if (showArchived) Spacing.md else SeyirFabClearance,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                    ) {
+                        items(shown, key = { it.goal.id }) { balance ->
+                            GoalStatusCard(balance, today, seyirAnimateItem(), onClick = { onOpen(balance.goal.id) })
+                        }
+                    }
+                    if (shown.isEmpty()) {
                         EmptyState(
                             R.drawable.ic_seyir_cat_piggy,
                             stringResource(if (showArchived) R.string.goals_no_archived else R.string.goals_no_active),
                             stringResource(if (showArchived) R.string.goals_no_archived_body else R.string.goals_no_active_body),
-                        ) {
-                            if (!showArchived) NewGoalButton { creating = true }
-                        }
+                            Modifier.fillMaxSize().padding(
+                                start = Spacing.lg, end = Spacing.lg,
+                                bottom = if (showArchived) 0.dp else SeyirFabClearance,
+                            ),
+                        )
                     }
-                }
-                items(shown, key = { it.goal.id }) { balance ->
-                    GoalStatusCard(balance, today, Modifier.clickable(role = Role.Button) { onOpen(balance.goal.id) })
                 }
             }
         }
@@ -104,10 +120,6 @@ fun GoalsScreen(onBack: () -> Unit, onOpen: (Long) -> Unit, viewModel: GoalsView
         }, onSave = viewModel::save)
     }
 }
-
-@Composable
-private fun NewGoalButton(onClick: () -> Unit) =
-    SeyirButton(stringResource(R.string.goal_new), onClick, icon = R.drawable.ic_seyir_plus)
 
 private enum class GoalDialog { EDIT, DEPOSIT, WITHDRAW, DELETE }
 private val GoalPagePadding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.md)
@@ -146,44 +158,57 @@ fun GoalDetailScreen(onBack: () -> Unit, viewModel: GoalsViewModel = hiltViewMod
             else -> {
                 val goal = detail.balance.goal
                 LazyColumn(contentPadding = GoalPagePadding, verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                    item { GoalStatusCard(detail.balance, today) }
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    item(key = "goal-status") { GoalStatusCard(detail.balance, today, seyirAnimateItem()) }
+                    item(key = "goal-actions") {
+                        Column(seyirAnimateItem(), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                             if (goal.archived) {
                                 SubText(stringResource(R.string.goal_archived_hint))
                             } else {
-                                FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                                     SeyirButton(stringResource(R.string.goal_deposit), { open(GoalDialog.DEPOSIT) },
                                         enabled = !write.busy, icon = R.drawable.ic_seyir_plus)
-                                    SeyirButton(stringResource(R.string.goal_withdraw), { open(GoalDialog.WITHDRAW) },
-                                        enabled = !write.busy && detail.balance.savedMinor > 0, tonal = true)
+                                    SeyirActionButton(stringResource(R.string.goal_withdraw), { open(GoalDialog.WITHDRAW) },
+                                        icon = R.drawable.ic_seyir_arrow_out, enabled = !write.busy && detail.balance.savedMinor > 0)
                                 }
                                 SubText(stringResource(R.string.goal_balance_hint))
                             }
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                                TextButton({ open(GoalDialog.EDIT) }, enabled = !write.busy) {
-                                    Text(stringResource(R.string.detail_edit))
-                                }
-                                TextButton({ viewModel.archive(!goal.archived) }, enabled = !write.busy) {
-                                    Text(stringResource(if (goal.archived) R.string.account_unarchive else R.string.account_archive))
-                                }
-                                TextButton({ open(GoalDialog.DELETE) }, enabled = !write.busy) {
-                                    Text(stringResource(R.string.detail_delete), color = MaterialTheme.colorScheme.error)
-                                }
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                            ) {
+                                SeyirActionButton(
+                                    stringResource(R.string.detail_edit), { open(GoalDialog.EDIT) },
+                                    icon = R.drawable.ic_seyir_edit, enabled = !write.busy,
+                                )
+                                SeyirActionButton(
+                                    stringResource(if (goal.archived) R.string.account_unarchive else R.string.account_archive),
+                                    { viewModel.archive(!goal.archived) },
+                                    icon = if (goal.archived) R.drawable.ic_seyir_arrow_out else R.drawable.ic_seyir_archive,
+                                    enabled = !write.busy,
+                                )
+                                SeyirActionButton(
+                                    stringResource(R.string.detail_delete), { open(GoalDialog.DELETE) },
+                                    icon = R.drawable.ic_seyir_trash, tone = ActionTone.Danger, enabled = !write.busy,
+                                )
                             }
                             if (dialog == null) GoalWriteError(write.error)
                         }
                     }
-                    item {
-                        CardLabel(stringResource(R.string.goal_history))
-                        if (detail.entries.isEmpty()) {
-                            SubText(stringResource(R.string.goal_history_empty), Modifier.padding(top = Spacing.sm))
+                    item(key = "goal-history") {
+                        Column(seyirAnimateItem()) { CardLabel(stringResource(R.string.goal_history)) }
+                    }
+                    if (detail.entries.isEmpty()) {
+                        item(key = "goal-history-empty") {
+                            EmptyState(
+                                R.drawable.ic_seyir_note, stringResource(R.string.goal_history_empty), "",
+                                seyirAnimateItem().fillParentMaxHeight(.35f).padding(vertical = Spacing.md),
+                            )
                         }
                     }
                     items(
                         detail.entries.sortedWith(compareByDescending<GoalEntryEntity> { it.date }.thenByDescending { it.id }),
                         key = { it.id },
-                    ) { entry -> GoalEntryRow(entry) }
+                    ) { entry -> GoalEntryRow(entry, seyirAnimateItem()) }
                 }
 
                 when (dialog) {
@@ -199,11 +224,11 @@ fun GoalDetailScreen(onBack: () -> Unit, viewModel: GoalsViewModel = hiltViewMod
 }
 
 @Composable
-private fun GoalStatusCard(balance: GoalBalance, today: LocalDate, modifier: Modifier = Modifier) {
+private fun GoalStatusCard(balance: GoalBalance, today: LocalDate, modifier: Modifier, onClick: (() -> Unit)? = null) {
     val locale = LocalConfiguration.current.locales[0]
     val goal = balance.goal
     val progress = balance.progress(today)
-    SeyirCard(modifier) {
+    SeyirCard(modifier, onClick = onClick) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             GoalHeading(balance, progress)
             GoalProgressBar(progress.percent)
@@ -216,7 +241,7 @@ private fun GoalStatusCard(balance: GoalBalance, today: LocalDate, modifier: Mod
             progress.monthlyMinor?.let { SubText(stringResource(R.string.goal_monthly, formatMoney(it, locale))) }
             if (progress.overdue) SubText(stringResource(R.string.goal_overdue))
             val moneyColors = LocalMoneyColors.current
-            AnimatedVisibility(progress.complete, enter = fadeIn(Motion.enter()), exit = fadeOut(Motion.fast())) {
+            AnimatedVisibility(progress.complete, enter = Motion.expand(), exit = Motion.collapse()) {
                 Text(
                     stringResource(R.string.goal_complete),
                     color = moneyColors.onIncomeContainer,
@@ -228,10 +253,10 @@ private fun GoalStatusCard(balance: GoalBalance, today: LocalDate, modifier: Mod
 }
 
 @Composable
-private fun GoalEntryRow(entry: GoalEntryEntity) {
+private fun GoalEntryRow(entry: GoalEntryEntity, modifier: Modifier) {
     val locale = LocalConfiguration.current.locales[0]
     val deposit = entry.amountMinor > 0
-    SeyirCard {
+    SeyirCard(modifier) {
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
             CategoryCircle(if (deposit) R.drawable.ic_seyir_arrow_in else R.drawable.ic_seyir_arrow_out)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {

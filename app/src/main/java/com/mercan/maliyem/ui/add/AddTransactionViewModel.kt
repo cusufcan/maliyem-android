@@ -29,7 +29,6 @@ import javax.inject.Inject
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +38,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val KEY_TYPE = "type"
 private const val KEY_TYPE_CHANGED = "typeChanged"
@@ -60,9 +60,6 @@ private const val KEY_RECEIPT = "receipt"
 private const val KEY_CAMERA_CAPTURE = "receiptCapture"
 private const val KEY_RECEIPT_TOUCHED = "receiptTouched"
 private const val KEY_RECEIPT_FILLED = "receiptFilled"
-private const val RECEIPT_AMOUNT = 1
-private const val RECEIPT_DATE = 2
-private const val RECEIPT_NOTE = 4
 
 data class AddUiState(
     val form: AddForm,
@@ -252,35 +249,25 @@ class AddTransactionViewModel @Inject constructor(
     }
 
     private fun applyReceiptSuggestion(suggestion: ReceiptSuggestion) {
+        val fields = currentReceiptFields()
         val touched = savedState.get<Int>(KEY_RECEIPT_TOUCHED) ?: 0
-        var filled = receiptFilled.value
-        if (suggestion.amountMinor != null && amount.value.isEmpty() && touched and RECEIPT_AMOUNT == 0) {
-            val locale = Locale.forLanguageTag(amountLocale.value)
-            savedState[KEY_AMOUNT] = amountInputText(suggestion.amountMinor, locale)
-            filled = filled or RECEIPT_AMOUNT
-        }
-        val today = LocalDate.now(clock)
-        // A new dated entry cannot be in the future when it has a receipt.
-        if (suggestion.date != null && suggestion.date < today && date.value == null &&
-            touched and RECEIPT_DATE == 0
-        ) {
-            savedState[KEY_DATE] = suggestion.date.toString()
-            filled = filled or RECEIPT_DATE
-        }
-        if (suggestion.merchant != null && note.value.isEmpty() && touched and RECEIPT_NOTE == 0) {
-            savedState[KEY_NOTE] = suggestion.merchant
-            filled = filled or RECEIPT_NOTE
-        }
-        savedState[KEY_RECEIPT_FILLED] = filled
+        val updated = fields.withSuggestion(suggestion, touched, LocalDate.now(clock), Locale.forLanguageTag(amountLocale.value))
+        saveReceiptFields(fields, updated)
     }
 
     fun undoReceiptSuggestion() {
         if (_saving.value) return
-        val filled = receiptFilled.value
-        if (filled and RECEIPT_AMOUNT != 0) savedState[KEY_AMOUNT] = ""
-        if (filled and RECEIPT_DATE != 0) savedState[KEY_DATE] = null
-        if (filled and RECEIPT_NOTE != 0) savedState[KEY_NOTE] = ""
-        savedState[KEY_RECEIPT_FILLED] = 0
+        val fields = currentReceiptFields()
+        saveReceiptFields(fields, fields.withoutSuggestion())
+    }
+
+    private fun currentReceiptFields() = ReceiptFields(amount.value, date.value, note.value, receiptFilled.value)
+
+    private fun saveReceiptFields(previous: ReceiptFields, updated: ReceiptFields) {
+        if (updated.amount != previous.amount) savedState[KEY_AMOUNT] = updated.amount
+        if (updated.date != previous.date) savedState[KEY_DATE] = updated.date
+        if (updated.note != previous.note) savedState[KEY_NOTE] = updated.note
+        savedState[KEY_RECEIPT_FILLED] = updated.filled
     }
 
     private fun touchReceiptField(field: Int) {

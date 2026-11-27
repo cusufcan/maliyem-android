@@ -21,13 +21,11 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,22 +36,21 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.mercan.maliyem.R
+import com.mercan.maliyem.data.local.RecurringFrequency
 import com.mercan.maliyem.data.local.TransactionType
-import com.mercan.maliyem.ui.components.ReceiptViewer
 import com.mercan.maliyem.ui.accounts.AccountsScreen
 import com.mercan.maliyem.ui.add.AddTransactionSheet
 import com.mercan.maliyem.ui.add.AddTransactionViewModel
@@ -61,15 +58,17 @@ import com.mercan.maliyem.ui.breakdown.BreakdownScreen
 import com.mercan.maliyem.ui.budgets.BudgetsScreen
 import com.mercan.maliyem.ui.budgets.OVERALL_BUDGET
 import com.mercan.maliyem.ui.categories.CategoriesScreen
+import com.mercan.maliyem.ui.components.ReceiptViewer
+import com.mercan.maliyem.ui.components.SeyirAddFab
+import com.mercan.maliyem.ui.components.SeyirBackdrop
+import com.mercan.maliyem.ui.csvimport.CsvImportScreen
 import com.mercan.maliyem.ui.detail.TransactionDetailScreen
 import com.mercan.maliyem.ui.goals.GoalDetailScreen
 import com.mercan.maliyem.ui.goals.GoalsScreen
 import com.mercan.maliyem.ui.recurring.RecurringRuleScreen
 import com.mercan.maliyem.ui.recurring.RecurringScreen
-import com.mercan.maliyem.ui.csvimport.CsvImportScreen
 import com.mercan.maliyem.ui.settings.SettingsScreen
 import com.mercan.maliyem.ui.summary.SummaryScreen
-import com.mercan.maliyem.ui.theme.SeyirIcon
 import com.mercan.maliyem.ui.theme.SeyirTab
 import com.mercan.maliyem.ui.theme.SeyirTabIndicatorHeight
 import com.mercan.maliyem.ui.theme.SeyirTabIndicatorWidth
@@ -112,6 +111,8 @@ fun MaliyemNavHost(
     val backStackEntry by nav.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
     val activeTab = when {
+        destination?.hasRoute(YearlyReport::class) == true ->
+            tabIndexOf(nav.previousBackStackEntry?.destination).coerceAtLeast(0)
         destination?.hasRoute(Categories::class) == true || destination?.hasRoute(Accounts::class) == true ||
             destination?.hasRoute(Recurring::class) == true || destination?.hasRoute(Budgets::class) == true -> tabs.lastIndex
         destination?.hasRoute(SavingsGoals::class) == true ->
@@ -204,14 +205,7 @@ fun MaliyemNavHost(
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             if (showFab) {
-                ExtendedFloatingActionButton(
-                    onClick = { openSheet() },
-                    icon = { SeyirIcon(R.drawable.ic_seyir_plus) },
-                    text = { Text(stringResource(R.string.add_open), fontWeight = FontWeight.SemiBold) },
-                    shape = MaterialTheme.shapes.medium,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                )
+                SeyirAddFab(stringResource(R.string.add_open), onClick = { openSheet() })
             }
         },
         bottomBar = bottomBar@{
@@ -245,102 +239,119 @@ fun MaliyemNavHost(
             }
         },
     ) { padding ->
-        NavHost(
-            nav,
-            startDestination = Summary,
-            modifier = Modifier.fillMaxSize().padding(padding),
-            enterTransition = { fadeIn(tween(TabTransitionMillis)) },
-            exitTransition = { fadeOut(tween(TabTransitionMillis)) },
-        ) {
-            composable<Summary> {
-                SummaryScreen(
-                    highlightId = highlightId,
-                    firstLaunch = hasData == false,
-                    onSeeAll = { openTab(Transactions) },
-                    onOpenBudget = { nav.navigate(BudgetTransactions(it ?: OVERALL_BUDGET)) },
-                    onOpenGoals = { nav.navigate(SavingsGoals()) },
-                    onOpenYearlyReport = { nav.navigate(YearlyReport) { launchSingleTop = true } },
-                    onOpen = { nav.navigate(TransactionDetail(it)) },
-                    onOpenReceipt = { viewingReceipt = it },
-                    onAdd = { openSheet() },
-                )
+        Box(Modifier.fillMaxSize().padding(padding).background(MaterialTheme.colorScheme.background)) {
+            val route = destination?.route?.substringBefore('?')?.substringBefore('/')
+            SeyirBackdrop((route ?: Summary::class.qualifiedName).hashCode(), Modifier.matchParentSize())
+            NavHost(
+                nav,
+                startDestination = Summary,
+                modifier = Modifier.fillMaxSize(),
+                enterTransition = { fadeIn(tween(TabTransitionMillis)) },
+                exitTransition = { fadeOut(tween(TabTransitionMillis)) },
+            ) {
+                composable<Summary> {
+                    SummaryScreen(
+                        highlightId = highlightId,
+                        firstLaunch = hasData == false,
+                        onSeeAll = { openTab(Transactions) },
+                        onOpenBudget = { nav.navigate(BudgetTransactions(it ?: OVERALL_BUDGET)) },
+                        onOpenGoals = { nav.navigate(SavingsGoals()) },
+                        onOpenYearlyReport = { nav.navigate(YearlyReport) { launchSingleTop = true } },
+                        onOpen = { nav.navigate(TransactionDetail(it)) },
+                        onOpenReceipt = { viewingReceipt = it },
+                        onAdd = { openSheet() },
+                    )
+                }
+                composable<YearlyReport> {
+                    YearlyReportScreen(
+                        onBack = { nav.popBackStack() },
+                        showMessage = { snackbar.showSnackbar(it) },
+                    )
+                }
+                composable<Transactions> {
+                    TransactionsScreen(
+                        highlightId = highlightId,
+                        onOpen = { nav.navigate(TransactionDetail(it)) },
+                        onOpenReceipt = { viewingReceipt = it },
+                        onOpenTransfer = { nav.navigate(TransactionDetail(it, transfer = true)) },
+                        highlightTransferId = highlightTransferId,
+                    )
+                }
+                composable<BudgetTransactions> {
+                    TransactionsScreen(
+                        highlightId = highlightId,
+                        onOpen = { nav.navigate(TransactionDetail(it)) },
+                        onOpenReceipt = { viewingReceipt = it },
+                        onOpenTransfer = { nav.navigate(TransactionDetail(it, transfer = true)) },
+                        highlightTransferId = highlightTransferId,
+                        onBack = { nav.popBackStack() },
+                    )
+                }
+                composable<Breakdown> {
+                    BreakdownScreen(onOpenCategory = { id, month, type ->
+                        nav.navigate(BudgetTransactions(id, month.toString(), type.name)) { launchSingleTop = true }
+                    })
+                }
+                composable<Settings> {
+                    SettingsScreen(
+                        onCategories = { nav.navigate(Categories) },
+                        onAccounts = { nav.navigate(Accounts) },
+                        onRecurring = { nav.navigate(Recurring) },
+                        onBudgets = { nav.navigate(Budgets) },
+                        onGoals = { nav.navigate(SavingsGoals(fromSettings = true)) },
+                        onOpenYearlyReport = { nav.navigate(YearlyReport) { launchSingleTop = true } },
+                        onImportCsv = { nav.navigate(CsvImport(it.toString())) { launchSingleTop = true } },
+                        snackbar = snackbar,
+                        restoreWithUndoCleared = app::restoreWithUndoCleared,
+                        securityCard = securityCard,
+                        notificationsCard = notificationsCard,
+                    )
+                }
+                composable<CsvImport> {
+                    CsvImportScreen(onExit = { nav.popBackStack() })
+                }
+                composable<TransactionDetail> { entry ->
+                    val route = entry.toRoute<TransactionDetail>()
+                    TransactionDetailScreen(
+                        onBack = { nav.popBackStack() },
+                        onEdit = { openSheet(route.id, route.transfer) },
+                        onOpenReceipt = { viewingReceipt = it },
+                        onOpenRule = { nav.navigate(RecurringRule(it, activeTab)) },
+                        onDeleted = { action ->
+                            if (nav.currentBackStackEntry == entry) nav.popBackStack()
+                            app.offerUndo(action)
+                        },
+                    )
+                }
+                composable<Recurring> {
+                    RecurringScreen(
+                        onBack = { nav.popBackStack() },
+                        onOpen = { nav.navigate(RecurringRule(it)) },
+                        onAdd = {
+                            if (!add.hasDraft) add.setFrequency(RecurringFrequency.MONTHLY)
+                            openSheet()
+                        },
+                    )
+                }
+                composable<RecurringRule> { entry ->
+                    RecurringRuleScreen(entry.toRoute<RecurringRule>().id, onBack = { nav.popBackStack() })
+                }
+                composable<Accounts> { AccountsScreen(onBack = { nav.popBackStack() }) }
+                composable<Budgets> {
+                    BudgetsScreen(onBack = { nav.popBackStack() }, onBudgetCreated = onBudgetCreated)
+                }
+                composable<SavingsGoals> { entry ->
+                    val route = entry.toRoute<SavingsGoals>()
+                    GoalsScreen(
+                        onBack = { nav.popBackStack() },
+                        onOpen = { nav.navigate(SavingsGoalDetail(it, route.fromSettings)) },
+                    )
+                }
+                composable<SavingsGoalDetail> {
+                    GoalDetailScreen(onBack = { nav.popBackStack() })
+                }
+                composable<Categories> { CategoriesScreen(onBack = { nav.popBackStack() }) }
             }
-            composable<YearlyReport> {
-                YearlyReportScreen(
-                    onBack = { nav.popBackStack() },
-                    showMessage = { snackbar.showSnackbar(it) },
-                )
-            }
-            composable<Transactions> {
-                TransactionsScreen(
-                    highlightId = highlightId,
-                    onOpen = { nav.navigate(TransactionDetail(it)) },
-                    onOpenReceipt = { viewingReceipt = it },
-                    onOpenTransfer = { nav.navigate(TransactionDetail(it, transfer = true)) },
-                    highlightTransferId = highlightTransferId,
-                )
-            }
-            composable<BudgetTransactions> {
-                TransactionsScreen(
-                    highlightId = highlightId,
-                    onOpen = { nav.navigate(TransactionDetail(it)) },
-                    onOpenReceipt = { viewingReceipt = it },
-                    onOpenTransfer = { nav.navigate(TransactionDetail(it, transfer = true)) },
-                    highlightTransferId = highlightTransferId,
-                )
-            }
-            composable<Breakdown> { BreakdownScreen() }
-            composable<Settings> {
-                SettingsScreen(
-                    onCategories = { nav.navigate(Categories) },
-                    onAccounts = { nav.navigate(Accounts) },
-                    onRecurring = { nav.navigate(Recurring) },
-                    onBudgets = { nav.navigate(Budgets) },
-                    onGoals = { nav.navigate(SavingsGoals(fromSettings = true)) },
-                    onImportCsv = { nav.navigate(CsvImport(it.toString())) { launchSingleTop = true } },
-                    snackbar = snackbar,
-                    restoreWithUndoCleared = app::restoreWithUndoCleared,
-                    securityCard = securityCard,
-                    notificationsCard = notificationsCard,
-                )
-            }
-            composable<CsvImport> {
-                CsvImportScreen(onExit = { nav.popBackStack() })
-            }
-            composable<TransactionDetail> { entry ->
-                val route = entry.toRoute<TransactionDetail>()
-                TransactionDetailScreen(
-                    onBack = { nav.popBackStack() },
-                    onEdit = { openSheet(route.id, route.transfer) },
-                    onOpenReceipt = { viewingReceipt = it },
-                    onOpenRule = { nav.navigate(RecurringRule(it, activeTab)) },
-                    onDeleted = { action ->
-                        if (nav.currentBackStackEntry == entry) nav.popBackStack()
-                        app.offerUndo(action)
-                    },
-                )
-            }
-            composable<Recurring> {
-                RecurringScreen(onBack = { nav.popBackStack() }, onOpen = { nav.navigate(RecurringRule(it)) })
-            }
-            composable<RecurringRule> { entry ->
-                RecurringRuleScreen(entry.toRoute<RecurringRule>().id, onBack = { nav.popBackStack() })
-            }
-            composable<Accounts> { AccountsScreen(onBack = { nav.popBackStack() }) }
-            composable<Budgets> {
-                BudgetsScreen(onBack = { nav.popBackStack() }, onBudgetCreated = onBudgetCreated)
-            }
-            composable<SavingsGoals> { entry ->
-                val route = entry.toRoute<SavingsGoals>()
-                GoalsScreen(
-                    onBack = { nav.popBackStack() },
-                    onOpen = { nav.navigate(SavingsGoalDetail(it, route.fromSettings)) },
-                )
-            }
-            composable<SavingsGoalDetail> {
-                GoalDetailScreen(onBack = { nav.popBackStack() })
-            }
-            composable<Categories> { CategoriesScreen(onBack = { nav.popBackStack() }) }
         }
     }
 

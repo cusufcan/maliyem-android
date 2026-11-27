@@ -8,15 +8,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.ui.semantics.Role
-import com.mercan.maliyem.ui.categories.CategoryDialog
-import com.mercan.maliyem.ui.components.SeyirChip
-import com.mercan.maliyem.ui.theme.LocalMoneyColors
-import com.mercan.maliyem.ui.theme.Motion
-import com.mercan.maliyem.ui.theme.countSlide
-import com.mercan.maliyem.ui.theme.crossFade
-import com.mercan.maliyem.ui.theme.slideFade
-import com.mercan.maliyem.util.formatMoney
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,7 +16,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,10 +23,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -54,12 +44,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,11 +61,12 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -84,23 +76,33 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.mercan.maliyem.ui.components.SeyirSegmented
-import com.mercan.maliyem.ui.components.categoryName
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
+import com.mercan.maliyem.data.local.CategoryEntity
+import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.ui.accounts.AccountPicker
+import com.mercan.maliyem.ui.categories.CategoryDialog
+import com.mercan.maliyem.ui.components.ActionTone
 import com.mercan.maliyem.ui.components.DateSelectionDialog
 import com.mercan.maliyem.ui.components.ReceiptThumbnail
 import com.mercan.maliyem.ui.components.ReceiptViewer
 import com.mercan.maliyem.ui.components.SettingRow
+import com.mercan.maliyem.ui.components.SeyirActionButton
+import com.mercan.maliyem.ui.components.SeyirChip
+import com.mercan.maliyem.ui.components.SeyirSegmented
 import com.mercan.maliyem.ui.components.SubText
+import com.mercan.maliyem.ui.components.categoryName
 import com.mercan.maliyem.ui.recurring.FrequencyPicker
-import com.mercan.maliyem.data.local.CategoryEntity
-import com.mercan.maliyem.data.local.TransactionType
+import com.mercan.maliyem.ui.theme.LocalMoneyColors
 import com.mercan.maliyem.ui.theme.MoneyInputValue
+import com.mercan.maliyem.ui.theme.Motion
 import com.mercan.maliyem.ui.theme.SeyirIcon
 import com.mercan.maliyem.ui.theme.Spacing
 import com.mercan.maliyem.ui.theme.categoryIcon
+import com.mercan.maliyem.ui.theme.countSlide
+import com.mercan.maliyem.ui.theme.crossFade
+import com.mercan.maliyem.ui.theme.slideFade
+import com.mercan.maliyem.util.formatMoney
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -284,16 +286,15 @@ private fun AddTransactionContent(
         if (receiptFilled != 0) {
             FlowRow(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                 itemVerticalAlignment = Alignment.CenterVertically,
             ) {
                 SubText(
                     stringResource(R.string.receipt_filled),
                     Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 )
-                TextButton(viewModel::undoReceiptSuggestion, enabled = !saving) {
-                    Text(stringResource(R.string.add_undo))
-                }
+                SeyirActionButton(stringResource(R.string.add_undo), viewModel::undoReceiptSuggestion, enabled = !saving)
             }
         }
         if (writeFailed) WriteError()
@@ -354,11 +355,18 @@ private fun ReceiptField(
             )
             Column {
                 Text(stringResource(R.string.receipt_photo), style = MaterialTheme.typography.bodyLarge)
-                FlowRow {
-                    TextButton({ choosing = true }, enabled = enabled && !futureRule) {
-                        Text(stringResource(R.string.receipt_replace))
-                    }
-                    TextButton(onRemove, enabled = enabled) { Text(stringResource(R.string.receipt_remove)) }
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    SeyirActionButton(
+                        stringResource(R.string.receipt_replace), { choosing = true },
+                        icon = R.drawable.ic_seyir_receipt, enabled = enabled && !futureRule,
+                    )
+                    SeyirActionButton(
+                        stringResource(R.string.receipt_remove), onRemove,
+                        icon = R.drawable.ic_seyir_trash, tone = ActionTone.Danger, enabled = enabled,
+                    )
                 }
             }
         }
@@ -590,7 +598,10 @@ private fun DateRow(
     val full = remember(date, isToday, locale) {
         DateTimeFormatter.ofPattern(if (isToday) "d MMMM EEEE" else "EEEE", locale).format(date)
     }
-    SheetRow(R.drawable.ic_seyir_calendar, Modifier.clickable(role = Role.Button) { open = true }) {
+    SheetRow(
+        R.drawable.ic_seyir_calendar,
+        Modifier.clip(MaterialTheme.shapes.small).clickable(role = Role.Button) { open = true },
+    ) {
         Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         Text(full, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
     }

@@ -84,10 +84,10 @@ fun TransactionRow(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
                 Box(
-                    Modifier.size(40.dp).background(colors.secondaryContainer, CircleShape),
+                    Modifier.size(40.dp).background(colors.primaryContainer, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    SeyirIcon(categoryIcon(icon), tint = colors.onSecondaryContainer)
+                    SeyirIcon(categoryIcon(icon), tint = colors.onPrimaryContainer)
                 }
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {

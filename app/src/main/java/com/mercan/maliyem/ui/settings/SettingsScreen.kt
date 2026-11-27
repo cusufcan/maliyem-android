@@ -32,13 +32,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
 import com.mercan.maliyem.ui.components.CardLabel
 import com.mercan.maliyem.ui.components.ScreenTitle
-import com.mercan.maliyem.ui.components.SeyirCard
-import com.mercan.maliyem.ui.components.SeyirSegmented
 import com.mercan.maliyem.ui.components.SettingRow
 import com.mercan.maliyem.ui.components.SettingSwitch
+import com.mercan.maliyem.ui.components.SeyirCard
+import com.mercan.maliyem.ui.components.SeyirSegmented
 import com.mercan.maliyem.ui.theme.Spacing
-import java.time.LocalDate
 import com.mercan.maliyem.util.formatMoney
+import java.time.LocalDate
 import kotlinx.coroutines.launch
 
 @Composable
@@ -48,6 +48,7 @@ fun SettingsScreen(
     onRecurring: () -> Unit,
     onBudgets: () -> Unit,
     onGoals: () -> Unit,
+    onOpenYearlyReport: () -> Unit,
     onImportCsv: (Uri) -> Unit,
     snackbar: SnackbarHostState,
     restoreWithUndoCleared: suspend (suspend () -> Unit) -> Unit,
@@ -85,7 +86,7 @@ fun SettingsScreen(
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
     }
     val divider = MaterialTheme.colorScheme.outlineVariant
-    val rows = PaddingValues(horizontal = Spacing.lg)
+    val rows = PaddingValues()
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState())
@@ -96,33 +97,39 @@ fun SettingsScreen(
         SeyirCard(padding = rows) {
             SettingRow(
                 R.drawable.ic_seyir_tag, stringResource(R.string.settings_categories),
-                value = count?.toString(), onClick = onCategories, horizontalPadding = 0.dp,
+                value = count?.toString(), onClick = onCategories,
             )
-            HorizontalDivider(color = divider)
+            HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = divider)
             SettingRow(
                 R.drawable.ic_seyir_wallet, stringResource(R.string.settings_accounts),
-                value = accountCount?.toString(), onClick = onAccounts, horizontalPadding = 0.dp,
+                value = accountCount?.toString(), onClick = onAccounts,
             )
-            HorizontalDivider(color = divider)
+            HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = divider)
             SettingRow(
                 R.drawable.ic_seyir_repeat, stringResource(R.string.settings_recurring),
-                value = recurringCount?.toString(), onClick = onRecurring, horizontalPadding = 0.dp,
+                value = recurringCount?.toString(), onClick = onRecurring,
             )
-            HorizontalDivider(color = divider)
+            HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = divider)
             SettingRow(
                 R.drawable.ic_seyir_breakdown, stringResource(R.string.settings_budgets),
-                onClick = onBudgets, horizontalPadding = 0.dp,
+                onClick = onBudgets,
             )
-            HorizontalDivider(color = divider)
+            HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = divider)
             SettingRow(
                 R.drawable.ic_seyir_cat_piggy, stringResource(R.string.goals_title),
-                onClick = onGoals, horizontalPadding = 0.dp,
+                onClick = onGoals,
             )
-            HorizontalDivider(color = divider)
+            HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = divider)
             SettingRow(
-                R.drawable.ic_seyir_wallet, stringResource(R.string.settings_currency),
-                value = stringResource(R.string.settings_currency_value), horizontalPadding = 0.dp,
+                R.drawable.ic_seyir_cat_percent, stringResource(R.string.settings_currency),
+                value = stringResource(R.string.settings_currency_value),
             )
+        }
+        SeyirCard(padding = rows) {
+            Column(Modifier.padding(start = Spacing.lg, top = Spacing.lg)) {
+                CardLabel(stringResource(R.string.settings_reports))
+            }
+            SettingRow(R.drawable.ic_seyir_cat_chart, stringResource(R.string.yearly_report), onClick = onOpenYearlyReport)
         }
         SeyirCard {
             CardLabel(stringResource(R.string.settings_theme))
@@ -151,28 +158,28 @@ fun SettingsScreen(
         SeyirCard(padding = rows) {
             SettingRow(
                 R.drawable.ic_seyir_lock, stringResource(R.string.settings_data),
-                subtitle = stringResource(R.string.settings_data_body), horizontalPadding = 0.dp,
+                subtitle = stringResource(R.string.settings_data_body),
             )
-            HorizontalDivider(color = divider)
+            HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = divider)
             SettingRow(
                 R.drawable.ic_seyir_arrow_out, stringResource(R.string.settings_backup),
                 subtitle = stringResource(R.string.receipt_backup_note),
                 onClick = { backupPicker.launch("maliyem-yedek-${LocalDate.now()}.json") },
-                horizontalPadding = 0.dp, enabled = !dataBusy,
+                enabled = !dataBusy,
             )
-            HorizontalDivider(color = divider)
+            HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = divider)
             SettingRow(
                 R.drawable.ic_seyir_arrow_in, stringResource(R.string.settings_restore),
                 onClick = { restorePicker.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
-                horizontalPadding = 0.dp, enabled = !dataBusy,
+                enabled = !dataBusy,
             )
-            HorizontalDivider(color = divider)
+            HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = divider)
             SettingRow(
                 R.drawable.ic_seyir_note, stringResource(R.string.settings_csv),
                 onClick = { csvPicker.launch("maliyem-${LocalDate.now()}.csv") },
-                horizontalPadding = 0.dp, enabled = !dataBusy,
+                enabled = !dataBusy,
             )
-            HorizontalDivider(color = divider)
+            HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = divider)
             SettingRow(
                 R.drawable.ic_seyir_arrow_in, stringResource(R.string.csv_import),
                 onClick = {
@@ -182,10 +189,10 @@ fun SettingsScreen(
                         scope.launch { snackbar.showSnackbar(resources.getString(R.string.csv_unreadable)) }
                     }
                 },
-                horizontalPadding = 0.dp, enabled = !dataBusy,
+                enabled = !dataBusy,
             )
-            HorizontalDivider(color = divider)
-            SettingRow(null, stringResource(R.string.settings_version), value = version, horizontalPadding = 0.dp)
+            HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = divider)
+            SettingRow(null, stringResource(R.string.settings_version), value = version)
         }
     }
     pendingBackup?.let { pending ->

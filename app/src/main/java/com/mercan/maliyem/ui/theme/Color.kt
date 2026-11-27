@@ -6,24 +6,28 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
-// Seyir paleti (Kilo Takibi ile aynı); ekranlar MaterialTheme.colorScheme'den okur.
+// Maliyem’in Seyir paleti.
 val LightColors = lightColorScheme(
-    primary = Color(0xFF6200EE),
+    primary = Color(0xFF6A3DE8),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFEDDCFF),
-    onPrimaryContainer = Color(0xFF22005D),
-    secondary = Color(0xFF7C6299),
+    primaryContainer = Color(0xFFE6DBFF),
+    onPrimaryContainer = Color(0xFF23005C),
+    secondary = Color(0xFF00897B),
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFDECAF1),
-    onSecondaryContainer = Color(0xFF1D192B),
-    background = Color(0xFFFCF8FF),
+    secondaryContainer = Color(0xFFC8F0EA),
+    onSecondaryContainer = Color(0xFF00201C),
+    tertiary = Color(0xFFE8664A),
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFFFDBD1),
+    onTertiaryContainer = Color(0xFF3B0900),
+    background = Color(0xFFFBF8FF),
     onBackground = Color(0xFF1D1A21),
-    surface = Color(0xFFFCF8FF),
+    surface = Color(0xFFFBF8FF),
     onSurface = Color(0xFF1D1A21),
-    surfaceVariant = Color(0xFFE7E0EF),
-    surfaceContainerLow = Color(0xFFF7F2FB),
-    surfaceContainer = Color(0xFFF1ECF5),
-    surfaceContainerHigh = Color(0xFFECE6F1),
+    surfaceVariant = Color(0xFFE5DEF3),
+    surfaceContainerLow = Color(0xFFF6F1FF),
+    surfaceContainer = Color(0xFFEFE9FB),
+    surfaceContainerHigh = Color(0xFFE8E1F7),
     onSurfaceVariant = Color(0xFF4F4559),
     outline = Color(0xFF7F7389),
     outlineVariant = Color(0xFFD6CFDD),
@@ -31,22 +35,26 @@ val LightColors = lightColorScheme(
 )
 
 val DarkColors = darkColorScheme(
-    primary = Color(0xFFDBB8FF),
-    onPrimary = Color(0xFF381E72),
-    primaryContainer = Color(0xFF3C245B),
-    onPrimaryContainer = Color(0xFFEDDCFF),
-    secondary = Color(0xFFAA96BF),
-    onSecondary = Color(0xFF332D41),
-    secondaryContainer = Color(0xFF4D336E),
-    onSecondaryContainer = Color(0xFFE8DEF8),
-    background = Color(0xFF151218),
+    primary = Color(0xFFCDB8FF),
+    onPrimary = Color(0xFF36007F),
+    primaryContainer = Color(0xFF4E2BB8),
+    onPrimaryContainer = Color(0xFFE8DDFF),
+    secondary = Color(0xFF6FD8C8),
+    onSecondary = Color(0xFF003731),
+    secondaryContainer = Color(0xFF005047),
+    onSecondaryContainer = Color(0xFF8EF5E4),
+    tertiary = Color(0xFFFFB4A1),
+    onTertiary = Color(0xFF5F1500),
+    tertiaryContainer = Color(0xFF7E2B16),
+    onTertiaryContainer = Color(0xFFFFDBD1),
+    background = Color(0xFF141218),
     onBackground = Color(0xFFE7E0EE),
-    surface = Color(0xFF151218),
+    surface = Color(0xFF141218),
     onSurface = Color(0xFFE7E0EE),
-    surfaceVariant = Color(0xFF413D4A),
-    surfaceContainerLow = Color(0xFF1B171F),
-    surfaceContainer = Color(0xFF221E27),
-    surfaceContainerHigh = Color(0xFF2B2630),
+    surfaceVariant = Color(0xFF47445A),
+    surfaceContainerLow = Color(0xFF1C1A22),
+    surfaceContainer = Color(0xFF221F2A),
+    surfaceContainerHigh = Color(0xFF2C2935),
     onSurfaceVariant = Color(0xFFCDC2D8),
     outline = Color(0xFF978CA3),
     outlineVariant = Color(0xFF50445D),
@@ -79,8 +87,8 @@ val LocalMoneyColors = staticCompositionLocalOf { LightMoneyColors }
 @Immutable
 data class SelectionColors(val container: Color, val content: Color)
 
-val LightSelectionColors = SelectionColors(Color(0xFF644789), Color(0xFFFFFFFF))
-val DarkSelectionColors = SelectionColors(Color(0xFFDBB8FF), Color(0xFF381E72))
+val LightSelectionColors = SelectionColors(LightColors.primary, LightColors.onPrimary)
+val DarkSelectionColors = SelectionColors(DarkColors.primary, DarkColors.onPrimary)
 
 val LocalSelectionColors = staticCompositionLocalOf { LightSelectionColors }
 
@@ -88,3 +96,16 @@ val LocalSelectionColors = staticCompositionLocalOf { LightSelectionColors }
 internal val LightBudgetWarning = Color(0xFF78502F)
 internal val DarkBudgetWarning = Color(0xFFEDC7AA)
 internal val LocalBudgetWarning = staticCompositionLocalOf { LightBudgetWarning }
+
+internal val LightCategoryPalette = listOf(
+    LightColors.primary, Color(0xFF007D70), Color(0xFFC54F39), Color(0xFF3968C6),
+    Color(0xFF9D6410), Color(0xFFA63C82), Color(0xFF5A791D), Color(0xFF605A76),
+)
+
+internal val DarkCategoryPalette = listOf(
+    DarkColors.primary, DarkColors.secondary, DarkColors.tertiary, Color(0xFF91B7FF),
+    Color(0xFFF8CD71), Color(0xFFF2A1D7), Color(0xFFB8D983), Color(0xFFB4AEC9),
+)
+
+internal val LocalCategoryPalette = staticCompositionLocalOf { LightCategoryPalette }
+internal val LocalBackdropAlpha = staticCompositionLocalOf { 0.09f }

@@ -2,7 +2,6 @@ package com.mercan.maliyem.ui.csvimport
 
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,12 +13,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,10 +25,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
@@ -42,10 +39,13 @@ import com.mercan.maliyem.ui.components.BackHeader
 import com.mercan.maliyem.ui.components.CardLabel
 import com.mercan.maliyem.ui.components.ScreenLoading
 import com.mercan.maliyem.ui.components.SettingRow
+import com.mercan.maliyem.ui.components.SeyirActionButton
 import com.mercan.maliyem.ui.components.SeyirButton
 import com.mercan.maliyem.ui.components.SeyirCard
+import com.mercan.maliyem.ui.components.SeyirFormSheet
 import com.mercan.maliyem.ui.components.SubText
 import com.mercan.maliyem.ui.theme.Spacing
+import com.mercan.maliyem.ui.theme.seyirAnimateItem
 
 @Composable
 internal fun CsvImportScreen(onExit: () -> Unit, viewModel: CsvImportViewModel = hiltViewModel()) {
@@ -124,31 +124,35 @@ private fun MappingContent(
     }
 
     picking?.let { field ->
-        Dialog(onDismissRequest = { picking = null }) {
-            Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainer) {
-                Column(Modifier.padding(Spacing.lg)) {
-                    CardLabel(stringResource(field.label))
-                    LazyColumn(Modifier.heightIn(max = 360.dp), contentPadding = PaddingValues(vertical = Spacing.sm)) {
-                        item {
-                            SettingRow(null, stringResource(field.unmappedLabel), onClick = {
-                                onSelect(field, null)
+        SeyirFormSheet(
+            title = stringResource(field.label),
+            onDismiss = { picking = null },
+            dismissText = stringResource(R.string.add_cancel),
+            scrollContent = false,
+        ) {
+            LazyColumn {
+                item(key = "unmapped") {
+                    Column(seyirAnimateItem()) {
+                        SettingRow(null, stringResource(field.unmappedLabel), onClick = {
+                            onSelect(field, null)
+                            picking = null
+                        }, horizontalPadding = 0.dp)
+                    }
+                }
+                items(state.width, key = { it }) { index ->
+                    Column(seyirAnimateItem()) {
+                        val selected = state.mapping.columns[field] == index
+                        SettingRow(
+                            null, columnLabel(state, index),
+                            subtitle = state.document.records.getOrNull(if (state.mapping.hasHeader) 1 else 0)
+                                ?.cells?.getOrNull(index)?.take(100)?.takeIf(String::isNotBlank),
+                            value = if (selected) stringResource(R.string.csv_selected) else null,
+                            onClick = {
+                                onSelect(field, index)
                                 picking = null
-                            }, horizontalPadding = 0.dp)
-                        }
-                        items(state.width) { index ->
-                            val selected = state.mapping.columns[field] == index
-                            SettingRow(
-                                null, columnLabel(state, index),
-                                subtitle = state.document.records.getOrNull(if (state.mapping.hasHeader) 1 else 0)
-                                    ?.cells?.getOrNull(index)?.take(100)?.takeIf(String::isNotBlank),
-                                value = if (selected) stringResource(R.string.csv_selected) else null,
-                                onClick = {
-                                    onSelect(field, index)
-                                    picking = null
-                                },
-                                horizontalPadding = 0.dp,
-                            )
-                        }
+                            },
+                            horizontalPadding = 0.dp,
+                        )
                     }
                 }
             }
@@ -178,30 +182,41 @@ private fun PreviewContent(
             contentPadding = PaddingValues(bottom = Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            item {
-                SeyirCard {
+            item(key = "preview-controls") {
+                SeyirCard(seyirAnimateItem()) {
                     CardLabel(stringResource(R.string.csv_preview_counts, preview.total, preview.ready))
                     SubText(stringResource(R.string.csv_preview_skipped, preview.issues.size, preview.duplicates))
                     CsvSwitch(stringResource(R.string.csv_skip_duplicates), state.skipDuplicates, onDuplicate, !busy)
-                    TextButton(onEdit, enabled = !busy) { Text(stringResource(R.string.csv_edit_mapping)) }
+                    SeyirActionButton(
+                        stringResource(R.string.csv_edit_mapping), onEdit,
+                        icon = R.drawable.ic_seyir_edit, enabled = !busy,
+                    )
                     if (state.failed) CsvError(stringResource(R.string.csv_action_failed))
                 }
             }
             if (preview.newCategories.isNotEmpty()) {
-                item { CardLabel(stringResource(R.string.csv_new_categories, preview.newCategories.size)) }
-                items(preview.newCategories) { category ->
+                item(key = "new_categories") {
+                    Column(seyirAnimateItem()) { CardLabel(stringResource(R.string.csv_new_categories, preview.newCategories.size)) }
+                }
+                items(preview.newCategories, key = { "category-${it.type}-${it.name}" }) { category ->
                     val type = stringResource(if (category.type == TransactionType.EXPENSE) R.string.add_expense else R.string.add_income)
-                    SeyirCard { Text(stringResource(R.string.csv_category_preview, category.name.take(100), type)) }
+                    SeyirCard(seyirAnimateItem()) { Text(stringResource(R.string.csv_category_preview, category.name.take(100), type)) }
                 }
             }
             if (preview.newAccounts.isNotEmpty()) {
-                item { CardLabel(stringResource(R.string.csv_new_accounts, preview.newAccounts.size)) }
-                items(preview.newAccounts) { SeyirCard { Text(it.take(100)) } }
+                item(key = "new_accounts") {
+                    Column(seyirAnimateItem()) { CardLabel(stringResource(R.string.csv_new_accounts, preview.newAccounts.size)) }
+                }
+                items(preview.newAccounts, key = { "account-$it" }) { account ->
+                    SeyirCard(seyirAnimateItem()) { Text(account.take(100)) }
+                }
             }
             if (preview.issues.isNotEmpty()) {
-                item { CardLabel(stringResource(R.string.csv_errors)) }
+                item(key = "errors") {
+                    Column(seyirAnimateItem()) { CardLabel(stringResource(R.string.csv_errors)) }
+                }
                 items(preview.issues, key = { it.line }) { issue ->
-                    SeyirCard {
+                    SeyirCard(seyirAnimateItem()) {
                         CardLabel(stringResource(R.string.csv_error_row, issue.line))
                         CsvError(stringResource(issue.reason.label))
                     }

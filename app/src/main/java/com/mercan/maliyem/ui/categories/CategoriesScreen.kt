@@ -4,8 +4,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,8 +13,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -30,9 +33,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
-import com.mercan.maliyem.util.formatMoney
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -49,15 +51,18 @@ import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.repository.isFallback
 import com.mercan.maliyem.ui.components.BackHeader
 import com.mercan.maliyem.ui.components.CategoryCircle
-import com.mercan.maliyem.ui.components.SeyirButton
+import com.mercan.maliyem.ui.components.EmptyState
+import com.mercan.maliyem.ui.components.SeyirFabClearance
+import com.mercan.maliyem.ui.components.SeyirListScaffold
 import com.mercan.maliyem.ui.components.SeyirSegmented
 import com.mercan.maliyem.ui.components.SubText
 import com.mercan.maliyem.ui.components.categoryName
-import com.mercan.maliyem.ui.theme.Motion
 import com.mercan.maliyem.ui.theme.SeyirIcon
 import com.mercan.maliyem.ui.theme.Spacing
 import com.mercan.maliyem.ui.theme.categoryIcon
+import com.mercan.maliyem.ui.theme.seyirAnimateItem
 import com.mercan.maliyem.ui.theme.slideFade
+import com.mercan.maliyem.util.formatMoney
 
 private val types = listOf(TransactionType.EXPENSE, TransactionType.INCOME)
 
@@ -73,85 +78,95 @@ fun CategoriesScreen(onBack: () -> Unit, viewModel: CategoriesViewModel = hiltVi
     var confirmDelete by rememberSaveable { mutableLongStateOf(NONE) }
     val writeFailed by viewModel.writeFailed.collectAsStateWithLifecycle()
     val colors = MaterialTheme.colorScheme
+    val expenseList = rememberLazyListState()
+    val incomeList = rememberLazyListState()
+    fun listState(type: TransactionType): LazyListState = if (type == TransactionType.EXPENSE) expenseList else incomeList
 
-    Column(
-        Modifier.fillMaxSize().padding(top = Spacing.sm),
-        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+    SeyirListScaffold(
+        stringResource(R.string.categories_add), listState(current.type),
+        onAdd = { newType = current.type; editing = 0L },
     ) {
-        Column(Modifier.padding(horizontal = Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-            BackHeader(stringResource(R.string.settings_categories), onBack)
-            SeyirSegmented(
-                listOf(stringResource(R.string.add_expense), stringResource(R.string.add_income)),
-                types.indexOf(current.type),
-                { viewModel.setType(types[it]) },
-            )
-            if (writeFailed) {
-                Text(
-                    stringResource(R.string.categories_write_failed),
-                    Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                    color = colors.error,
-                    style = MaterialTheme.typography.bodySmall,
+        Column(
+            Modifier.fillMaxSize().padding(top = Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Column(Modifier.padding(horizontal = Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                BackHeader(stringResource(R.string.settings_categories), onBack)
+                SeyirSegmented(
+                    listOf(stringResource(R.string.add_expense), stringResource(R.string.add_income)),
+                    types.indexOf(current.type),
+                    { viewModel.setType(types[it]) },
                 )
+                if (writeFailed) {
+                    Text(
+                        stringResource(R.string.categories_write_failed),
+                        Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                        color = colors.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
-        }
-        // Tür değişince liste yönlü kayar; aynı tür içinde ekleme/silme satır animasyonuyla olur (ADR-0016).
-        AnimatedContent(
-            current,
-            Modifier.weight(1f),
-            transitionSpec = { slideFade(types.indexOf(targetState.type) > types.indexOf(initialState.type)) },
-            contentKey = { it.type },
-            label = "categoriesType",
-        ) { shown ->
-            val items = shown.items
-            LazyColumn(
-                Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.lg),
-            ) {
-                itemsIndexed(items, key = { _, item -> item.category.id }) { index, item ->
-                    val c = item.category
-                    val records = if (item.count > 0) pluralStringResource(R.plurals.records, item.count, item.count)
-                    else stringResource(R.string.categories_no_records)
-                    val sub = if (c.isFallback()) records + stringResource(R.string.categories_fixed) else records
-                    val top = if (index == 0) 20.dp else 0.dp
-                    val bottom = if (index == items.lastIndex) 20.dp else 0.dp
-                    Column(
-                        Modifier.animateItem(fadeInSpec = Motion.enter(), fadeOutSpec = Motion.fast())
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(top, top, bottom, bottom))
-                            .background(colors.surfaceContainer),
+            // Tür değişince liste yönlü kayar; aynı tür içinde ekleme/silme satır animasyonuyla olur (ADR-0016).
+            AnimatedContent(
+                current,
+                Modifier.weight(1f),
+                transitionSpec = { slideFade(types.indexOf(targetState.type) > types.indexOf(initialState.type)) },
+                contentKey = { it.type },
+                label = "categoriesType",
+            ) { shown ->
+                val items = shown.items
+                Box(Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        Modifier.fillMaxSize(),
+                        state = listState(shown.type),
+                        contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, bottom = SeyirFabClearance),
                     ) {
-                        if (index > 0) HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = colors.outlineVariant)
-                        Row(
-                            Modifier.fillMaxWidth().clickable(enabled = shown.type == current.type, role = Role.Button) { editing = c.id }.heightIn(min = 64.dp)
-                                .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                        ) {
-                            CategoryCircle(categoryIcon(c.icon))
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    categoryName(c.key, c.name), style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                )
-                                SubText(sub)
+                        itemsIndexed(items, key = { _, item -> item.category.id }) { index, item ->
+                            val c = item.category
+                            val records = if (item.count > 0) pluralStringResource(R.plurals.records, item.count, item.count)
+                            else stringResource(R.string.categories_no_records)
+                            val sub = if (c.isFallback()) records + stringResource(R.string.categories_fixed) else records
+                            val top = if (index == 0) 20.dp else 0.dp
+                            val bottom = if (index == items.lastIndex) 20.dp else 0.dp
+                            Column(
+                                seyirAnimateItem()
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(top, top, bottom, bottom))
+                                    .background(colors.surfaceContainer),
+                            ) {
+                                if (index > 0) HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = colors.outlineVariant)
+                                Row(
+                                    Modifier.fillMaxWidth().clickable(enabled = shown.type == current.type, role = Role.Button) { editing = c.id }.heightIn(min = 64.dp)
+                                        .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                                ) {
+                                    CategoryCircle(categoryIcon(c.icon))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            categoryName(c.key, c.name), style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        )
+                                        SubText(sub)
+                                    }
+                                    SeyirIcon(R.drawable.ic_seyir_chevron_right, tint = colors.onSurfaceVariant)
+                                }
                             }
-                            SeyirIcon(R.drawable.ic_seyir_chevron_right, tint = colors.onSurfaceVariant)
+                        }
+                        if (items.isNotEmpty()) item(key = "note") {
+                            SubText(
+                                stringResource(R.string.categories_note),
+                                seyirAnimateItem().padding(top = Spacing.md, start = Spacing.xs, end = Spacing.xs),
+                            )
                         }
                     }
-                }
-                item(key = "add") {
-                    SeyirButton(
-                        stringResource(R.string.categories_add),
-                        { newType = shown.type; editing = 0L },
-                        Modifier.animateItem().fillMaxWidth().padding(top = Spacing.md), icon = R.drawable.ic_seyir_plus, tonal = true,
-                        enabled = shown.type == current.type,
-                    )
-                }
-                item(key = "note") {
-                    SubText(
-                        stringResource(R.string.categories_note),
-                        Modifier.animateItem().padding(top = Spacing.md, start = Spacing.xs, end = Spacing.xs),
-                    )
+                    if (items.isEmpty()) {
+                        EmptyState(
+                            R.drawable.ic_seyir_tag, stringResource(R.string.categories_empty_title),
+                            stringResource(R.string.categories_empty_body),
+                            Modifier.fillMaxSize().padding(start = Spacing.lg, end = Spacing.lg, bottom = SeyirFabClearance),
+                        )
+                    }
                 }
             }
         }

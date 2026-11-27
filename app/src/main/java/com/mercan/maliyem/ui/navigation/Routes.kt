@@ -1,11 +1,16 @@
 package com.mercan.maliyem.ui.navigation
 
+import com.mercan.maliyem.data.local.TransactionType
 import kotlinx.serialization.Serializable
 
 @Serializable data object Summary
 @Serializable data object YearlyReport
 @Serializable data object Transactions
-@Serializable data class BudgetTransactions(val budgetCategoryId: Long)
+@Serializable data class BudgetTransactions(
+    val budgetCategoryId: Long,
+    val yearMonth: String? = null,
+    val type: String = TransactionType.EXPENSE.name,
+)
 @Serializable data object Breakdown
 @Serializable data object Settings
 @Serializable data class CsvImport(val uri: String)

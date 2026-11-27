@@ -37,6 +37,7 @@
     <string name="trend_expense_unavailable">Geçen aya göre gider değişimi: %1$s</string>
     <string name="trend_unavailable">—</string>
     <string name="trend_delta">%1$s%%%2$s</string>
+    <string name="settings_reports">Raporlar</string>
     <string name="yearly_report">Yıllık rapor</string>
     <string name="yearly_select_year">Yıl %1$s</string>
     <string name="yearly_net">Yıllık net</string>
@@ -125,10 +126,11 @@
     <string name="percent">%%%1$d</string>
     <string name="breakdown_total_expense">Toplam gider</string>
     <string name="breakdown_total_income">Toplam gelir</string>
-    <plurals name="breakdown_summary">
-        <item quantity="one">%1$d kategori · en büyüğü %2$s (%%%3$d)</item>
-        <item quantity="other">%1$d kategori · en büyüğü %2$s (%%%3$d)</item>
-    </plurals>
+    <string name="breakdown_open_category">Bu kategorideki işlemleri göster</string>
+    <string name="breakdown_other">Diğer</string>
+    <string name="breakdown_chart_category">%1$s %2$s</string>
+    <string name="breakdown_chart_description">%1$s, %2$s. Kategori payları: %3$s.</string>
+    <string name="breakdown_chart_reset">Toplamı göster</string>
     <string name="breakdown_note">Çubuklar en büyük kategoriye göre ölçeklenir; yüzde toplam içindeki paydır.</string>
     <string name="breakdown_empty_expense">Bu ay gider yok</string>
     <string name="breakdown_empty_income">Bu ay gelir yok</string>
@@ -262,7 +264,7 @@
     <string name="recurring_end_date">Bitiş tarihi</string>
     <string name="recurring_no_end">Bitiş tarihi yok</string>
     <string name="recurring_clear_end">Bitiş tarihini kaldır</string>
-    <string name="recurring_empty">Henüz tekrarlayan kural yok. Gider veya gelir eklerken Tekrarla seçeneğini kullanın.</string>
+    <string name="recurring_empty">Bir gelir veya giderin ne sıklıkla tekrarlanacağını seç.</string>
     <string name="recurring_edit">Tekrar kuralını düzenle</string>
     <string name="recurring_missing">Bu tekrar kuralı artık yok.</string>
     <string name="recurring_saved">Tekrar kuralı kaydedildi</string>
@@ -434,4 +436,15 @@
     <string name="receipt_zoom_out">Uzaklaştır</string>
     <string name="receipt_backup_note">JSON yedekleri fiş fotoğraflarını içermez.</string>
     <string name="receipt_restore_note">Fiş yalnızca fotoğrafı bu cihazda varsa geri yüklenir. İşlemle bağlantısı kalmayan fotoğraflar silinir.</string>
+    <string name="accounts_empty_title">Henüz hesap yok</string>
+    <string name="accounts_empty_body">Bakiyesini takip etmek için bir hesap ekle.</string>
+    <string name="recurring_empty_title">Henüz tekrar kuralı yok</string>
+    <string name="recurring_new">Tekrar kuralı ekle</string>
+    <string name="categories_empty_title">Henüz kategori yok</string>
+    <string name="categories_empty_body">Kayıtlarını gruplamak için bir kategori ekle.</string>
+    <string name="budget_new">Bütçe ekle</string>
+    <string name="budgets_empty_title">Henüz bütçe yok</string>
+    <string name="budgets_empty_body">Tüm harcamalar veya bir kategori için aylık limit belirle.</string>
+    <string name="yearly_empty_title">Bu yıl kayıt yok</string>
+    <string name="yearly_empty_body">Bu yılın gelir ve giderleri burada görünecek.</string>
 </resources>

@@ -6,6 +6,7 @@ import com.mercan.maliyem.data.local.DefaultAccounts
 import com.mercan.maliyem.data.local.TransactionEntity
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.local.TransferEntity
+import com.mercan.maliyem.data.receipt.ReceiptSuggestion
 import com.mercan.maliyem.util.moneyDecimalSeparator
 import com.mercan.maliyem.util.parseMoney
 import java.time.LocalDate
@@ -96,4 +97,33 @@ fun amountInputText(minor: Long, locale: Locale): String {
     val sign = if (minor < 0 && whole == 0L) "-" else ""
     return if (fraction == 0L) whole.toString()
         else "$sign$whole$separator${kotlin.math.abs(fraction).toString().padStart(2, '0')}"
+}
+
+
+internal const val RECEIPT_AMOUNT = 1
+internal const val RECEIPT_DATE = 2
+internal const val RECEIPT_NOTE = 4
+
+internal data class ReceiptFields(val amount: String, val date: String?, val note: String, val filled: Int = 0) {
+    fun withSuggestion(suggestion: ReceiptSuggestion, touched: Int, today: LocalDate, locale: Locale): ReceiptFields {
+        var nextFilled = 0
+        fun <T> merge(field: Int, current: T, empty: T, suggested: T?): T {
+            val wasFilled = filled and field != 0
+            if (touched and field != 0 || (current != empty && !wasFilled)) return current
+            if (suggested == null) return empty
+            nextFilled = nextFilled or field
+            return suggested
+        }
+        val amount = merge(RECEIPT_AMOUNT, amount, "", suggestion.amountMinor?.let { amountInputText(it, locale) })
+        // A receipt must not give a new entry a future date.
+        val date = merge(RECEIPT_DATE, date, null, suggestion.date?.takeIf { it < today }?.toString())
+        val note = merge(RECEIPT_NOTE, note, "", suggestion.merchant)
+        return ReceiptFields(amount, date, note, nextFilled)
+    }
+
+    fun withoutSuggestion(): ReceiptFields = ReceiptFields(
+        amount = if (filled and RECEIPT_AMOUNT != 0) "" else amount,
+        date = if (filled and RECEIPT_DATE != 0) null else date,
+        note = if (filled and RECEIPT_NOTE != 0) "" else note,
+    )
 }

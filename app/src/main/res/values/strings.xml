@@ -39,6 +39,7 @@
     <string name="trend_expense_unavailable">Expense change from last month: %1$s</string>
     <string name="trend_unavailable">—</string>
     <string name="trend_delta">%1$s%2$s%%</string>
+    <string name="settings_reports">Reports</string>
     <string name="yearly_report">Yearly report</string>
     <string name="yearly_select_year">Year %1$s</string>
     <string name="yearly_net">Yearly net</string>
@@ -127,10 +128,11 @@
     <string name="percent">%1$d%%</string>
     <string name="breakdown_total_expense">Total expense</string>
     <string name="breakdown_total_income">Total income</string>
-    <plurals name="breakdown_summary">
-        <item quantity="one">%1$d category · largest is %2$s (%3$d%%)</item>
-        <item quantity="other">%1$d categories · largest is %2$s (%3$d%%)</item>
-    </plurals>
+    <string name="breakdown_open_category">Show transactions in this category</string>
+    <string name="breakdown_other">Other</string>
+    <string name="breakdown_chart_category">%1$s %2$s</string>
+    <string name="breakdown_chart_description">%1$s, %2$s. Category shares: %3$s.</string>
+    <string name="breakdown_chart_reset">Show total</string>
     <string name="breakdown_note">Bars scale to the largest category; the percentage is the share of the total.</string>
     <string name="breakdown_empty_expense">No expenses this month</string>
     <string name="breakdown_empty_income">No income this month</string>
@@ -264,7 +266,7 @@
     <string name="recurring_end_date">End date</string>
     <string name="recurring_no_end">No end date</string>
     <string name="recurring_clear_end">Clear end date</string>
-    <string name="recurring_empty">No recurring rules yet. Choose Repeat when adding an expense or income.</string>
+    <string name="recurring_empty">Choose how often to repeat an expense or income.</string>
     <string name="recurring_edit">Edit recurring rule</string>
     <string name="recurring_missing">This recurring rule no longer exists.</string>
     <string name="recurring_saved">Recurring rule saved</string>
@@ -436,4 +438,15 @@
     <string name="receipt_zoom_out">Zoom out</string>
     <string name="receipt_backup_note">JSON backups do not include receipt photos.</string>
     <string name="receipt_restore_note">A receipt is linked only if its photo is still on this device. Photos no longer linked to a transaction are removed.</string>
+    <string name="accounts_empty_title">No accounts yet</string>
+    <string name="accounts_empty_body">Add an account to track its balance.</string>
+    <string name="recurring_empty_title">No recurring rules yet</string>
+    <string name="recurring_new">Add recurring rule</string>
+    <string name="categories_empty_title">No categories yet</string>
+    <string name="categories_empty_body">Add a category to organize your records.</string>
+    <string name="budget_new">Add budget</string>
+    <string name="budgets_empty_title">No budgets yet</string>
+    <string name="budgets_empty_body">Set a monthly limit for all spending or for a category.</string>
+    <string name="yearly_empty_title">No records this year</string>
+    <string name="yearly_empty_body">Income and expenses for this year will appear here.</string>
 </resources>

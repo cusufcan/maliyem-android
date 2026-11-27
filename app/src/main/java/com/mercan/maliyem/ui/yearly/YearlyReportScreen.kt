@@ -3,14 +3,18 @@ package com.mercan.maliyem.ui.yearly
 import android.content.ActivityNotFoundException
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -45,6 +49,7 @@ import com.mercan.maliyem.data.repository.YearlyReport
 import com.mercan.maliyem.ui.components.BackHeader
 import com.mercan.maliyem.ui.components.CardLabel
 import com.mercan.maliyem.ui.components.CategoryCircle
+import com.mercan.maliyem.ui.components.EmptyState
 import com.mercan.maliyem.ui.components.Eyebrow
 import com.mercan.maliyem.ui.components.ScreenLoading
 import com.mercan.maliyem.ui.components.SettingRow
@@ -53,6 +58,7 @@ import com.mercan.maliyem.ui.components.SeyirCard
 import com.mercan.maliyem.ui.components.SubText
 import com.mercan.maliyem.ui.components.categoryName
 import com.mercan.maliyem.ui.components.monthTitle
+import com.mercan.maliyem.ui.theme.Motion
 import com.mercan.maliyem.ui.theme.Spacing
 import com.mercan.maliyem.ui.theme.categoryIcon
 import com.mercan.maliyem.ui.trend.MonthlyTrend
@@ -94,52 +100,66 @@ fun YearlyReportScreen(
             }
             is ReportState.Ready -> {
                 val report = current.report
-                Column(
-                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = Spacing.lg),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
-                ) {
-                    YearSelector(report.year, report.years, viewModel::selectYear)
-                    ReportTotals(report, locale)
-                    SeyirCard {
-                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                            CardLabel(stringResource(R.string.yearly_chart))
-                            key(report.year) {
-                                val months = remember(report.months) {
-                                    report.months.map { MonthlyTrend(it.month, it.incomeMinor, it.expenseMinor) }
-                                }
-                                SeyirMonthlyBars(months, locale)
-                            }
-                        }
-                    }
-                    SeyirCard {
-                        CardLabel(stringResource(R.string.yearly_highest_expense))
-                        val peak = report.highestExpenseMonth
-                        if (peak != null) {
-                            SettingRow(
-                                icon = R.drawable.ic_seyir_calendar,
-                                label = monthTitle("LLLL", peak.month, locale),
-                                value = formatMoney(peak.expenseMinor, locale),
-                                horizontalPadding = 0.dp,
+                val empty = report.incomeMinor.signum() == 0 && report.expenseMinor.signum() == 0
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                    Column(
+                        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight)
+                            .padding(bottom = Spacing.lg),
+                        verticalArrangement = if (empty) Arrangement.SpaceBetween else Arrangement.spacedBy(Spacing.md),
+                    ) {
+                        YearSelector(report.year, report.years, viewModel::selectYear)
+                        if (empty) {
+                            EmptyState(
+                                R.drawable.ic_seyir_calendar, stringResource(R.string.yearly_empty_title),
+                                stringResource(R.string.yearly_empty_body),
+                                Modifier.padding(vertical = Spacing.md),
                             )
                         } else {
-                            SubText(stringResource(R.string.yearly_no_expenses), Modifier.padding(top = Spacing.sm))
-                        }
-                    }
-                    if (report.topCategories.isNotEmpty()) ExpenseCategories(report, locale)
-                    SeyirButton(
-                        if (exporting) stringResource(R.string.yearly_exporting) else stringResource(R.string.settings_csv),
-                        onClick = {
-                            pendingExportYear = report.year
-                            try {
-                                picker.launch("maliyem-${report.year}.csv")
-                            } catch (_: ActivityNotFoundException) {
-                                pendingExportYear = null
-                                scope.launch { showMessage(resources.getString(R.string.settings_csv_failed)) }
+                            ReportTotals(report, locale)
+                            SeyirCard {
+                                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                                    CardLabel(stringResource(R.string.yearly_chart))
+                                    key(report.year) {
+                                        val months = remember(report.months) {
+                                            report.months.map { MonthlyTrend(it.month, it.incomeMinor, it.expenseMinor) }
+                                        }
+                                        SeyirMonthlyBars(months, locale)
+                                    }
+                                }
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !exporting && pendingExportYear == null,
-                    )
+                            SeyirCard {
+                                CardLabel(stringResource(R.string.yearly_highest_expense))
+                                val peak = report.highestExpenseMonth
+                                if (peak != null) {
+                                    SettingRow(
+                                        icon = R.drawable.ic_seyir_calendar,
+                                        label = monthTitle("LLLL", peak.month, locale),
+                                        value = formatMoney(peak.expenseMinor, locale),
+                                        horizontalPadding = 0.dp,
+                                    )
+                                } else {
+                                    SubText(stringResource(R.string.yearly_no_expenses), Modifier.padding(top = Spacing.sm))
+                                }
+                            }
+                            AnimatedVisibility(
+                                report.topCategories.isNotEmpty(), enter = Motion.expand(), exit = Motion.collapse(),
+                            ) { ExpenseCategories(report, locale) }
+                        }
+                        SeyirButton(
+                            if (exporting) stringResource(R.string.yearly_exporting) else stringResource(R.string.settings_csv),
+                            onClick = {
+                                pendingExportYear = report.year
+                                try {
+                                    picker.launch("maliyem-${report.year}.csv")
+                                } catch (_: ActivityNotFoundException) {
+                                    pendingExportYear = null
+                                    scope.launch { showMessage(resources.getString(R.string.settings_csv_failed)) }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !exporting && pendingExportYear == null,
+                        )
+                    }
                 }
             }
         }
@@ -217,26 +237,28 @@ private fun ReportTotals(report: YearlyReport, locale: Locale) {
 @Composable
 private fun ExpenseCategories(report: YearlyReport, locale: Locale) {
     val colors = MaterialTheme.colorScheme
-    SeyirCard {
+    SeyirCard(Modifier.animateContentSize(Motion.contentSize())) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             CardLabel(stringResource(R.string.yearly_top_categories))
             report.topCategories.forEach { category ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    CategoryCircle(categoryIcon(category.icon))
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                        Text(categoryName(category.key, category.name), style = MaterialTheme.typography.bodyMedium)
-                        SubText(formatMoney(category.amountMinor, locale))
-                        Box(Modifier.fillMaxWidth().height(6.dp).clip(MaterialTheme.shapes.small).background(colors.surfaceContainerHigh)) {
-                            Box(
-                                Modifier.fillMaxWidth(category.sharePercent / 100f).height(6.dp)
-                                    .clip(MaterialTheme.shapes.small).background(colors.primary),
-                            )
+                key(category.id) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        CategoryCircle(categoryIcon(category.icon))
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                            Text(categoryName(category.key, category.name), style = MaterialTheme.typography.bodyMedium)
+                            SubText(formatMoney(category.amountMinor, locale))
+                            Box(Modifier.fillMaxWidth().height(6.dp).clip(MaterialTheme.shapes.small).background(colors.surfaceContainerHigh)) {
+                                Box(
+                                    Modifier.fillMaxWidth(category.sharePercent / 100f).height(6.dp)
+                                        .clip(MaterialTheme.shapes.small).background(colors.primary),
+                                )
+                            }
                         }
+                        SubText(stringResource(R.string.percent, category.sharePercent))
                     }
-                    SubText(stringResource(R.string.percent, category.sharePercent))
                 }
             }
         }

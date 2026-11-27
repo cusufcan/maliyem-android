@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -24,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import com.mercan.maliyem.R
 import com.mercan.maliyem.data.local.SavingsGoalEntity
@@ -31,6 +33,7 @@ import com.mercan.maliyem.ui.add.amountInputText
 import com.mercan.maliyem.ui.add.parseAmount
 import com.mercan.maliyem.ui.categories.CategoryIconPicker
 import com.mercan.maliyem.ui.components.DateSelectionDialog
+import com.mercan.maliyem.ui.components.SeyirFormSheet
 import com.mercan.maliyem.ui.components.SubText
 import com.mercan.maliyem.ui.theme.Spacing
 import java.time.LocalDate
@@ -51,40 +54,38 @@ internal fun EditGoalDialog(
     var pickingDate by rememberSaveable { mutableStateOf(false) }
     val deadline = deadlineDay?.let(LocalDate::ofEpochDay)
     val minor = parseAmount(amount, locale)?.takeIf { it > 0 }
-    AlertDialog(
-        onDismissRequest = { if (!write.busy) onDismiss() },
-        title = { Text(stringResource(if (goal == null) R.string.goal_new else R.string.goal_edit)) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                OutlinedTextField(
-                    name, { name = it }, Modifier.fillMaxWidth(), enabled = !write.busy,
-                    label = { Text(stringResource(R.string.goal_name)) }, singleLine = true,
-                )
-                GoalAmountField(amount, { amount = it }, R.string.goal_target, minor, write.busy)
-                FlowRow {
-                    TextButton({ pickingDate = true }, enabled = !write.busy) {
-                        Text(deadline?.let { stringResource(R.string.goal_deadline_value, goalDate(it)) }
-                            ?: stringResource(R.string.goal_set_deadline))
-                    }
-                    if (deadline != null) {
-                        TextButton({ deadlineDay = null }, enabled = !write.busy) {
-                            Text(stringResource(R.string.goal_clear_deadline))
-                        }
-                    }
+    val confirmEnabled = !write.busy && name.isNotBlank() && minor != null
+    val confirm = { onSave(name, checkNotNull(minor), deadline, icon) }
+    SeyirFormSheet(
+        title = stringResource(if (goal == null) R.string.goal_new else R.string.goal_edit),
+        onDismiss = onDismiss,
+        confirmText = stringResource(R.string.add_save),
+        onConfirm = confirm,
+        confirmEnabled = confirmEnabled,
+        dismissText = stringResource(R.string.add_cancel),
+        dismissEnabled = !write.busy,
+    ) {
+        OutlinedTextField(
+            name, { name = it }, Modifier.fillMaxWidth(), enabled = !write.busy,
+            label = { Text(stringResource(R.string.goal_name)) }, singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+        )
+        GoalAmountField(amount, { amount = it }, R.string.goal_target, minor, write.busy) { if (confirmEnabled) confirm() }
+        FlowRow {
+            TextButton({ pickingDate = true }, enabled = !write.busy) {
+                Text(deadline?.let { stringResource(R.string.goal_deadline_value, goalDate(it)) }
+                    ?: stringResource(R.string.goal_set_deadline))
+            }
+            if (deadline != null) {
+                TextButton({ deadlineDay = null }, enabled = !write.busy) {
+                    Text(stringResource(R.string.goal_clear_deadline))
                 }
-                SubText(stringResource(R.string.categories_icon))
-                CategoryIconPicker(icon) { if (!write.busy) icon = it }
-                GoalWriteError(write.error)
             }
-        },
-        confirmButton = {
-            TextButton({ minor?.let { onSave(name, it, deadline, icon) } },
-                enabled = !write.busy && name.isNotBlank() && minor != null) {
-                Text(stringResource(R.string.add_save))
-            }
-        },
-        dismissButton = { CancelGoalAction(onDismiss, write.busy) },
-    )
+        }
+        SubText(stringResource(R.string.categories_icon))
+        CategoryIconPicker(icon) { if (!write.busy) icon = it }
+        GoalWriteError(write.error)
+    }
     if (pickingDate) {
         DateSelectionDialog(deadline ?: today, onDismiss = { pickingDate = false }, onPick = { deadlineDay = it.toEpochDay() })
     }
@@ -105,30 +106,30 @@ internal fun GoalEntryDialog(
     var note by rememberSaveable { mutableStateOf("") }
     val date = LocalDate.ofEpochDay(entryDay)
     val minor = parseAmount(amount, locale)?.takeIf { it > 0 }
-    AlertDialog(
-        onDismissRequest = { if (!write.busy) onDismiss() },
-        title = { Text(stringResource(if (withdraw) R.string.goal_withdraw else R.string.goal_deposit)) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                GoalAmountField(amount, { amount = it }, R.string.add_amount, minor, write.busy)
-                TextButton({ pickingDate = true }, enabled = !write.busy) {
-                    Text(stringResource(R.string.goal_entry_date_value, goalDate(date)))
-                }
-                OutlinedTextField(
-                    note, { note = it }, Modifier.fillMaxWidth(), enabled = !write.busy,
-                    label = { Text(stringResource(R.string.goal_note_optional)) }, maxLines = 3,
-                )
-                GoalWriteError(write.error)
-            }
-        },
-        confirmButton = {
-            TextButton({ minor?.let { onSave(if (withdraw) -it else it, date, note) } },
-                enabled = !write.busy && minor != null && date <= today) {
-                Text(stringResource(R.string.add_save))
-            }
-        },
-        dismissButton = { CancelGoalAction(onDismiss, write.busy) },
-    )
+    val confirmEnabled = !write.busy && minor != null && date <= today
+    val confirm = {
+        val signedAmount = checkNotNull(minor).let { if (withdraw) -it else it }
+        onSave(signedAmount, date, note)
+    }
+    SeyirFormSheet(
+        title = stringResource(if (withdraw) R.string.goal_withdraw else R.string.goal_deposit),
+        onDismiss = onDismiss,
+        confirmText = stringResource(R.string.add_save),
+        onConfirm = confirm,
+        confirmEnabled = confirmEnabled,
+        dismissText = stringResource(R.string.add_cancel),
+        dismissEnabled = !write.busy,
+    ) {
+        GoalAmountField(amount, { amount = it }, R.string.add_amount, minor, write.busy) { if (confirmEnabled) confirm() }
+        TextButton({ pickingDate = true }, enabled = !write.busy) {
+            Text(stringResource(R.string.goal_entry_date_value, goalDate(date)))
+        }
+        OutlinedTextField(
+            note, { note = it }, Modifier.fillMaxWidth(), enabled = !write.busy,
+            label = { Text(stringResource(R.string.goal_note_optional)) }, maxLines = 3,
+        )
+        GoalWriteError(write.error)
+    }
     if (pickingDate) {
         DateSelectionDialog(date, onDismiss = { pickingDate = false }, onPick = { entryDay = it.toEpochDay() }, latest = today)
     }
@@ -155,14 +156,15 @@ internal fun DeleteGoalDialog(name: String, write: GoalWriteState, onDismiss: ()
 }
 
 @Composable
-private fun GoalAmountField(text: String, onChange: (String) -> Unit, label: Int, minor: Long?, busy: Boolean) {
+private fun GoalAmountField(text: String, onChange: (String) -> Unit, label: Int, minor: Long?, busy: Boolean, onDone: () -> Unit) {
     val invalid = text.isNotBlank() && minor == null
     OutlinedTextField(
         text, onChange, Modifier.fillMaxWidth(), enabled = !busy,
         label = { Text(stringResource(label)) },
         supportingText = if (invalid) ({ Text(stringResource(R.string.goal_amount_invalid)) }) else null,
         isError = invalid,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { onDone() }),
         singleLine = true,
     )
 }

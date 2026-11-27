@@ -5,22 +5,18 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,9 +30,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.mercan.maliyem.R
 import com.mercan.maliyem.data.local.CategoryEntity
+import com.mercan.maliyem.ui.components.ActionTone
+import com.mercan.maliyem.ui.components.SeyirActionButton
+import com.mercan.maliyem.ui.components.SeyirFormSheet
 import com.mercan.maliyem.ui.components.SubText
 import com.mercan.maliyem.ui.components.categoryName
 import com.mercan.maliyem.ui.theme.Motion
@@ -58,31 +58,33 @@ internal fun CategoryDialog(
     val initialName = category?.let { categoryName(it.key, it.name) }.orEmpty()
     var name by rememberSaveable { mutableStateOf(initialName) }
     var icon by rememberSaveable { mutableStateOf(category?.icon ?: "dots") }
-    val colors = MaterialTheme.colorScheme
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(if (category == null) R.string.categories_new else R.string.categories_edit)) },
-        text = {
-            // %200 yazı boyutunda taşmasın diye içerik kayar.
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                OutlinedTextField(
-                    name, { name = it.take(40) }, Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.categories_name)) }, singleLine = true,
+    val confirmEnabled = name.isNotBlank()
+    val confirm = { onSave(name.trim(), icon) }
+    SeyirFormSheet(
+        title = stringResource(if (category == null) R.string.categories_new else R.string.categories_edit),
+        onDismiss = onDismiss,
+        confirmText = stringResource(R.string.add_save),
+        onConfirm = confirm,
+        confirmEnabled = confirmEnabled,
+        dismissText = stringResource(R.string.add_cancel),
+    ) {
+        OutlinedTextField(
+            name, { name = it.take(40) }, Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.categories_name)) }, singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { if (confirmEnabled) confirm() }),
+        )
+        if (onDelete != null) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                SeyirActionButton(
+                    stringResource(R.string.detail_delete), onDelete,
+                    icon = R.drawable.ic_seyir_trash, tone = ActionTone.Danger,
                 )
-                SubText(stringResource(R.string.categories_icon))
-                CategoryIconPicker(icon) { icon = it }
             }
-        },
-        confirmButton = {
-            TextButton({ onSave(name.trim(), icon) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.add_save)) }
-        },
-        dismissButton = {
-            Row {
-                onDelete?.let { TextButton(it) { Text(stringResource(R.string.detail_delete), color = colors.error) } }
-                TextButton(onDismiss) { Text(stringResource(R.string.add_cancel)) }
-            }
-        },
-    )
+        }
+        SubText(stringResource(R.string.categories_icon))
+        CategoryIconPicker(icon) { icon = it }
+    }
 }
 
 /** Kategori ve hesap formlarında aynı simge seti kullanılır. */

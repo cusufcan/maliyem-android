@@ -8,6 +8,8 @@ import com.mercan.maliyem.data.local.TrendEntry
 import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BreakdownLogicTest {
@@ -63,5 +65,43 @@ class BreakdownLogicTest {
         assertEquals(listOf(market.id, rent.id), state.slices.map { it.categoryId })
         assertEquals(listOf(67, 33), state.slices.map(state::percent))
         assertEquals(listOf(1f, .5f), state.slices.map(state::barFraction))
+    }
+
+    @Test fun donutRanksFiveCategoriesAndGroupsTheRest() {
+        val amounts = listOf(10L, 5L, 30L, 15L, 20L, 5L, 15L)
+        val categories = amounts.mapIndexed { index, amount ->
+            Slice(index.toLong(), null, null, "dots", amount.toBigInteger())
+        }
+
+        val slices = donutSlices(categories)
+
+        assertEquals(listOf(2L, 4L, 3L, 6L, 0L, null), slices.map { it.category?.categoryId })
+        assertEquals(listOf(30, 20, 15, 15, 10, 10), slices.map { it.percent })
+        assertEquals(10.toBigInteger(), slices.last().amountMinor)
+        assertEquals(0f, slices.first().startDegrees, 0.001f)
+        slices.zipWithNext().forEach { (before, after) ->
+            assertEquals(before.startDegrees + before.sweepDegrees, after.startDegrees, 0.001f)
+        }
+        assertEquals(360f, slices.last().startDegrees + slices.last().sweepDegrees, 0.001f)
+    }
+
+    @Test fun donutHandlesEmptyZeroAndSingleCategory() {
+        val category = Slice(1, null, null, "dots", Long.MAX_VALUE.toBigInteger())
+        assertTrue(donutSlices(emptyList()).isEmpty())
+        assertTrue(donutSlices(listOf(category.copy(amountMinor = 0.toBigInteger()))).isEmpty())
+
+        val slice = donutSlices(listOf(category)).single()
+        assertEquals(100, slice.percent)
+        assertEquals(DonutArc(0f, 360f), slice.visibleArc(0f))
+    }
+
+    @Test fun donutSeparatesArcsWithoutRemovingSmallSlices() {
+        val slice = DonutSlice(null, 1.toBigInteger(), 1, 25f, 0.5f)
+        val arc = slice.visibleArc(1f)
+        assertEquals(25.125f, arc.startDegrees, 0.001f)
+        assertEquals(0.25f, arc.sweepDegrees, 0.001f)
+        assertFalse(arc.contains(25f))
+        assertTrue(arc.contains(25.25f))
+        assertFalse(arc.contains(25.5f))
     }
 }

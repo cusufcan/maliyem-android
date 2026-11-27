@@ -4,34 +4,43 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -43,13 +52,14 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -207,9 +217,21 @@ fun SeyirChip(
 
 /** Pano .card: dolgu 16, köşe 20. */
 @Composable
-fun SeyirCard(modifier: Modifier = Modifier, padding: PaddingValues = PaddingValues(Spacing.lg), content: @Composable ColumnScope.() -> Unit) {
+fun SeyirCard(
+    modifier: Modifier = Modifier,
+    padding: PaddingValues = PaddingValues(Spacing.lg),
+    onClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val action = if (onClick != null) {
+        Modifier.clickable(role = Role.Button, onClickLabel = onClickLabel, onClick = onClick)
+    } else {
+        Modifier
+    }
     Column(
-        modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainer).padding(padding),
+        modifier.fillMaxWidth().clip(MaterialTheme.shapes.large)
+            .then(action).background(MaterialTheme.colorScheme.surfaceContainer).padding(padding),
         content = content,
     )
 }
@@ -227,10 +249,12 @@ internal fun SettingSwitch(
     checked: Boolean,
     onChange: (Boolean) -> Unit,
     enabled: Boolean = true,
+    horizontalPadding: Dp = Spacing.lg,
 ) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 56.dp)
-            .toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange),
+            .toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+            .padding(horizontal = horizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
@@ -300,9 +324,76 @@ private fun RowScope.ButtonContent(text: String, @DrawableRes icon: Int?) {
     Text(text, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
 }
 
-/** Kategori dairesi (40 dp, secondaryContainer). */
+enum class ActionTone { Neutral, Danger }
+
 @Composable
-fun CategoryCircle(@DrawableRes icon: Int, size: androidx.compose.ui.unit.Dp = 40.dp, iconSize: androidx.compose.ui.unit.Dp = 20.dp, background: Color = MaterialTheme.colorScheme.secondaryContainer, tint: Color = MaterialTheme.colorScheme.onSecondaryContainer) {
+fun SeyirActionButton(
+    text: String,
+    onClick: () -> Unit,
+    @DrawableRes icon: Int? = null,
+    tone: ActionTone = ActionTone.Neutral,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val colors = MaterialTheme.colorScheme
+    val danger = tone == ActionTone.Danger
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.heightIn(min = 40.dp),
+        enabled = enabled,
+        shape = CircleShape,
+        colors = if (danger) ButtonDefaults.outlinedButtonColors(contentColor = colors.error)
+            else ButtonDefaults.outlinedButtonColors(),
+        border = if (danger && enabled) BorderStroke(1.dp, colors.error)
+            else ButtonDefaults.outlinedButtonBorder(enabled),
+        contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.sm),
+    ) {
+        icon?.let {
+            SeyirIcon(it, size = 18.dp, tint = LocalContentColor.current)
+            Box(Modifier.size(Spacing.sm))
+        }
+        Text(text, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+internal val SeyirFabClearance = 96.dp
+
+@Composable
+internal fun SeyirAddFab(text: String, onClick: () -> Unit, listState: LazyListState? = null) {
+    val expanded = listState?.canScrollBackward != true
+    ExtendedFloatingActionButton(
+        onClick = onClick,
+        expanded = expanded,
+        icon = { SeyirIcon(R.drawable.ic_seyir_plus, description = text.takeUnless { expanded }) },
+        text = { Text(text, fontWeight = FontWeight.SemiBold) },
+        shape = MaterialTheme.shapes.medium,
+        containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+    )
+}
+
+@Composable
+internal fun SeyirListScaffold(
+    addLabel: String?,
+    listState: LazyListState,
+    onAdd: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Scaffold(
+        containerColor = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onBackground,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        floatingActionButton = {
+            if (addLabel != null) SeyirAddFab(addLabel, onAdd, listState)
+        },
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding)) { content() }
+    }
+}
+
+/** Kategori dairesi (40 dp, primaryContainer). */
+@Composable
+fun CategoryCircle(@DrawableRes icon: Int, size: androidx.compose.ui.unit.Dp = 40.dp, iconSize: androidx.compose.ui.unit.Dp = 20.dp, background: Color = MaterialTheme.colorScheme.primaryContainer, tint: Color = MaterialTheme.colorScheme.onPrimaryContainer) {
     Box(Modifier.size(size).background(background, CircleShape), contentAlignment = Alignment.Center) {
         SeyirIcon(icon, size = iconSize, tint = tint)
     }
@@ -311,17 +402,27 @@ fun CategoryCircle(@DrawableRes icon: Int, size: androidx.compose.ui.unit.Dp = 4
 /** Pano .ctr: dikeyde ortalı boş durum; ikon, büyük başlık, açıklama ve eylemler. */
 @Composable
 fun EmptyState(@DrawableRes icon: Int, title: String, body: String, modifier: Modifier = Modifier, extra: @Composable ColumnScope.() -> Unit = {}) {
-    Column(
-        modifier.fillMaxWidth().padding(bottom = Spacing.xl),
-        verticalArrangement = Arrangement.spacedBy(Spacing.md, Alignment.CenterVertically),
-    ) {
-        CategoryCircle(icon, size = 56.dp, iconSize = 26.dp, background = MaterialTheme.colorScheme.primaryContainer, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-        Text(
-            title, Modifier.semantics { heading() },
-            style = MaterialTheme.typography.headlineLarge.copy(fontSize = 32.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold, letterSpacing = (-.02).em),
-        )
-        Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, lineHeight = 23.sp))
-        extra()
+    BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        val scroll = if (constraints.hasBoundedHeight) Modifier.verticalScroll(rememberScrollState()) else Modifier
+        Column(
+            scroll.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            CategoryCircle(icon, size = 56.dp, iconSize = 26.dp, background = MaterialTheme.colorScheme.primaryContainer, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(
+                title, Modifier.semantics { heading() },
+                style = MaterialTheme.typography.headlineLarge.copy(fontSize = 26.sp, lineHeight = 31.sp, fontWeight = FontWeight.Bold, letterSpacing = (-.02).em),
+                textAlign = TextAlign.Center,
+            )
+            if (body.isNotEmpty()) {
+                Text(
+                    body, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, lineHeight = 23.sp),
+                )
+            }
+            extra()
+        }
     }
 }
 

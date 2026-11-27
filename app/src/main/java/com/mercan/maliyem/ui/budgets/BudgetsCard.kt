@@ -1,5 +1,6 @@
 package com.mercan.maliyem.ui.budgets
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -22,6 +24,7 @@ import com.mercan.maliyem.ui.components.SeyirCard
 import com.mercan.maliyem.ui.components.SubText
 import com.mercan.maliyem.ui.components.categoryName
 import com.mercan.maliyem.ui.theme.LocalBudgetWarning
+import com.mercan.maliyem.ui.theme.Motion
 import com.mercan.maliyem.ui.theme.SeyirIcon
 import com.mercan.maliyem.ui.theme.Spacing
 import com.mercan.maliyem.util.formatMoney
@@ -34,7 +37,7 @@ private const val TOP_BUDGET_COUNT = 3
 internal fun BudgetsCard(budgets: MonthlyBudgets, locale: Locale, onOpen: (Long?) -> Unit) {
     if (budgets.isEmpty) return
 
-    SeyirCard(padding = PaddingValues(vertical = Spacing.xs)) {
+    SeyirCard(Modifier.animateContentSize(Motion.contentSize()), padding = PaddingValues(vertical = Spacing.xs)) {
         Column(Modifier.padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm)) {
             CardLabel(stringResource(R.string.settings_budgets))
         }
@@ -42,10 +45,12 @@ internal fun BudgetsCard(budgets: MonthlyBudgets, locale: Locale, onOpen: (Long?
             BudgetRow(stringResource(R.string.budget_overall), it, locale) { onOpen(null) }
         }
         budgets.categories.take(TOP_BUDGET_COUNT).forEachIndexed { index, (category, progress) ->
-            if (index > 0 || budgets.overall != null) {
-                HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = MaterialTheme.colorScheme.outlineVariant)
+            key(category.id) {
+                if (index > 0 || budgets.overall != null) {
+                    HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = MaterialTheme.colorScheme.outlineVariant)
+                }
+                BudgetRow(categoryName(category.key, category.name), progress, locale) { onOpen(category.id) }
             }
-            BudgetRow(categoryName(category.key, category.name), progress, locale) { onOpen(category.id) }
         }
     }
 }
