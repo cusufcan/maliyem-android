@@ -303,7 +303,7 @@ private fun AddTransactionContent(
                 saveAttempts++
                 viewModel.save()
             },
-            modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.lg).heightIn(min = 48.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.lg).heightIn(min = 44.dp),
             enabled = !saving && !importing && (!state.transfer || state.canTransfer) && !(futureRule && receipt != null),
         ) {
             AnimatedContent(amountMinor, transitionSpec = { crossFade() }, label = "saveLabel") { minor ->

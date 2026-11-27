@@ -41,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -204,7 +205,7 @@ fun SeyirChip(
     val action = if (role == Role.Button) Modifier.clickable(enabled = enabled, role = role, onClick = onClick)
         else Modifier.selectable(selected, enabled = enabled, role = role, onClick = onClick)
     Row(
-        modifier.heightIn(min = 48.dp).clip(shape).background(background).border(1.dp, border, shape)
+        modifier.minimumInteractiveComponentSize().heightIn(min = 36.dp).clip(shape).background(background).border(1.dp, border, shape)
             .then(action)
             .padding(start = if (icon != null) Spacing.md else Spacing.lg, end = Spacing.lg),
         verticalAlignment = Alignment.CenterVertically,
@@ -296,7 +297,7 @@ fun SettingRow(
     }
 }
 
-/** Pano .btn: 48 dp hap; [tonal] ikincil dolgu (.btn.t). */
+/** Pano .btn: 44 dp hap; [tonal] ikincil dolgu (.btn.t). */
 @Composable
 fun SeyirButton(
     text: String,
@@ -308,7 +309,7 @@ fun SeyirButton(
 ) {
     val colors = MaterialTheme.colorScheme
     Button(
-        onClick, modifier.heightIn(min = 48.dp),
+        onClick, modifier.heightIn(min = 44.dp),
         enabled = enabled,
         shape = RoundedCornerShape(24.dp),
         colors = if (tonal) ButtonDefaults.buttonColors(colors.secondaryContainer, colors.onSecondaryContainer) else ButtonDefaults.buttonColors(),
@@ -339,7 +340,7 @@ fun SeyirActionButton(
     val danger = tone == ActionTone.Danger
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.heightIn(min = 48.dp),
+        modifier = modifier,
         enabled = enabled,
         shape = CircleShape,
         colors = if (danger) ButtonDefaults.outlinedButtonColors(contentColor = colors.error)
@@ -352,7 +353,7 @@ fun SeyirActionButton(
             SeyirIcon(it, size = 18.dp, tint = LocalContentColor.current)
             Box(Modifier.size(Spacing.sm))
         }
-        Text(text, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
+        Text(text, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelLarge)
     }
 }
 

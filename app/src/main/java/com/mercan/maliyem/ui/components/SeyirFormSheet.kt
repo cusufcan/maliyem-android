@@ -70,7 +70,7 @@ internal fun SeyirFormSheet(
                 Modifier.fillMaxWidth().padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.sm),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                TextButton(onDismiss, Modifier.weight(1f).heightIn(min = 48.dp), enabled = dismissEnabled) {
+                TextButton(onDismiss, Modifier.weight(1f).heightIn(min = 44.dp), enabled = dismissEnabled) {
                     Text(dismissText)
                 }
                 if (confirmText != null) {

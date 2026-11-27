@@ -152,7 +152,7 @@ internal fun TransactionsFilterSheet(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = { onApply(TransactionsFilters()) }, Modifier.heightIn(min = 48.dp)) {
+                TextButton(onClick = { onApply(TransactionsFilters()) }, Modifier.heightIn(min = 44.dp)) {
                     Text(stringResource(R.string.transactions_filter_clear))
                 }
                 SeyirButton(
