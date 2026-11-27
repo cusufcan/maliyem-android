@@ -323,6 +323,7 @@ private fun AddTransactionContent(
                         Text(
                             if (minor != null) stringResource(R.string.add_save_amount, formatMoney(minor, locale)) else stringResource(R.string.add_save),
                             fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.bodyLarge,
                         )
                     }
                 }
