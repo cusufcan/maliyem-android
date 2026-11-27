@@ -339,20 +339,20 @@ fun SeyirActionButton(
     val danger = tone == ActionTone.Danger
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.heightIn(min = 40.dp),
+        modifier = modifier.heightIn(min = 48.dp),
         enabled = enabled,
         shape = CircleShape,
         colors = if (danger) ButtonDefaults.outlinedButtonColors(contentColor = colors.error)
             else ButtonDefaults.outlinedButtonColors(),
         border = if (danger && enabled) BorderStroke(1.dp, colors.error)
             else ButtonDefaults.outlinedButtonBorder(enabled),
-        contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.sm),
+        contentPadding = PaddingValues(horizontal = Spacing.lg),
     ) {
         icon?.let {
             SeyirIcon(it, size = 18.dp, tint = LocalContentColor.current)
             Box(Modifier.size(Spacing.sm))
         }
-        Text(text, fontWeight = FontWeight.SemiBold)
+        Text(text, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
     }
 }
 

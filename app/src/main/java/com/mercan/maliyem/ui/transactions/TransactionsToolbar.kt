@@ -29,7 +29,6 @@ import com.mercan.maliyem.R
 import com.mercan.maliyem.ui.accounts.accountName
 import com.mercan.maliyem.ui.components.BackHeader
 import com.mercan.maliyem.ui.components.ScreenTitle
-import com.mercan.maliyem.ui.components.SeyirActionButton
 import com.mercan.maliyem.ui.components.SeyirChip
 import com.mercan.maliyem.ui.components.categoryName
 import com.mercan.maliyem.ui.components.monthTitle
@@ -121,7 +120,10 @@ internal fun ActiveTransactionFilters(
                 ActiveFilterChip(amountChipLabel(R.string.transactions_amount_max, it, locale)) { onChange(filters.copy(maximum = null)) }
             }
         }
-        SeyirActionButton(stringResource(R.string.transactions_filter_clear), { onChange(TransactionsFilters()) })
+        SeyirChip(
+            stringResource(R.string.transactions_filter_clear), selected = false,
+            onClick = { onChange(TransactionsFilters()) }, role = Role.Button,
+        )
     }
 }
 

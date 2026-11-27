@@ -225,7 +225,7 @@ private fun AddTransactionContent(
             )
             val selected = state.accounts.firstOrNull { it.id == form.accountId }
             if (state.transfer) {
-                Column(Modifier.bringIntoViewRequester(accountField)) {
+                Column(Modifier.bringIntoViewRequester(accountField), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     if (state.canTransfer) {
                         AccountPicker(
                             R.string.transfer_from, selected, state.activeAccounts,
