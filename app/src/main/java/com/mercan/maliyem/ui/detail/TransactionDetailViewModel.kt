@@ -19,6 +19,8 @@ import java.math.BigInteger
 import java.time.YearMonth
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -91,16 +93,20 @@ class TransactionDetailViewModel @Inject constructor(
     private val _deleteFailed = MutableStateFlow(false)
     val deleteFailed = _deleteFailed.asStateFlow()
 
+    private var cleared = false
+
     fun delete() {
         if (_deleting.value || _deleted.value != null) return
         _deleting.value = true
         _deleteFailed.value = false
         viewModelScope.launch {
             try {
-                val deleted = if (route.transfer) transfers.deleteAndGet(id)?.let(UndoAction::DeletedTransfer)
-                    else repository.deleteAndGet(id)?.let(UndoAction::Deleted)
-                _deleted.value = deleted
-                if (deleted == null) _deleteFailed.value = true
+                withContext(NonCancellable) {
+                    val deleted = if (route.transfer) transfers.deleteAndGet(id)?.let(UndoAction::DeletedTransfer)
+                        else repository.deleteAndGet(id)?.let(UndoAction::Deleted)
+                    if (cleared) discardUndo(deleted) else _deleted.value = deleted
+                    if (deleted == null) _deleteFailed.value = true
+                }
             } catch (_: SQLiteException) {
                 _deleteFailed.value = true
             } finally {
@@ -110,4 +116,13 @@ class TransactionDetailViewModel @Inject constructor(
     }
 
     fun acknowledgeDeleted() { _deleted.value = null }
+
+    override fun onCleared() {
+        cleared = true
+        discardUndo(_deleted.value)
+    }
+
+    private fun discardUndo(action: UndoAction?) {
+        if (action is UndoAction.Deleted) repository.discardUndo(action.entity)
+    }
 }

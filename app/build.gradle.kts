@@ -9,7 +9,7 @@ plugins {
     alias(libs.plugins.androidx.room)
 }
 
-// Room şema dosyaları repoya girer; ileride migration testleri bunlara dayanır.
+// Room, repodaki şemaları androidTest APK'sına asset olarak ekler.
 room {
     schemaDirectory("$projectDir/schemas")
 }
@@ -32,14 +32,22 @@ android {
         // java.time (LocalDate) desugaring'siz çalışsın diye 26 (ADR-0005).
         minSdk = 26
         targetSdk = 37
-        // Play'deki eski sürüm 16; her yüklemede artar.
-        versionCode = 17
-        versionName = "1.1.0"
+        // Play'deki 1.1.0 sürümünün kodu 17; her yüklemede artar.
+        versionCode = 18
+        versionName = "1.2.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     androidResources {
         // Yalnız desteklenen dillerin kaynakları APK'ya girer.
         localeFilters += listOf("en", "tr")
+    }
+
+    bundle {
+        language {
+            // Dil seçimi ve CSV eşleştirmesi iki dilin kaynaklarına çevrimdışı erişir.
+            enableSplit = false
+        }
     }
 
     signingConfigs {
@@ -73,8 +81,24 @@ android {
     }
 }
 
+// Let Gradle cache the SDK used by the JVM Room tests, alongside the test dependencies.
+val robolectricSdk by configurations.creating { isTransitive = false }
+val robolectricSdkDirectory = layout.buildDirectory.dir("robolectric-sdk")
+val prepareRobolectricSdk by tasks.registering(Sync::class) {
+    from(robolectricSdk)
+    into(robolectricSdkDirectory)
+}
+tasks.withType<Test>().configureEach {
+    dependsOn(prepareRobolectricSdk)
+    inputs.files(robolectricSdk)
+    systemProperty("robolectric.dependency.dir", robolectricSdkDirectory.get().asFile.absolutePath)
+}
+
 dependencies {
+    robolectricSdk(libs.robolectric.sdk)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.exifinterface)
+    implementation(libs.mlkit.text.recognition)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.activity.compose)
@@ -93,6 +117,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.glance.material3)
 
     implementation(libs.androidx.room.runtime)
@@ -100,5 +125,8 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
     testImplementation(libs.kotlinx.coroutines.test)
+    androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.androidx.test.runner)
 }

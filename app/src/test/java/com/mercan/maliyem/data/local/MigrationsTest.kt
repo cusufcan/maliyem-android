@@ -181,6 +181,80 @@ class MigrationsTest {
         )
     }
 
+    @Test fun `v4 to v5 preserves existing data and adds a goal ledger with cascade deletion`() {
+        val v5 = schema(5)
+        val expectedSchema = metadata(v5)
+        val fresh = sqlite(createTables(v5) + expectedSchema)
+        val migrated = sqlite(
+            createTables(schema(4)) + """
+                INSERT INTO accounts VALUES (1, 'cash', NULL, 'wallet', 0, 400, 0);
+                INSERT INTO categories VALUES (6, 'EXPENSE', NULL, 'Market', 'cart', 1);
+                INSERT INTO transactions VALUES (9, 'EXPENSE', 75, 6, 20000, NULL, 123, 1, NULL);
+                INSERT INTO budgets VALUES (2, 6, 250, 123);
+                INSERT INTO overall_budget VALUES (1, 1000);
+                BEGIN;
+            """.trimIndent() + "\n" + migrationSql(MIGRATION_4_5) + """
+                COMMIT;
+                SELECT COUNT(*) FROM savings_goals;
+                SELECT COUNT(*) FROM goal_entries;
+                SELECT id, initialBalanceMinor FROM accounts;
+                SELECT id, amountMinor, accountId FROM transactions;
+                SELECT id, categoryId, limitMinor FROM budgets;
+                SELECT id, limitMinor FROM overall_budget;
+                SELECT name, seq FROM sqlite_sequence ORDER BY name;
+                INSERT INTO savings_goals VALUES (1, 'Trip', 1000, NULL, 'plane', 124, 0);
+                INSERT INTO savings_goals VALUES (2, 'Books', 500, 20050, 'book', 124, 1);
+                INSERT INTO goal_entries VALUES (1, 1, 500, 20000, NULL);
+                INSERT INTO goal_entries VALUES (2, 1, -75, 20001, 'Tickets');
+                INSERT INTO goal_entries VALUES (3, 2, 120, 20000, NULL);
+                SELECT SUM(amountMinor) FROM goal_entries WHERE goalId = 1;
+                DELETE FROM savings_goals WHERE id = 1;
+                SELECT id, goalId, amountMinor FROM goal_entries;
+                PRAGMA foreign_key_check;
+            """.trimIndent() + "\n" + expectedSchema,
+        )
+        assertEquals(
+            """
+                |0
+                |0
+                |1|400
+                |9|75|1
+                |2|6|250
+                |1|1000
+                |accounts|1
+                |budgets|2
+                |categories|6
+                |transactions|9
+                |425
+                |3|2|120
+                |""".trimMargin() + fresh,
+            migrated,
+        )
+    }
+
+    @Test fun `v5 to v6 preserves records and sequence and adds a nullable receipt`() {
+        val v6 = schema(6)
+        val expectedSchema = metadata(v6)
+        val fresh = sqlite(createTables(v6) + expectedSchema)
+        val migrated = sqlite(
+            createTables(schema(5)) + """
+                INSERT INTO accounts VALUES (1, 'cash', NULL, 'wallet', 0, 0, 0);
+                INSERT INTO categories VALUES (6, 'EXPENSE', NULL, 'Market', 'cart', 1);
+                INSERT INTO transactions VALUES (9, 'EXPENSE', 75, 6, 20000, 'Note', 123, 1, NULL);
+                UPDATE sqlite_sequence SET seq = 40 WHERE name = 'transactions';
+                BEGIN;
+            """.trimIndent() + "\n" + migrationSql(MIGRATION_5_6) + """
+                COMMIT;
+                SELECT id, amountMinor, note, receiptPath IS NULL FROM transactions;
+                INSERT INTO transactions (type, amountMinor, categoryId, date, createdAt, accountId, receiptPath)
+                    VALUES ('EXPENSE', 25, 6, 20001, 124, 1, '6d093eb6-b924-4aaf-a7fa-8fccbe72abe0.jpg');
+                SELECT id, receiptPath FROM transactions WHERE id > 9;
+                PRAGMA foreign_key_check;
+            """.trimIndent() + "\n" + expectedSchema,
+        )
+        assertEquals("9|75|Note|1\n41|6d093eb6-b924-4aaf-a7fa-8fccbe72abe0.jpg\n" + fresh, migrated)
+    }
+
     private fun metadata(schema: JsonObject): String =
         schema.getValue("entities").jsonArray.joinToString("\n") { entity ->
             val table = entity.jsonObject.getValue("tableName").jsonPrimitive.content
@@ -235,6 +309,7 @@ class MigrationsTest {
         val process = try {
             ProcessBuilder("sqlite3", "-batch", "-bail", ":memory:").redirectErrorStream(true).start()
         } catch (e: IOException) {
+            System.err.println("SQLite geçiş testleri atlandı: sqlite3 çalıştırılamadı.")
             assumeNoException("SQLite komut satırı aracı bulunamadı", e)
             throw e
         }

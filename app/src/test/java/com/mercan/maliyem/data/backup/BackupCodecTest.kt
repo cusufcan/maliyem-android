@@ -149,13 +149,56 @@ class BackupCodecTest {
         assertEquals(linked.copy(version = BackupFile.VERSION), restored.backup)
     }
 
-    @Test fun `v4 round trip keeps category and overall budgets`() {
+    @Test fun `v4 keeps budgets and starts without goals`() {
         val withBudgets = backup.copy(
             budgets = listOf(BackupBudget(9, expense.id, 40_000, 125)),
             overallBudgetMinor = 100_000,
         )
-        val restored = BackupCodec.decode(BackupCodec.encode(withBudgets)) as BackupDecodeResult.Valid
+        val legacy = BackupCodec.encode(withBudgets.copy(version = 4))
+            .replace("\"savingsGoals\":[]", "\"savingsGoals\":true")
+            .replace(",\"goalEntries\":[]", "")
+        val restored = BackupCodec.decode(legacy) as BackupDecodeResult.Valid
         assertEquals(withBudgets, restored.backup)
+    }
+
+    private val goal = BackupSavingsGoal(11, "Tatil", 25_000, "2027-02-15", "plane", 124, archived = true)
+    private val deposit = BackupGoalEntry(20, goal.id, 18_500, "2026-11-26", "Başlangıç")
+    private val withdrawal = BackupGoalEntry(21, goal.id, -3_500, "2026-11-27")
+
+    @Test fun `v6 round trip keeps goals and signed entries regardless of list order`() {
+        val file = backup.copy(savingsGoals = listOf(goal), goalEntries = listOf(withdrawal, deposit))
+        val restored = BackupCodec.decode(BackupCodec.encode(file)) as BackupDecodeResult.Valid
+        assertEquals(file, restored.backup)
+    }
+
+    @Test fun `v6 JSON keeps the relative path and v5 still reads absent or unknown receipt fields`() {
+        val path = "6d093eb6-b924-4aaf-a7fa-8fccbe72abe0.jpg"
+        val withReceipt = backup.copy(transactions = listOf(transaction.copy(receiptPath = path)))
+        val encoded = BackupCodec.encode(withReceipt)
+        assertTrue(encoded.contains("\"receiptPath\":\"$path\""))
+        assertEquals(withReceipt, (BackupCodec.decode(encoded) as BackupDecodeResult.Valid).backup)
+
+        val legacy = BackupCodec.encode(backup.copy(version = 5, savingsGoals = listOf(goal)))
+        for (content in listOf(legacy.replace(",\"receiptPath\":null", ""), legacy.replace("\"receiptPath\":null", "\"receiptPath\":{}"))) {
+            val result = BackupCodec.decode(content) as BackupDecodeResult.Valid
+            assertEquals(backup.copy(savingsGoals = listOf(goal)), result.backup)
+        }
+    }
+
+    @Test fun `rejects invalid goals and entries before restore`() {
+        for (invalid in listOf(
+            goal.copy(name = " "), goal.copy(id = 0), goal.copy(targetMinor = 0),
+            goal.copy(deadline = "2026-02-30"), goal.copy(icon = ""),
+        )) assertInvalid(backup.copy(savingsGoals = listOf(invalid)))
+        assertInvalid(backup.copy(savingsGoals = listOf(goal, goal)))
+
+        val file = backup.copy(savingsGoals = listOf(goal))
+        for (invalid in listOf(
+            withdrawal.copy(amountMinor = -18_501), withdrawal.copy(amountMinor = Long.MAX_VALUE),
+            withdrawal.copy(goalId = 99), withdrawal.copy(amountMinor = 0),
+            withdrawal.copy(id = deposit.id), withdrawal.copy(date = "2026-02-30"),
+        )) assertInvalid(file.copy(goalEntries = listOf(deposit, invalid)))
+        assertInvalid(file.copy(goalEntries = listOf(withdrawal)))
     }
 
     @Test fun `rejects invalid budget limits ids and categories`() {
@@ -166,7 +209,6 @@ class BackupCodecTest {
         assertInvalid(backup.copy(budgets = listOf(budget, budget.copy(id = 10))))
         for (invalid in listOf(
             budget.copy(id = 0),
-            budget.copy(id = Long.MAX_VALUE),
             budget.copy(categoryId = 99),
             budget.copy(categoryId = income.id),
             budget.copy(limitMinor = 0),
@@ -181,7 +223,6 @@ class BackupCodecTest {
         assertInvalid(backup.copy(recurringRules = listOf(rule, rule)))
         for (invalid in listOf(
             rule.copy(id = 0),
-            rule.copy(id = Long.MAX_VALUE),
             rule.copy(amountMinor = 0),
             rule.copy(categoryId = 99),
             rule.copy(categoryId = income.id),
@@ -206,6 +247,38 @@ class BackupCodecTest {
             BackupDecodeResult.Invalid,
             BackupCodec.decode("""{"format":"maliyem-backup","version":1,"exportedAt":123,"categories":[]}"""),
         )
+    }
+
+    @Test fun `accepts 2 to the power of 53 and rejects higher ids in every table and link`() {
+        val max = BackupCodec.MAX_ID
+        val over = max + 1
+        val budget = BackupBudget(9, expense.id, 40_000, 125)
+        val atLimit = backup.copy(
+            categories = listOf(expense.copy(id = max), income, otherExpense, otherIncome),
+            transactions = listOf(transaction.copy(id = max, categoryId = max, recurringRuleId = max)),
+            transfers = listOf(transfer.copy(id = max, toAccountId = max)),
+            accounts = listOf(cash, card.copy(id = max)),
+            recurringRules = listOf(rule.copy(id = max, categoryId = max, accountId = max)),
+            budgets = listOf(budget.copy(id = max, categoryId = max)),
+            savingsGoals = listOf(goal.copy(id = max)),
+            goalEntries = listOf(deposit.copy(id = max, goalId = max)),
+        )
+        assertEquals(atLimit, (BackupCodec.decode(BackupCodec.encode(atLimit)) as BackupDecodeResult.Valid).backup)
+        for (outOfRange in listOf(
+            backup.copy(categories = listOf(expense.copy(id = over))),
+            backup.copy(transactions = listOf(transaction.copy(id = over))),
+            backup.copy(accounts = listOf(cash.copy(id = over))),
+            backup.copy(transfers = listOf(transfer.copy(id = over))),
+            backup.copy(recurringRules = listOf(rule.copy(id = over))),
+            backup.copy(budgets = listOf(budget.copy(id = over))),
+            backup.copy(savingsGoals = listOf(goal.copy(id = over))),
+            backup.copy(goalEntries = listOf(deposit.copy(id = over))),
+            backup.copy(goalEntries = listOf(deposit.copy(goalId = over))),
+            backup.copy(transactions = listOf(transaction.copy(recurringRuleId = Long.MAX_VALUE))),
+            backup.copy(transfers = listOf(transfer.copy(toAccountId = over))),
+        )) {
+            assertEquals(BackupDecodeResult.IdOutOfRange, BackupCodec.decode(BackupCodec.encode(outOfRange)))
+        }
     }
 
     private fun assertInvalid(file: BackupFile) {

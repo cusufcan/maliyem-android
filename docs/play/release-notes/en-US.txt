@@ -1,0 +1,9 @@
+New in Maliyem 1.2.0:
+• Receipt photos: amount, date and merchant are read on your device
+• Accounts and transfers between them
+• Monthly budgets with alerts, plus savings goals
+• Recurring entries and reminders
+• Search, filters, a 6-month trend and a yearly report
+• Backup, restore, CSV import and export
+• Home screen widget and app lock
+• New icon, a first-run intro and a livelier design

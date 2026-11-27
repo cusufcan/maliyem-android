@@ -7,6 +7,10 @@ import com.mercan.maliyem.data.local.TransactionEntity
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.local.TransactionWithCategory
 import com.mercan.maliyem.data.local.TrendEntry
+import com.mercan.maliyem.data.receipt.ReceiptStore
+import com.mercan.maliyem.notifications.BudgetAlertTracker
+import com.mercan.maliyem.widget.WidgetUpdater
+import com.mercan.maliyem.notifications.ExpenseWrite
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.flow.Flow
@@ -19,9 +23,17 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 class RoomTransactionRepositoryTest {
+    @get:Rule val files = TemporaryFolder()
+
+    private val budgetAlerts = object : BudgetAlertTracker {
+        override suspend fun <T> track(write: suspend () -> ExpenseWrite<T>): T = write().result
+    }
+
     private class RangeDao : TransactionDao {
         var range: Pair<LocalDate, LocalDate>? = null
         override fun observeRange(from: LocalDate, to: LocalDate): Flow<List<TransactionWithCategory>> {
@@ -66,11 +78,17 @@ class RoomTransactionRepositoryTest {
         }
         override fun observeDate(id: Long): Flow<LocalDate?> = emptyFlow()
         override suspend fun getById(id: Long): TransactionEntity? = existing?.takeIf { it.id == id }
+        override suspend fun receiptPaths() = listOfNotNull(existing?.receiptPath)
+        override suspend fun clearMissingReceipt(path: String) = Unit
+        override suspend fun referencesReceipt(path: String) = existing?.receiptPath == path
         override suspend fun getAll(): List<TransactionEntity> = listOfNotNull(existing)
         override fun observeCounts(): Flow<List<CategoryCount>> = flowOf(emptyList())
     }
 
-    private fun rangeOf(month: YearMonth) = RangeDao().also { RoomTransactionRepository(it) {}.observeMonth(month) }.range
+    private fun repository(dao: RangeDao, refresh: WidgetUpdater) =
+        RoomTransactionRepository(dao, budgetAlerts, ReceiptStore(files.newFolder(), dao), refresh)
+
+    private fun rangeOf(month: YearMonth) = RangeDao().also { repository(it) {}.observeMonth(month) }.range
 
     @Test fun `month bounds include first and last day`() {
         assertEquals(LocalDate.of(2026, 11, 1) to LocalDate.of(2026, 11, 30), rangeOf(YearMonth.of(2026, 11)))
@@ -84,7 +102,7 @@ class RoomTransactionRepositoryTest {
 
     @Test fun `trend range includes first and last days across years`() {
         val dao = RangeDao()
-        RoomTransactionRepository(dao) {}.observeTrendEntries(YearMonth.of(2027, 9), YearMonth.of(2028, 2))
+        repository(dao) {}.observeTrendEntries(YearMonth.of(2027, 9), YearMonth.of(2028, 2))
         assertEquals(LocalDate.of(2027, 9, 1) to LocalDate.of(2028, 2, 29), dao.range)
     }
 
@@ -92,16 +110,17 @@ class RoomTransactionRepositoryTest {
         val dao = RangeDao().apply {
             dateEmissions = listOf(listOf(LocalDate.of(2026, 11, 3), LocalDate.of(2026, 11, 28), LocalDate.of(2026, 9, 1)))
         }
-        assertEquals(setOf(YearMonth.of(2026, 11), YearMonth.of(2026, 9)), RoomTransactionRepository(dao) {}.observeMonthsWithData().first())
+        assertEquals(setOf(YearMonth.of(2026, 11), YearMonth.of(2026, 9)), repository(dao) {}.observeMonthsWithData().first())
     }
 
     @Test fun `add and delete reach the dao`() = runBlocking {
         val dao = RangeDao()
         var refreshes = 0
-        val repo = RoomTransactionRepository(dao) { refreshes++ }
+        val repo = repository(dao) { refreshes++ }
         val entity = TransactionEntity(type = TransactionType.EXPENSE, amountMinor = 100, categoryId = 1, date = LocalDate.of(2026, 11, 26), createdAt = 0, accountId = 1)
         assertEquals(7L, repo.add(entity))
         assertEquals(entity, dao.inserted)
+        dao.existing = entity.copy(id = 7)
         repo.delete(7)
         assertEquals(7L, dao.deleted)
         assertEquals(2, refreshes)
@@ -113,7 +132,7 @@ class RoomTransactionRepositoryTest {
         val dao = RangeDao().apply {
             dateEmissions = listOf(listOf(first), listOf(first, first.minusDays(1)), listOf(first, second))
         }
-        val result = RoomTransactionRepository(dao) {}.observeMonthsWithData().toList()
+        val result = repository(dao) {}.observeMonthsWithData().toList()
         assertEquals(listOf(setOf(YearMonth.from(first)), setOf(YearMonth.from(first), YearMonth.from(second))), result)
     }
 
@@ -121,7 +140,7 @@ class RoomTransactionRepositoryTest {
         val entry = TransactionEntity(5, TransactionType.EXPENSE, 101, 2, LocalDate.of(2026, 11, 1), "note", 4, accountId = 1)
         val dao = RangeDao().apply { existing = entry }
         var refreshes = 0
-        val repo = RoomTransactionRepository(dao) { refreshes++ }
+        val repo = repository(dao) { refreshes++ }
         assertNull(repo.deleteAndGet(99))
         assertEquals(0, refreshes)
         assertNull(dao.deleted)
@@ -138,7 +157,7 @@ class RoomTransactionRepositoryTest {
     @Test fun `editing a generated transaction keeps its current rule link`() = runBlocking {
         val entry = TransactionEntity(5, TransactionType.EXPENSE, 101, 2, LocalDate.of(2026, 11, 1), null, 4, accountId = 1, recurringRuleId = 8)
         val dao = RangeDao().apply { existing = entry }
-        val repo = RoomTransactionRepository(dao) {}
+        val repo = repository(dao) {}
         val draft = entry.copy(amountMinor = 500, recurringRuleId = null)
 
         assertTrue(repo.update(draft))
@@ -152,7 +171,7 @@ class RoomTransactionRepositoryTest {
     @Test fun `undo preserves an existing rule link and drops a deleted one`() = runBlocking {
         val entry = TransactionEntity(5, TransactionType.EXPENSE, 101, 2, LocalDate.of(2026, 11, 1), null, 4, accountId = 1, recurringRuleId = 8)
         val dao = RangeDao().apply { ruleId = 8 }
-        val repo = RoomTransactionRepository(dao) {}
+        val repo = repository(dao) {}
         assertTrue(repo.restore(entry))
         assertEquals(entry.copy(categoryId = 9), dao.inserted)
         dao.ruleId = null
@@ -163,7 +182,7 @@ class RoomTransactionRepositoryTest {
     @Test fun `undo does not insert when neither category exists`() = runBlocking {
         val entry = TransactionEntity(5, TransactionType.INCOME, 101, 2, LocalDate.of(2026, 11, 1), null, 4, accountId = 1)
         val dao = RangeDao().apply { restoredCategory = null }
-        assertFalse(RoomTransactionRepository(dao) {}.restore(entry))
+        assertFalse(repository(dao) {}.restore(entry))
         assertEquals(DefaultCategories.OTHER_INCOME, dao.requestedFallback)
         assertNull(dao.inserted)
     }

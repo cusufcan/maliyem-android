@@ -3,6 +3,9 @@ package com.mercan.maliyem.data.local
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
+internal val ALL_MIGRATIONS
+    get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+
 /** Mevcut kayıtları nakit hesabına bağlar; kimlikleri ve eski sıra sayacını korur. */
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -99,5 +102,31 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
                 id INTEGER PRIMARY KEY NOT NULL, limitMinor INTEGER NOT NULL
             )
         """.trimIndent())
+    }
+}
+
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE savings_goals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL,
+                targetMinor INTEGER NOT NULL, deadline INTEGER, icon TEXT NOT NULL,
+                createdAt INTEGER NOT NULL, archived INTEGER NOT NULL
+            )
+        """.trimIndent())
+        db.execSQL("""
+            CREATE TABLE goal_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, goalId INTEGER NOT NULL,
+                amountMinor INTEGER NOT NULL, date INTEGER NOT NULL, note TEXT,
+                FOREIGN KEY(goalId) REFERENCES savings_goals(id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX index_goal_entries_goalId ON goal_entries (goalId)")
+    }
+}
+
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE transactions ADD COLUMN receiptPath TEXT")
     }
 }

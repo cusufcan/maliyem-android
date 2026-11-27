@@ -1,6 +1,10 @@
 package com.mercan.maliyem.widget
 
+import android.annotation.SuppressLint
+import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
+import android.os.Bundle
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -10,13 +14,18 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.glance.Emittable
+import androidx.glance.EmittableWithChildren
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.LocalSize
 import androidx.glance.action.Action
 import androidx.glance.action.clickable
+import androidx.glance.appwidget.AppWidgetId
+import androidx.glance.appwidget.AppWidgetSession
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionStartActivity
@@ -36,6 +45,8 @@ import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.width
 import androidx.glance.material3.ColorProviders
+import androidx.glance.semantics.SemanticsModifier
+import androidx.glance.semantics.SemanticsPropertyKey
 import androidx.glance.semantics.contentDescription
 import androidx.glance.semantics.semantics
 import androidx.glance.text.FontWeight
@@ -63,13 +74,16 @@ import dagger.hilt.components.SingletonComponent
 import java.math.BigInteger
 import java.time.YearMonth
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 private val MinimumSize = DpSize(112.dp, 48.dp)
-private val CompactSize = DpSize(112.dp, 68.dp)
-private val ExpandedSize = DpSize(144.dp, 112.dp)
+private val CompactSize = DpSize(112.dp, 100.dp)
+private val ExpandedSize = DpSize(144.dp, 150.dp)
 private val SeyirWidgetColors = ColorProviders(light = LightColors, dark = DarkColors)
 private val IncomeBackground = ColorProvider(LightMoneyColors.incomeContainer, DarkMoneyColors.incomeContainer)
 private val IncomeContent = ColorProvider(LightMoneyColors.onIncomeContainer, DarkMoneyColors.onIncomeContainer)
@@ -77,6 +91,7 @@ private val IncomeContent = ColorProvider(LightMoneyColors.onIncomeContainer, Da
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 internal interface MonthWidgetEntryPoint {
+    fun updater(): GlanceWidgetUpdater
     fun transactions(): TransactionRepository
     fun calendarDays(): CalendarDays
     fun settings(): AppSettings
@@ -84,27 +99,48 @@ internal interface MonthWidgetEntryPoint {
 
 class MonthWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget = MonthWidget()
+
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        if (intent.action == Intent.ACTION_DATE_CHANGED || intent.action == Intent.ACTION_TIMEZONE_CHANGED) {
+            val stale = widgetsWithStaleMonth(context)
+            if (stale.isNotEmpty()) onUpdate(context, AppWidgetManager.getInstance(context), stale)
+        }
+    }
 }
 
 /** Küçük boyda neti, yeterli alan varsa gelir ve gider toplamlarını da gösterir. */
-class MonthWidget : GlanceAppWidget() {
+class MonthWidget(private val maskOnly: Boolean = false) : GlanceAppWidget() {
     override val sizeMode = SizeMode.Responsive(setOf(MinimumSize, CompactSize, ExpandedSize))
     override val stateDefinition = null
+
+    override suspend fun onDelete(context: Context, glanceId: GlanceId) {
+        storeWidgetMonth(context, GlanceAppWidgetManager(context).getAppWidgetId(glanceId), null)
+    }
+
+    // Glance 1.2's session hook is the last point before it sends RemoteViews to the launcher.
+    @SuppressLint("RestrictedApi")
+    override fun createAppWidgetSession(context: Context, id: AppWidgetId, options: Bundle?): AppWidgetSession =
+        MonthWidgetSession(this, id, options)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val dependencies = EntryPointAccessors.fromApplication<MonthWidgetEntryPoint>(context)
         val transactions = dependencies.transactions()
         val appLockEnabled = dependencies.settings().appLockEnabled
-        // Glance oturumu açıksa updateAll içerik sağlayıcısını yeniden başlatmaz.
-        // Ayı ve Room sorgusunu izleyerek açık oturumda da yeni toplamları alırız.
-        val totals = dependencies.calendarDays().days.map(YearMonth::from).distinctUntilChanged()
-            .flatMapLatest { month ->
-                transactions.observeTrendEntries(month, month).map { rows -> buildTrend(listOf(month), rows).single() }
-            }
+        val initialMonth = YearMonth.now()
+        val initialLocked = maskOnly || appLockEnabled.value
+        fun observeTotals(month: YearMonth) = transactions.observeTrendEntries(month, month)
+            .map { rows -> buildTrend(listOf(month), rows).single() }
+
+        val initial = if (initialLocked) null else observeTotals(initialMonth).first()
+        // Open sessions also observe the lock and discard their cached totals when it changes.
+        val totals = combine(appLockEnabled, dependencies.calendarDays().days.map(YearMonth::from).distinctUntilChanged(), ::Pair)
+            .flatMapLatest { (locked, month) -> if (locked) flowOf(null) else observeTotals(month) }
         provideContent {
-            val locked by appLockEnabled.collectAsState()
-            val current = if (locked) null else totals.collectAsState(initial = null).value
+            val lockState by appLockEnabled.collectAsState()
+            val locked = maskOnly || lockState
+            val current = if (locked) null else totals.collectAsState(initial = initial).value
             val localizedContext = remember(context) { ContextCompat.getContextForLanguage(context) }
             GlanceTheme(colors = SeyirWidgetColors) {
                 SeyirMonthWidget(localizedContext, current, LocalSize.current, locked)
@@ -113,11 +149,46 @@ class MonthWidget : GlanceAppWidget() {
     }
 }
 
+private data class WidgetFrame(val locked: Boolean, val month: YearMonth)
+private val Frame = SemanticsPropertyKey<WidgetFrame>("WidgetFrame")
+
+@SuppressLint("RestrictedApi")
+private class MonthWidgetSession(
+    private val widget: MonthWidget,
+    private val widgetId: AppWidgetId,
+    options: Bundle?,
+) : AppWidgetSession(widget, widgetId, options) {
+    override suspend fun processEmittableTree(context: Context, root: EmittableWithChildren): Boolean {
+        val frames = root.widgetFrames().distinct().toList()
+        // Responsive layouts are composed separately. Reject a tree that crosses a transition.
+        val frame = frames.singleOrNull() ?: return false
+        val updater = EntryPointAccessors.fromApplication<MonthWidgetEntryPoint>(context).updater()
+        return updater.publishIfCurrent(frame.locked) {
+            super.processEmittableTree(context, root).also { published ->
+                if (published) storeWidgetMonth(context, widgetId.appWidgetId, frame.month)
+            }
+        }
+    }
+
+    // There are no Glance lambda actions to replay. Recreated sessions read current launcher options.
+    override suspend fun recreateWithEvents(events: List<Any>): AppWidgetSession =
+        MonthWidgetSession(widget, widgetId, options = null)
+
+    private fun Emittable.widgetFrames(): Sequence<WidgetFrame> = sequence {
+        val frame = modifier.foldIn<WidgetFrame?>(null) { value, modifier ->
+            (modifier as? SemanticsModifier)?.configuration?.getOrNull(Frame) ?: value
+        }
+        if (frame != null) yield(frame)
+        (this@widgetFrames as? EmittableWithChildren)?.children?.forEach { yieldAll(it.widgetFrames()) }
+    }
+}
+
 @Composable
 private fun SeyirMonthWidget(context: Context, totals: MonthlyTrend?, size: DpSize, locked: Boolean) {
     val showDetails = !locked && size == ExpandedSize
-    val showNetLabel = !locked && size != MinimumSize
-    val buttonHeight = if (size != MinimumSize) 26.dp else 22.dp
+    val showNetLabel = !locked && size.height >= CompactSize.height
+    val buttonHeight = 48.dp
+    val showTotals = size.height >= CompactSize.height
     val colors = GlanceTheme.colors
     val locale = context.resources.configuration.locales[0]
     fun amount(minor: BigInteger?, signed: Boolean = false) =
@@ -125,17 +196,18 @@ private fun SeyirMonthWidget(context: Context, totals: MonthlyTrend?, size: DpSi
 
     val netLabel = context.getString(if (locked) R.string.widget_amounts_hidden else R.string.widget_month_net)
     val net = if (locked) "••••" else amount(totals?.netMinor, signed = true)
-    val openApp = if (locked) GlanceModifier else GlanceModifier.clickable(actionStartActivity(mainActivityIntent(context)))
+    val openApp = if (locked || !showTotals) GlanceModifier else GlanceModifier.clickable(actionStartActivity(mainActivityIntent(context)))
     Column(
         modifier = GlanceModifier.fillMaxSize().appWidgetBackground().cornerRadius(20.dp)
             .background(colors.primaryContainer).then(openApp)
-            .padding(horizontal = Spacing.sm, vertical = if (showNetLabel) Spacing.xs else 2.dp),
+            .semantics { this[Frame] = WidgetFrame(locked, totals?.month ?: YearMonth.now()) }
+            .padding(horizontal = Spacing.xs, vertical = if (showTotals) Spacing.xs else 0.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (showNetLabel) {
             Text(netLabel, style = TextStyle(color = colors.onPrimaryContainer, fontSize = 11.sp), maxLines = 1)
         }
-        Text(
+        if (showTotals) Text(
             net,
             modifier = if (showNetLabel) GlanceModifier else GlanceModifier.semantics {
                 contentDescription = if (locked) netLabel else "$netLabel $net"
@@ -155,7 +227,7 @@ private fun SeyirMonthWidget(context: Context, totals: MonthlyTrend?, size: DpSi
                 }
             }
         }
-        Spacer(GlanceModifier.height(if (showNetLabel) Spacing.xs else 2.dp))
+        if (showTotals) Spacer(GlanceModifier.height(Spacing.xs))
         Row(GlanceModifier.fillMaxWidth()) {
             SeyirWidgetButton(
                 context, R.string.widget_add_expense, colors.surface, colors.onSurface,

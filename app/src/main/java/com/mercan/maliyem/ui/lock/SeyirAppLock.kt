@@ -1,12 +1,15 @@
 package com.mercan.maliyem.ui.lock
 
 import android.widget.ImageView
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -32,6 +35,7 @@ import com.mercan.maliyem.ui.components.SeyirButton
 import com.mercan.maliyem.ui.components.SeyirCard
 import com.mercan.maliyem.ui.components.SeyirSegmented
 import com.mercan.maliyem.ui.components.SubText
+import com.mercan.maliyem.ui.theme.Motion
 import com.mercan.maliyem.ui.theme.Spacing
 
 /** Ayarlar'da kilidin durumu ve arka planda beklenecek süre. */
@@ -45,12 +49,14 @@ internal fun SeyirSecurityCard(
     onTimeoutChange: (LockTimeout) -> Unit,
 ) {
     val canToggle = available && !authenticating
-    SeyirCard {
-        CardLabel(stringResource(R.string.settings_security))
+    SeyirCard(padding = PaddingValues()) {
+        Column(Modifier.padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.lg)) {
+            CardLabel(stringResource(R.string.settings_security))
+        }
         Row(
-            Modifier.fillMaxWidth()
+            Modifier.fillMaxWidth().heightIn(min = 56.dp)
                 .toggleable(enabled, enabled = canToggle, role = Role.Switch, onValueChange = onEnabledChange)
-                .padding(vertical = Spacing.sm),
+                .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
             horizontalArrangement = Arrangement.spacedBy(Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -60,15 +66,17 @@ internal fun SeyirSecurityCard(
             }
             Switch(checked = enabled, onCheckedChange = null, enabled = canToggle)
         }
-        if (enabled) {
-            CardLabel(stringResource(R.string.settings_app_lock_timing))
-            SeyirSegmented(
-                listOf(R.string.app_lock_immediate, R.string.app_lock_one_minute, R.string.app_lock_five_minutes)
-                    .map { stringResource(it) },
-                timeout.ordinal,
-                { onTimeoutChange(LockTimeout.entries[it]) },
-                Modifier.padding(top = Spacing.sm),
-            )
+        AnimatedVisibility(enabled, enter = Motion.expand(), exit = Motion.collapse()) {
+            Column(Modifier.padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.lg)) {
+                CardLabel(stringResource(R.string.settings_app_lock_timing))
+                SeyirSegmented(
+                    listOf(R.string.app_lock_immediate, R.string.app_lock_one_minute, R.string.app_lock_five_minutes)
+                        .map { stringResource(it) },
+                    timeout.ordinal,
+                    { onTimeoutChange(LockTimeout.entries[it]) },
+                    Modifier.padding(top = Spacing.sm),
+                )
+            }
         }
     }
 }

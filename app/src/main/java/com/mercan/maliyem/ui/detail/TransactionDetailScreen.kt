@@ -2,8 +2,8 @@ package com.mercan.maliyem.ui.detail
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,11 +14,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -30,16 +31,17 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
-import com.mercan.maliyem.ui.accounts.accountName
-import com.mercan.maliyem.ui.navigation.UndoAction
 import com.mercan.maliyem.data.local.TransactionType
+import com.mercan.maliyem.ui.accounts.accountName
+import com.mercan.maliyem.ui.components.ActionTone
 import com.mercan.maliyem.ui.components.BackHeader
 import com.mercan.maliyem.ui.components.CategoryCircle
-import com.mercan.maliyem.ui.components.SeyirButton
-import com.mercan.maliyem.ui.components.SeyirCard
 import com.mercan.maliyem.ui.components.SettingRow
+import com.mercan.maliyem.ui.components.SeyirActionButton
+import com.mercan.maliyem.ui.components.SeyirCard
 import com.mercan.maliyem.ui.components.SubText
 import com.mercan.maliyem.ui.components.categoryName
+import com.mercan.maliyem.ui.navigation.UndoAction
 import com.mercan.maliyem.ui.recurring.detailRes
 import com.mercan.maliyem.ui.theme.MoneyHeroValue
 import com.mercan.maliyem.ui.theme.Spacing
@@ -53,6 +55,7 @@ import java.time.format.DateTimeFormatter
 fun TransactionDetailScreen(
     onBack: () -> Unit,
     onEdit: () -> Unit,
+    onOpenReceipt: (String) -> Unit,
     onOpenRule: (Long) -> Unit,
     onDeleted: (UndoAction) -> Unit,
     viewModel: TransactionDetailViewModel = hiltViewModel(),
@@ -105,9 +108,17 @@ fun TransactionDetailScreen(
                             HorizontalDivider(color = colors.outlineVariant)
                         }
                     }
+                    transaction.receiptPath?.let { path ->
+                        SettingRow(
+                            R.drawable.ic_seyir_receipt, stringResource(R.string.receipt_open),
+                            modifier = Modifier.clip(MaterialTheme.shapes.large),
+                            onClick = { onOpenReceipt(path) }, horizontalPadding = 0.dp,
+                        )
+                    }
                     rule?.takeIf { it.id == transaction.recurringRuleId }?.let { recurring ->
                         SettingRow(
                             R.drawable.ic_seyir_repeat, stringResource(recurring.frequency.detailRes()),
+                            modifier = Modifier.clip(MaterialTheme.shapes.large),
                             onClick = { onOpenRule(recurring.id) }, horizontalPadding = 0.dp,
                         )
                     }
@@ -132,13 +143,18 @@ fun TransactionDetailScreen(
             }
         }
         if (deleteFailed) SubText(stringResource(R.string.detail_delete_failed))
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-            SeyirButton(
-                stringResource(R.string.detail_delete),
-                viewModel::delete,
-                Modifier.weight(1f), icon = R.drawable.ic_seyir_trash, tonal = true, enabled = !deleting,
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            SeyirActionButton(
+                stringResource(R.string.detail_delete), viewModel::delete,
+                icon = R.drawable.ic_seyir_trash, tone = ActionTone.Danger, enabled = !deleting,
             )
-            SeyirButton(stringResource(R.string.detail_edit), onEdit, Modifier.weight(1f), icon = R.drawable.ic_seyir_edit, enabled = !deleting)
+            SeyirActionButton(
+                stringResource(R.string.detail_edit), onEdit,
+                icon = R.drawable.ic_seyir_edit, enabled = !deleting,
+            )
         }
     }
 }
@@ -148,7 +164,7 @@ fun TransactionDetailScreen(
 private fun DetailAmount(icon: Int, label: String, amount: String) {
     val locale = LocalConfiguration.current.locales[0]
     Column(
-        Modifier.fillMaxWidth().padding(top = Spacing.lg, bottom = Spacing.sm),
+        Modifier.fillMaxWidth().padding(vertical = Spacing.sm),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {

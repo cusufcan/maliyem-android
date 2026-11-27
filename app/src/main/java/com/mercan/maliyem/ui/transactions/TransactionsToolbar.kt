@@ -13,7 +13,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -28,8 +27,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import com.mercan.maliyem.R
 import com.mercan.maliyem.ui.accounts.accountName
+import com.mercan.maliyem.ui.components.BackHeader
 import com.mercan.maliyem.ui.components.ScreenTitle
 import com.mercan.maliyem.ui.components.SeyirChip
+import com.mercan.maliyem.ui.components.SeyirCompactControl
 import com.mercan.maliyem.ui.components.categoryName
 import com.mercan.maliyem.ui.components.monthTitle
 import com.mercan.maliyem.ui.theme.SeyirIcon
@@ -47,12 +48,22 @@ internal fun TransactionsToolbar(
     onSearch: (String?) -> Unit,
     onSubmitSearch: () -> Unit,
     onOpenFilters: () -> Unit,
+    onBack: (() -> Unit)? = null,
 ) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         if (search == null) {
-            Box(Modifier.weight(1f)) { ScreenTitle(stringResource(R.string.nav_transactions)) }
-            IconButton(onClick = { onSearch("") }) {
-                SeyirIcon(R.drawable.ic_seyir_search, description = stringResource(R.string.transactions_search))
+            Box(Modifier.weight(1f)) {
+                val title = stringResource(R.string.nav_transactions)
+                if (onBack == null) ScreenTitle(title) else BackHeader(title, onBack)
+            }
+            SeyirCompactControl {
+                IconButton(onClick = { onSearch("") }) {
+                    SeyirIcon(R.drawable.ic_seyir_search, description = stringResource(R.string.transactions_search))
+                }
             }
         } else {
             val focus = remember { FocusRequester() }
@@ -71,8 +82,10 @@ internal fun TransactionsToolbar(
             )
             LaunchedEffect(Unit) { focus.requestFocus() }
         }
-        IconButton(onClick = onOpenFilters) {
-            SeyirIcon(R.drawable.ic_seyir_filter, description = stringResource(R.string.transactions_filters))
+        SeyirCompactControl {
+            IconButton(onClick = onOpenFilters) {
+                SeyirIcon(R.drawable.ic_seyir_filter, description = stringResource(R.string.transactions_filters))
+            }
         }
     }
 }
@@ -87,9 +100,13 @@ internal fun ActiveTransactionFilters(
     onChange: (TransactionsFilters) -> Unit,
 ) {
     if (!filters.isActive) return
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Row(
-            Modifier.weight(1f, fill = false).horizontalScroll(rememberScrollState()).padding(end = Spacing.xs),
+            Modifier.weight(1f, fill = false).horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -116,7 +133,10 @@ internal fun ActiveTransactionFilters(
                 ActiveFilterChip(amountChipLabel(R.string.transactions_amount_max, it, locale)) { onChange(filters.copy(maximum = null)) }
             }
         }
-        TextButton(onClick = { onChange(TransactionsFilters()) }) { Text(stringResource(R.string.transactions_filter_clear)) }
+        SeyirChip(
+            stringResource(R.string.transactions_filter_clear), selected = false,
+            onClick = { onChange(TransactionsFilters()) }, role = Role.Button,
+        )
     }
 }
 

@@ -23,7 +23,10 @@ fun MaliyemTheme(
     content: @Composable () -> Unit,
 ) {
     CompositionLocalProvider(
+        LocalReducedMotion provides rememberReducedMotion(),
         LocalMoneyColors provides if (darkTheme) DarkMoneyColors else LightMoneyColors,
+        LocalCategoryPalette provides if (darkTheme) DarkCategoryPalette else LightCategoryPalette,
+        LocalBackdropAlpha provides if (darkTheme) 0.06f else 0.09f,
         LocalSelectionColors provides if (darkTheme) DarkSelectionColors else LightSelectionColors,
         LocalBudgetWarning provides if (darkTheme) DarkBudgetWarning else LightBudgetWarning,
     ) {

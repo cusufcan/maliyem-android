@@ -1,6 +1,8 @@
 package com.mercan.maliyem.ui.navigation
 
 import android.database.sqlite.SQLiteException
+import android.database.sqlite.SQLiteConstraintException
+import com.mercan.maliyem.R
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,11 +15,13 @@ import com.mercan.maliyem.ui.add.SavedEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.YearMonth
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -62,7 +66,7 @@ class AppViewModel @Inject constructor(
     private val _undoActions = MutableStateFlow<List<UndoAction>>(emptyList())
     val undoActions = _undoActions.asStateFlow()
     private val undoWrites = Mutex()
-    private val _undoFailed = MutableStateFlow(false)
+    private val _undoFailed = MutableStateFlow<Int?>(null)
     val undoFailed = _undoFailed.asStateFlow()
 
     fun offerUndo(action: UndoAction) {
@@ -73,28 +77,50 @@ class AppViewModel @Inject constructor(
     fun finishUndo(action: UndoAction, perform: Boolean) {
         if (_undoActions.value.firstOrNull() != action) return
         _undoActions.update { it.drop(1) }
-        if (!perform) return
-        viewModelScope.launch {
+        val deleted = (action as? UndoAction.Deleted)?.entity
+        if (!perform) {
+            deleted?.let(repository::discardUndo)
+            return
+        }
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
                 undoWrites.withLock {
                     when (action) {
                         is UndoAction.Added -> if (action.entry.type == null) transfers.delete(action.entry.id)
                             else repository.delete(action.entry.id)
                         is UndoAction.DeletedTransfer -> transfers.add(action.entity)
-                        is UndoAction.Deleted -> if (!repository.restore(action.entity)) _undoFailed.value = true
+                        is UndoAction.Deleted -> if (!repository.restore(action.entity)) _undoFailed.value = R.string.undo_failed
                     }
                 }
+            } catch (_: SQLiteConstraintException) {
+                _undoFailed.value = R.string.undo_related_record_missing
             } catch (_: SQLiteException) {
-                _undoFailed.value = true
+                _undoFailed.value = R.string.undo_failed
+            } finally {
+                deleted?.let(repository::discardUndo)
             }
         }
     }
 
     /** Yedekte aynı kimlikler başka kayıtlara ait olabilir; eski "Geri al" işlemlerini kapatır. */
-    suspend fun clearUndo() {
-        _undoActions.value = emptyList()
-        undoWrites.withLock { _undoFailed.value = false }
+    suspend fun restoreWithUndoCleared(restore: suspend () -> Unit) {
+        val queued = takeQueuedDeletions()
+        try {
+            undoWrites.withLock {
+                _undoFailed.value = null
+                restore()
+            }
+        } finally {
+            queued.forEach { repository.discardUndo(it.entity) }
+        }
     }
 
-    fun acknowledgeUndoFailure() { _undoFailed.value = false }
+    override fun onCleared() {
+        takeQueuedDeletions().forEach { repository.discardUndo(it.entity) }
+    }
+
+    private fun takeQueuedDeletions() =
+        _undoActions.getAndUpdate { emptyList() }.filterIsInstance<UndoAction.Deleted>()
+
+    fun acknowledgeUndoFailure() { _undoFailed.value = null }
 }

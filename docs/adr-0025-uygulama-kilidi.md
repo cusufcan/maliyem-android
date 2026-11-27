@@ -1,7 +1,0 @@
-# ADR-0025 · Uygulama kilidi
-
-- **Durum** Uygulandı (2026-11-26)
-- **Doğrulama** Kilit, AndroidX Biometric 1.1.0 ile başarılı sistem doğrulamasından sonra açılır. API 30 ve üstünde zayıf biyometri ile cihaz kimlik bilgisi birlikte sorgulanır ve istenir. API 26–29'da PIN, desen veya parola varlığı için `KeyguardManager.isDeviceSecure` kullanılır. API 29 iki yöntemi platform isteminde sunar. API 28'de parmak izi sistem istemiyle denenir ve PIN/desen için Keyguard ekranına geçilir. Core 1.19.1 eski parmak izi uyumluluk API'sini boş bıraktığından, sabit Biometric 1.1.0 ile API 26–27'de AndroidX'in cihaz kimlik bilgisi yolu kullanılır.
-- **Oturum** Yeni Activity oturumu, kilit açıksa doğrulama ister. Yapılandırma değişikliği mevcut oturumu korur. Arka plan süresi `onStop` ile başlar, `onStart` ile karşılaştırılır. Enjekte edilen `elapsedRealtime` saati cihaz uykusunu sayar ve duvar saati değişimlerinden etkilenmez. Dönüşte otomatik istem bir kez açılır. İptal veya sonlanan hata, tekrar deneme düğmesini gösterir.
-- **Görünürlük** Kilitliyken gezinme içeriği Compose ağacından çıkar. Hızlı kayıt isteği doğrulamaya kadar bekler. Kilit etkin olduğu sürece `FLAG_SECURE` uygulanır. Widget her boyda tutarları maskeler ve yalnızca hızlı kayıt düğmelerini etkin bırakır.
-- **Veri** Kilit ve bekleme süresi cihaz ayarlarıdır. Mevcut `AppSettings` kullanılır. Room şeması ve JSON yedek biçimi aynı sürümde kalır.

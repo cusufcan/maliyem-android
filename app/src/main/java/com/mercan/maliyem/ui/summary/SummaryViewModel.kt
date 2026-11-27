@@ -6,11 +6,13 @@ import com.mercan.maliyem.data.repository.AccountRepository
 import com.mercan.maliyem.data.local.TransactionType
 import com.mercan.maliyem.data.repository.BudgetRepository
 import com.mercan.maliyem.data.repository.CategoryRepository
+import com.mercan.maliyem.data.repository.SavingsGoalRepository
 import com.mercan.maliyem.data.repository.TransactionRepository
 import com.mercan.maliyem.data.repository.TransferRepository
 import com.mercan.maliyem.ui.CalendarDays
 import com.mercan.maliyem.ui.MonthSelection
 import com.mercan.maliyem.ui.budgets.buildMonthlyBudgets
+import com.mercan.maliyem.ui.goals.summaryGoals
 import com.mercan.maliyem.ui.trend.buildTrend
 import com.mercan.maliyem.ui.trend.trendMonths
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,9 +37,13 @@ class SummaryViewModel @Inject constructor(
     calendar: CalendarDays,
     budgets: BudgetRepository,
     categories: CategoryRepository,
+    goals: SavingsGoalRepository,
 ) : ViewModel() {
 
     val activeAccounts = accounts.observeBalances().map { rows -> rows.filterNot { it.account.archived } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val featuredGoals = goals.observeBalances().map(::summaryGoals)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val currentMonth = calendar.days.map(YearMonth::from).distinctUntilChanged()

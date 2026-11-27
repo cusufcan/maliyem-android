@@ -28,6 +28,9 @@ abstract class AccountDao {
     abstract suspend fun insertAll(accounts: List<AccountEntity>)
 
     @Insert
+    abstract suspend fun insertAllReturningIds(rows: List<AccountEntity>): List<Long>
+
+    @Insert
     protected abstract suspend fun insert(account: AccountEntity)
 
     @Query("SELECT COALESCE(MAX(sortOrder), -1) + 1 FROM accounts")

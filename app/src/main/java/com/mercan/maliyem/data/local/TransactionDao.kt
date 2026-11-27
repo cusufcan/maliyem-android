@@ -59,6 +59,20 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions ORDER BY date, createdAt, id")
     suspend fun getAll(): List<TransactionEntity>
 
+    @Query("SELECT DISTINCT receiptPath FROM transactions WHERE receiptPath IS NOT NULL")
+    suspend fun receiptPaths(): List<String>
+
+    @Query("UPDATE transactions SET receiptPath = NULL WHERE receiptPath = :path")
+    suspend fun clearMissingReceipt(path: String)
+
+    @Transaction
+    suspend fun clearMissingReceipts(paths: List<String>) {
+        paths.forEach { clearMissingReceipt(it) }
+    }
+
+    @Query("SELECT EXISTS(SELECT 1 FROM transactions WHERE receiptPath = :path)")
+    suspend fun referencesReceipt(path: String): Boolean
+
     @Query("SELECT categoryId, COUNT(*) AS count FROM transactions GROUP BY categoryId")
     fun observeCounts(): Flow<List<CategoryCount>>
 
@@ -85,13 +99,6 @@ interface TransactionDao {
         return transaction
     }
 
-    /** Düzenleme, kural silinmişse bağlantıyı geri getirmemeli. */
-    @Transaction
-    suspend fun updateKeepingRule(transaction: TransactionEntity): Int {
-        val current = getById(transaction.id) ?: return 0
-        return update(transaction.copy(recurringRuleId = current.recurringRuleId))
-    }
-
     @Query("SELECT id FROM recurring_rules WHERE id = :id")
     suspend fun existingRecurringRuleId(id: Long): Long?
 
@@ -99,10 +106,11 @@ interface TransactionDao {
     suspend fun categoryForRestore(id: Long, type: TransactionType, fallbackKey: String): Long?
 
     @Transaction
-    suspend fun restore(transaction: TransactionEntity, fallbackKey: String): Boolean {
-        val categoryId = categoryForRestore(transaction.categoryId, transaction.type, fallbackKey) ?: return false
+    suspend fun restore(transaction: TransactionEntity, fallbackKey: String): TransactionEntity? {
+        val categoryId = categoryForRestore(transaction.categoryId, transaction.type, fallbackKey) ?: return null
         val ruleId = transaction.recurringRuleId?.let { existingRecurringRuleId(it) }
-        insert(transaction.copy(categoryId = categoryId, recurringRuleId = ruleId))
-        return true
+        val restored = transaction.copy(categoryId = categoryId, recurringRuleId = ruleId)
+        insert(restored)
+        return restored
     }
 }

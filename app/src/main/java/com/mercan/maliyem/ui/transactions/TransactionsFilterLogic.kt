@@ -40,6 +40,7 @@ data class TransactionsFilters(
     val includesTransfers get() = type.transactionType == null && categoryIds.isEmpty()
 }
 
+private val turkish = Locale.forLanguageTag("tr")
 private val marks = Regex("\\p{M}+")
 private val amountPattern = Regex("""[0-9]+(?:[.,][0-9]{0,2})?""")
 
@@ -63,6 +64,12 @@ internal class TransactionSearch(
 ) {
     private val text = normalizeTransactionSearch(query.trim())
     private val amount = transactionAmountPrefix(query)
+    private val exactAmount = if (amount == null) {
+        val unsigned = query.trim().removePrefix("+").removePrefix("−").removePrefix("-")
+        val locales = if (unsigned.trimStart().startsWith('₺')) listOf(Locale.ENGLISH, turkish)
+            else listOf(turkish, Locale.ENGLISH)
+        locales.firstNotNullOfOrNull { parseMoney(unsigned, it) }
+    } else null
 
     fun matches(row: TransactionWithCategory): Boolean = with(row.transaction) {
         amountInRange(amountMinor) && (text.isEmpty() || matchesAmount(amountMinor) ||
@@ -80,6 +87,7 @@ internal class TransactionSearch(
     private fun matchesText(value: String?) = value?.let { text in normalizeTransactionSearch(it) } == true
 
     private fun matchesAmount(minor: Long): Boolean {
+        if (exactAmount == minor) return true
         val prefix = amount ?: return false
         val lira = minor / 100
         val cents = (minor % 100).toString().padStart(2, '0')

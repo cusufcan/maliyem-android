@@ -7,7 +7,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mercan.maliyem.di.ElapsedClock
 import com.mercan.maliyem.ui.settings.AppSettings
-import com.mercan.maliyem.widget.WidgetUpdater
+import com.mercan.maliyem.widget.GlanceWidgetUpdater
+import android.util.Log
+import kotlinx.coroutines.CancellationException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.launch
@@ -17,7 +19,7 @@ import kotlinx.coroutines.launch
 internal class AppLockViewModel @Inject constructor(
     private val settings: AppSettings,
     private val clock: ElapsedClock,
-    private val widgetUpdater: WidgetUpdater,
+    private val widgetUpdater: GlanceWidgetUpdater,
 ) : ViewModel() {
     val enabled = settings.appLockEnabled
     val timeout = settings.appLockTimeout
@@ -65,23 +67,36 @@ internal class AppLockViewModel @Inject constructor(
 
     fun finishAuthentication(success: Boolean) {
         if (!authenticating) return
-        authenticating = false
-        if (success) {
-            if (!enabled.value) setEnabled(true)
-            backgroundSince = null
-            unlocked = true
+        if (!success || enabled.value) {
+            authenticating = false
+            if (success) unlock()
+            return
+        }
+        unlock()
+        viewModelScope.launch {
+            try {
+                widgetUpdater.enableLock()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("AppLockViewModel", "Widget maskesi gönderilemedi", e)
+                widgetUpdater.refresh()
+            } finally {
+                authenticating = false
+            }
         }
     }
 
     fun setTimeout(value: LockTimeout) = settings.setAppLockTimeout(value)
 
     fun disable() {
-        setEnabled(false)
+        settings.setAppLockEnabled(false)
+        widgetUpdater.refresh()
         unlocked = false
     }
 
-    private fun setEnabled(value: Boolean) {
-        settings.setAppLockEnabled(value)
-        widgetUpdater.refresh()
+    private fun unlock() {
+        backgroundSince = null
+        unlocked = true
     }
 }

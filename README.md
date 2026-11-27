@@ -6,13 +6,15 @@ A simple, private income and expense tracker for Android. Log what comes in and 
 
 - Expenses and income by category, with monthly summary and category breakdown
 - Multiple accounts (wallets) and transfers between them
-- Recurring transactions (weekly, monthly, yearly)
+- Recurring transactions (weekly, monthly, yearly) with reminders
 - Search and filters
-- Monthly budgets per category and overall
-- Six-month trend chart
+- Monthly budgets per category and overall, with spending alerts
+- Savings goals with deposit and withdrawal tracking
+- Six-month trend chart and yearly reports
+- Receipt photos with on-device text recognition (amount, date, merchant)
 - App shortcuts and a home screen widget
 - Optional biometric / device credential app lock
-- JSON backup and restore, CSV export (files you choose; no network access)
+- JSON backup and restore, CSV import and export (files you choose; no network access)
 
 ## Stack
 

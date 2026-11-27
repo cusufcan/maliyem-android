@@ -2,8 +2,8 @@ package com.mercan.maliyem.ui.transactions
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -30,12 +31,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -49,11 +51,12 @@ import com.mercan.maliyem.ui.components.EmptyState
 import com.mercan.maliyem.ui.components.Eyebrow
 import com.mercan.maliyem.ui.components.MonthHeader
 import com.mercan.maliyem.ui.components.SeyirCard
+import com.mercan.maliyem.ui.components.SeyirFabClearance
 import com.mercan.maliyem.ui.components.SubText
 import com.mercan.maliyem.ui.components.TransactionRow
 import com.mercan.maliyem.ui.components.categoryName
-import com.mercan.maliyem.ui.theme.Motion
 import com.mercan.maliyem.ui.theme.Spacing
+import com.mercan.maliyem.ui.theme.seyirAnimateItem
 import com.mercan.maliyem.util.formatMoney
 import java.time.LocalDate
 import java.time.YearMonth
@@ -65,8 +68,10 @@ import java.util.Locale
 fun TransactionsScreen(
     highlightId: Long?,
     onOpen: (Long) -> Unit,
+    onOpenReceipt: (String) -> Unit,
     onOpenTransfer: (Long) -> Unit,
     highlightTransferId: Long?,
+    onBack: (() -> Unit)? = null,
     viewModel: TransactionsViewModel = hiltViewModel(),
 ) {
     val result by viewModel.result.collectAsStateWithLifecycle()
@@ -110,6 +115,7 @@ fun TransactionsScreen(
         ) {
             TransactionsToolbar(
                 search, ::setSearch,
+                onBack = onBack,
                 onSubmitSearch = {
                     keepSearchOnHide = imeVisible
                     keyboard?.hide()
@@ -124,7 +130,7 @@ fun TransactionsScreen(
         }
         TransactionsList(
             result, filters, options, currentPeriod, rangeResults, locale, dayFormat,
-            viewModel::selectMonth, highlightId, highlightTransferId, onOpen, onOpenTransfer,
+            viewModel::selectMonth, highlightId, highlightTransferId, onOpen, onOpenReceipt, onOpenTransfer,
         )
     }
     if (sheetOpen) {
@@ -150,106 +156,114 @@ private fun TransactionsList(
     highlightId: Long?,
     highlightTransferId: Long?,
     onOpen: (Long) -> Unit,
+    onOpenReceipt: (String) -> Unit,
     onOpenTransfer: (Long) -> Unit,
 ) {
     val count = result?.let { pluralStringResource(R.plurals.records, it.count, it.count) }
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = 88.dp),
-    ) {
-        item {
-            if (rangeResults) {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    Text(
-                        transactionRangeLabel(filters, period.month, locale),
-                        Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge,
-                    )
-                    if (result != null && count != null) {
-                        SeyirCard {
-                            SubText(count)
-                            SubText(stringResource(
-                                R.string.transactions_total, stringResource(R.string.breakdown_total_expense), formatMoney(result.expenseMinor, locale),
-                            ))
-                            SubText(stringResource(
-                                R.string.transactions_total, stringResource(R.string.breakdown_total_income), formatMoney(result.incomeMinor, locale),
-                            ))
+    var headerHeight by remember { mutableIntStateOf(0) }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = SeyirFabClearance),
+        ) {
+            item(key = "period") {
+                Box(seyirAnimateItem().onSizeChanged { headerHeight = it.height }) {
+                    if (rangeResults) {
+                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                            Text(
+                                transactionRangeLabel(filters, period.month, locale),
+                                Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge,
+                            )
+                            if (result != null && count != null) {
+                                SeyirCard {
+                                    SubText(count)
+                                    SubText(stringResource(
+                                        R.string.transactions_total, stringResource(R.string.breakdown_total_expense), formatMoney(result.expenseMinor, locale),
+                                    ))
+                                    SubText(stringResource(
+                                        R.string.transactions_total, stringResource(R.string.breakdown_total_income), formatMoney(result.incomeMinor, locale),
+                                    ))
+                                }
+                            }
+                        }
+                    } else {
+                        MonthHeader(period.month, locale, period.previous?.let { { onMonth(it) } }, period.next?.let { { onMonth(it) } }, count)
+                    }
+                }
+            }
+            result?.days.orEmpty().forEach { day ->
+                item(key = "header-${day.date}", contentType = "day") {
+                    Row(
+                        seyirAnimateItem().fillMaxWidth()
+                            .padding(start = Spacing.xs, end = Spacing.xs, top = Spacing.md, bottom = Spacing.sm),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Eyebrow(dayLabel(day.date, period.today, dayFormat), Modifier.weight(1f).semantics { heading() })
+                        if (day.rows.any { it is DayRow.Record }) SubText(formatMoney(day.netMinor, locale, signed = true))
+                    }
+                }
+                itemsIndexed(day.rows, key = { _, row -> "${row is DayRow.Transfer}-${row.id}" }, contentType = { _, _ -> "record" }) { index, row ->
+                    val top = if (index == 0) 20.dp else 0.dp
+                    val bottom = if (index == day.rows.lastIndex) 20.dp else 0.dp
+                    val colors = MaterialTheme.colorScheme
+                    Column(
+                        seyirAnimateItem()
+                            .fillMaxWidth().clip(RoundedCornerShape(top, top, bottom, bottom))
+                            .background(colors.surfaceContainer),
+                    ) {
+                        if (index > 0) HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = colors.outlineVariant)
+                        when (row) {
+                            is DayRow.Record -> {
+                                val (transaction, info) = row.item
+                                val category = categoryName(info.key, info.name)
+                                val income = transaction.type == TransactionType.INCOME
+                                TransactionRow(
+                                    title = transaction.note ?: category,
+                                    subtitle = category.takeIf { transaction.note != null },
+                                    icon = info.icon,
+                                    amount = formatMoney(if (income) transaction.amountMinor else -transaction.amountMinor, locale, signed = true),
+                                    income = income,
+                                    recurring = transaction.recurringRuleId != null,
+                                    onOpen = { onOpen(row.id) },
+                                    onOpenReceipt = transaction.receiptPath?.let { path -> { onOpenReceipt(path) } },
+                                    highlighted = row.id == highlightId,
+                                    horizontalPadding = Spacing.lg,
+                                )
+                            }
+                            is DayRow.Transfer -> {
+                                val transfer = row.item
+                                TransactionRow(
+                                    title = stringResource(
+                                        R.string.transfer_direction,
+                                        accountName(options.accounts, transfer.fromAccountId),
+                                        accountName(options.accounts, transfer.toAccountId),
+                                    ),
+                                    subtitle = transfer.note ?: stringResource(R.string.add_transfer),
+                                    icon = "transfer",
+                                    amount = formatMoney(transfer.amountMinor, locale),
+                                    income = false,
+                                    onOpen = { onOpenTransfer(row.id) },
+                                    highlighted = row.id == highlightTransferId,
+                                    horizontalPadding = Spacing.lg,
+                                )
+                            }
                         }
                     }
                 }
-            } else {
-                MonthHeader(period.month, locale, period.previous?.let { { onMonth(it) } }, period.next?.let { { onMonth(it) } }, count)
             }
         }
         if (result?.days?.isEmpty() == true) {
-            item(key = "empty") {
-                val filtered = filters.isActive || rangeResults
-                EmptyState(
-                    R.drawable.ic_seyir_calendar,
-                    stringResource(if (filtered) R.string.transactions_no_matches else R.string.transactions_empty_title),
-                    stringResource(if (filtered) R.string.transactions_no_matches_body else R.string.transactions_empty_body),
-                    Modifier.animateItem(fadeInSpec = Motion.medium(), fadeOutSpec = Motion.fast()).padding(top = Spacing.xl),
-                )
-            }
-        }
-        result?.days.orEmpty().forEach { day ->
-            item(key = "day-${day.date.toEpochDay()}", contentType = "day") {
-                Row(
-                    Modifier.fillMaxWidth().animateItem(fadeInSpec = Motion.medium(), fadeOutSpec = Motion.fast())
-                        .padding(start = Spacing.xs, end = Spacing.xs, top = Spacing.md + Spacing.sm, bottom = Spacing.md),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Eyebrow(dayLabel(day.date, period.today, dayFormat), Modifier.weight(1f).semantics { heading() })
-                    if (day.rows.any { it is DayRow.Record }) SubText(formatMoney(day.netMinor, locale, signed = true))
-                }
-            }
-            itemsIndexed(day.rows, key = { _, row -> "${row is DayRow.Transfer}-${row.id}" }, contentType = { _, _ -> "record" }) { index, row ->
-                val top = if (index == 0) 20.dp else 0.dp
-                val bottom = if (index == day.rows.lastIndex) 20.dp else 0.dp
-                val colors = MaterialTheme.colorScheme
-                Column(
-                    Modifier.animateItem(fadeInSpec = Motion.medium(), fadeOutSpec = Motion.fast())
-                        .fillMaxWidth().clip(RoundedCornerShape(top, top, bottom, bottom))
-                        .background(colors.surfaceContainer),
-                ) {
-                    if (index > 0) HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = colors.outlineVariant)
-                    when (row) {
-                        is DayRow.Record -> {
-                            val (transaction, info) = row.item
-                            val category = categoryName(info.key, info.name)
-                            val income = transaction.type == TransactionType.INCOME
-                            TransactionRow(
-                                title = transaction.note ?: category,
-                                subtitle = category.takeIf { transaction.note != null },
-                                icon = info.icon,
-                                amount = formatMoney(if (income) transaction.amountMinor else -transaction.amountMinor, locale, signed = true),
-                                income = income,
-                                recurring = transaction.recurringRuleId != null,
-                                modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { onOpen(row.id) },
-                                highlighted = row.id == highlightId,
-                                horizontalPadding = Spacing.lg,
-                            )
-                        }
-                        is DayRow.Transfer -> {
-                            val transfer = row.item
-                            TransactionRow(
-                                title = stringResource(
-                                    R.string.transfer_direction,
-                                    accountName(options.accounts, transfer.fromAccountId),
-                                    accountName(options.accounts, transfer.toAccountId),
-                                ),
-                                subtitle = transfer.note ?: stringResource(R.string.add_transfer),
-                                icon = "transfer",
-                                amount = formatMoney(transfer.amountMinor, locale),
-                                income = false,
-                                modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { onOpenTransfer(row.id) },
-                                highlighted = row.id == highlightTransferId,
-                                horizontalPadding = Spacing.lg,
-                            )
-                        }
-                    }
-                }
-            }
+            val filtered = filters.isActive || rangeResults
+            val header = with(LocalDensity.current) { headerHeight.toDp() }
+            EmptyState(
+                if (filtered) R.drawable.ic_seyir_search else R.drawable.ic_seyir_calendar,
+                stringResource(if (filtered) R.string.transactions_no_matches else R.string.transactions_empty_title),
+                stringResource(if (filtered) R.string.transactions_no_matches_body else R.string.transactions_empty_body),
+                Modifier.fillMaxSize().padding(
+                    start = Spacing.lg, end = Spacing.lg, top = header + Spacing.sm, bottom = SeyirFabClearance,
+                ),
+            )
         }
     }
 }

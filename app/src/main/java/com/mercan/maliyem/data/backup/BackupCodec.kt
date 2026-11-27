@@ -7,6 +7,7 @@ import com.mercan.maliyem.data.repository.occurrenceOnOrAfter
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
@@ -15,11 +16,14 @@ import kotlinx.serialization.json.jsonPrimitive
 sealed interface BackupDecodeResult {
     /** [categoryCount] dosyadaki sayıdır; [backup] eksik "Diğer" kategorilerini de içerir. */
     class Valid internal constructor(val backup: BackupFile, val categoryCount: Int) : BackupDecodeResult
+    data object IdOutOfRange : BackupDecodeResult
     data object Invalid : BackupDecodeResult
 }
 
 /** Dosyayı veritabanına dokunmadan doğrular ve eksik "Diğer" kategorilerini tamamlar. */
 object BackupCodec {
+    const val MAX_ID = 9_007_199_254_740_992L
+
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
@@ -32,10 +36,18 @@ object BackupCodec {
             val fields = json.parseToJsonElement(content.removePrefix("\uFEFF")).jsonObject
             val version = fields["version"]?.jsonPrimitive?.intOrNull
             // Eski dosyalar bu adlarla tanınmayan, farklı biçimde alanlar taşıyabilir.
-            val knownFields = if (version != null && version < 4) {
-                JsonObject(fields - setOf("budgets", "overallBudgetMinor"))
-            } else fields
-            json.decodeFromJsonElement(BackupFile.serializer(), knownFields)
+            val unknownLegacyFields = buildSet {
+                if (version != null && version < 4) addAll(listOf("budgets", "overallBudgetMinor"))
+                if (version != null && version < 5) addAll(listOf("savingsGoals", "goalEntries"))
+            }
+            val payload = (fields - unknownLegacyFields).toMutableMap()
+            val transactions = payload["transactions"]
+            if (version != null && version < 6 && transactions is JsonArray) {
+                payload["transactions"] = JsonArray(transactions.map {
+                    if (it is JsonObject) JsonObject(it - "receiptPath") else it
+                })
+            }
+            json.decodeFromJsonElement(BackupFile.serializer(), JsonObject(payload))
         } catch (_: IllegalArgumentException) {
             return BackupDecodeResult.Invalid
         }
@@ -61,22 +73,62 @@ object BackupCodec {
             transactions = withAccounts.transactions.map { it.copy(recurringRuleId = null) },
         ) else withAccounts
 
-        val backup = if (file.version < 4) withRules.copy(
-            version = BackupFile.VERSION,
+        val withBudgets = if (file.version < 4) withRules.copy(
             budgets = emptyList(),
             overallBudgetMinor = null,
         ) else withRules
 
+        val withGoals = if (file.version < 5) withBudgets.copy(
+            savingsGoals = emptyList(),
+            goalEntries = emptyList(),
+        ) else withBudgets
+
+        val backup = if (file.version < 6) withGoals.copy(
+            version = BackupFile.VERSION,
+            transactions = withGoals.transactions.map { it.copy(receiptPath = null) },
+        ) else withGoals
+
+        val ids = sequence {
+            backup.accounts.forEach { yield(it.id) }
+            backup.categories.forEach { yield(it.id) }
+            backup.transactions.forEach {
+                yield(it.id)
+                yield(it.categoryId)
+                yield(it.accountId)
+                it.recurringRuleId?.let { id -> yield(id) }
+            }
+            backup.transfers.forEach {
+                yield(it.id)
+                yield(it.fromAccountId)
+                yield(it.toAccountId)
+            }
+            backup.recurringRules.forEach {
+                yield(it.id)
+                yield(it.categoryId)
+                yield(it.accountId)
+            }
+            backup.savingsGoals.forEach { yield(it.id) }
+            backup.goalEntries.forEach {
+                yield(it.id)
+                yield(it.goalId)
+            }
+            backup.budgets.forEach {
+                yield(it.id)
+                yield(it.categoryId)
+            }
+        }
+        if (ids.any { it > MAX_ID }) return BackupDecodeResult.IdOutOfRange
+
         val accountIds = backup.accounts.map { it.id }.toSet()
         val accountKeys = backup.accounts.mapNotNull { it.key }
-        if (accountIds.size != backup.accounts.size || accountIds.any { it <= 0 || it == Long.MAX_VALUE } ||
+        if (accountIds.size != backup.accounts.size || accountIds.any { it <= 0 } ||
             accountKeys.distinct().size != accountKeys.size || DefaultAccounts.CASH !in accountKeys ||
             backup.accounts.none { !it.archived }
         ) return BackupDecodeResult.Invalid
 
         val transferIds = HashSet<Long>()
         for (transfer in backup.transfers) {
-            if (transfer.id <= 0 || transfer.id == Long.MAX_VALUE || !transferIds.add(transfer.id) ||
+            if (transfer.id <= 0 || !transferIds.add(transfer.id) ||
                 transfer.amountMinor <= 0 || transfer.fromAccountId == transfer.toAccountId ||
                 transfer.fromAccountId !in accountIds || transfer.toAccountId !in accountIds ||
                 !validDate(transfer.date)
@@ -88,17 +140,34 @@ object BackupCodec {
         val categoriesByKey = categoriesWithKey.associateBy { it.key }
         if (categoriesById.size != backup.categories.size ||
             categoriesByKey.size != categoriesWithKey.size ||
-            categoriesById.keys.any { it <= 0 || it == Long.MAX_VALUE }
+            categoriesById.keys.any { it <= 0 }
         ) return BackupDecodeResult.Invalid
 
         if (backup.overallBudgetMinor?.let { it <= 0 } == true) return BackupDecodeResult.Invalid
         val budgetIds = HashSet<Long>()
         val budgetCategories = HashSet<Long>()
         for (budget in backup.budgets) {
-            if (budget.id <= 0 || budget.id == Long.MAX_VALUE || !budgetIds.add(budget.id) ||
+            if (budget.id <= 0 || !budgetIds.add(budget.id) ||
                 budget.limitMinor <= 0 || categoriesById[budget.categoryId]?.type != TransactionType.EXPENSE ||
                 !budgetCategories.add(budget.categoryId)
             ) return BackupDecodeResult.Invalid
+        }
+
+        val goalBalances = HashMap<Long, Long>()
+        for (goal in backup.savingsGoals) {
+            if (goal.id <= 0 || goalBalances.put(goal.id, 0L) != null ||
+                goal.name.isBlank() || goal.targetMinor <= 0 || goal.icon.isBlank() ||
+                goal.deadline?.let { !validDate(it) } == true
+            ) return BackupDecodeResult.Invalid
+        }
+        var previousEntryId = 0L
+        for (entry in backup.goalEntries.sortedBy { it.id }) {
+            val saved = goalBalances[entry.goalId] ?: return BackupDecodeResult.Invalid
+            if (entry.id <= previousEntryId || !validDate(entry.date) || entry.amountMinor == 0L ||
+                entry.amountMinor < -saved || entry.amountMinor > Long.MAX_VALUE - saved
+            ) return BackupDecodeResult.Invalid
+            goalBalances[entry.goalId] = saved + entry.amountMinor
+            previousEntryId = entry.id
         }
 
         val ruleIds = HashSet<Long>()
@@ -106,7 +175,7 @@ object BackupCodec {
             val start = parseDate(rule.startDate) ?: return BackupDecodeResult.Invalid
             val next = parseDate(rule.nextDate) ?: return BackupDecodeResult.Invalid
             val end = rule.endDate?.let { parseDate(it) ?: return BackupDecodeResult.Invalid }
-            if (rule.id <= 0 || rule.id == Long.MAX_VALUE || !ruleIds.add(rule.id) ||
+            if (rule.id <= 0 || !ruleIds.add(rule.id) ||
                 rule.amountMinor <= 0 || categoriesById[rule.categoryId]?.type != rule.type ||
                 rule.accountId !in accountIds || next < start || (end != null && end < start) ||
                 (next != LocalDate.MAX && next != occurrenceOnOrAfter(start, rule.frequency, next))
@@ -115,7 +184,7 @@ object BackupCodec {
 
         val transactionIds = HashSet<Long>()
         for (transaction in backup.transactions) {
-            if (transaction.id <= 0 || transaction.id == Long.MAX_VALUE || !transactionIds.add(transaction.id) ||
+            if (transaction.id <= 0 || !transactionIds.add(transaction.id) ||
                 transaction.amountMinor <= 0 || categoriesById[transaction.categoryId]?.type != transaction.type ||
                 transaction.accountId !in accountIds || !validDate(transaction.date) ||
                 (transaction.recurringRuleId != null && transaction.recurringRuleId !in ruleIds)

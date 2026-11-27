@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+private const val KEY_BUDGET_CREATED = "budgetCreated"
 private const val KEY_EDITING = "editing"
 internal const val OVERALL_BUDGET = 0L
 
@@ -38,6 +39,9 @@ class BudgetsViewModel @Inject constructor(
         BudgetSettings(choices, limits.associate { it.categoryId to it.limitMinor }, overall?.limitMinor)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    internal val budgetCreated = savedState.getStateFlow(KEY_BUDGET_CREATED, false)
+    internal fun acknowledgeBudgetCreated() { savedState[KEY_BUDGET_CREATED] = false }
+
     internal val editing = savedState.getStateFlow<Long?>(KEY_EDITING, null)
     private val _busy = MutableStateFlow(false)
     val busy = _busy.asStateFlow()
@@ -57,8 +61,9 @@ class BudgetsViewModel @Inject constructor(
         _writeFailed.value = false
         viewModelScope.launch {
             try {
-                budgets.setLimit(id.takeUnless { it == OVERALL_BUDGET }, limitMinor)
+                val created = budgets.setLimit(id.takeUnless { it == OVERALL_BUDGET }, limitMinor)
                 savedState[KEY_EDITING] = null
+                if (created) savedState[KEY_BUDGET_CREATED] = true
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {

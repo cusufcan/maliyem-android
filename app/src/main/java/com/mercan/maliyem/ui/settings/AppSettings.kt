@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.edit
 import androidx.core.os.LocaleListCompat
+import com.mercan.maliyem.data.local.MaliyemDatabase
 import com.mercan.maliyem.ui.lock.LockTimeout
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -36,12 +37,27 @@ enum class AppLanguage(val tag: String) {
 }
 
 /**
- * Tema ve uygulama kilidi SharedPreferences'ta, dil AppCompat'ta tutulur. İlk karede gereken
+ * Tema, uygulama kilidi ve tanıtım SharedPreferences'ta, dil AppCompat'ta tutulur. İlk karede gereken
  * ayarlar eşzamanlı okunur (ADR-0013, ADR-0025).
  */
 @Singleton
 class AppSettings @Inject constructor(@ApplicationContext context: Context) {
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+
+    // Capture this before startup jobs can open Room and seed a fresh database.
+    internal val hadDatabaseAtStartup = context.getDatabasePath(MaliyemDatabase.NAME).exists()
+
+    internal val onboardingCompleted: Boolean?
+        get() = if (prefs.contains(KEY_ONBOARDING_COMPLETED)) prefs.getBoolean(KEY_ONBOARDING_COMPLETED, false) else null
+
+    internal fun setOnboardingCompleted(completed: Boolean) {
+        prefs.edit { putBoolean(KEY_ONBOARDING_COMPLETED, completed) }
+    }
+
+    init {
+        // Preserve eligibility if a background startup initializes Room before the first Activity.
+        if (!hadDatabaseAtStartup && onboardingCompleted == null) setOnboardingCompleted(false)
+    }
 
     private val _theme = MutableStateFlow(
         prefs.getString(KEY_THEME, null)?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM,
@@ -57,13 +73,41 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
     val appLockTimeout: StateFlow<LockTimeout> = _appLockTimeout.asStateFlow()
 
     internal fun setAppLockEnabled(enabled: Boolean) {
-        prefs.edit { putBoolean(KEY_APP_LOCK_ENABLED, enabled) }
+        prefs.edit(commit = enabled) { putBoolean(KEY_APP_LOCK_ENABLED, enabled) }
         _appLockEnabled.value = enabled
     }
 
     internal fun setAppLockTimeout(timeout: LockTimeout) {
         prefs.edit { putString(KEY_APP_LOCK_TIMEOUT, timeout.name) }
         _appLockTimeout.value = timeout
+    }
+
+    private val _budgetAlerts = MutableStateFlow(prefs.getBoolean(KEY_BUDGET_ALERTS, true))
+    val budgetAlerts = _budgetAlerts.asStateFlow()
+
+    private val _recurringReminders = MutableStateFlow(prefs.getBoolean(KEY_RECURRING_REMINDERS, true))
+    val recurringReminders = _recurringReminders.asStateFlow()
+
+    private val _autoReadReceipts = MutableStateFlow(prefs.getBoolean(KEY_AUTO_READ_RECEIPTS, true))
+    val autoReadReceipts = _autoReadReceipts.asStateFlow()
+
+    fun setAutoReadReceipts(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_AUTO_READ_RECEIPTS, enabled) }
+        _autoReadReceipts.value = enabled
+    }
+
+    var notificationPermissionRequested: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFICATION_PERMISSION_REQUESTED, false)
+        set(requested) = prefs.edit { putBoolean(KEY_NOTIFICATION_PERMISSION_REQUESTED, requested) }
+
+    fun setBudgetAlerts(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_BUDGET_ALERTS, enabled) }
+        _budgetAlerts.value = enabled
+    }
+
+    fun setRecurringReminders(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_RECURRING_REMINDERS, enabled) }
+        _recurringReminders.value = enabled
     }
 
     /** Uygulama açılırken kayıtlı temayı uygular. */
@@ -88,6 +132,11 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
     }
 
     private companion object {
+        const val KEY_ONBOARDING_COMPLETED = "onboardingCompleted"
+        const val KEY_AUTO_READ_RECEIPTS = "autoReadReceipts"
+        const val KEY_BUDGET_ALERTS = "budgetAlerts"
+        const val KEY_RECURRING_REMINDERS = "recurringReminders"
+        const val KEY_NOTIFICATION_PERMISSION_REQUESTED = "notificationPermissionRequested"
         const val KEY_THEME = "theme"
         const val KEY_LAST_ACCOUNT = "lastAccount"
         const val KEY_APP_LOCK_ENABLED = "appLockEnabled"

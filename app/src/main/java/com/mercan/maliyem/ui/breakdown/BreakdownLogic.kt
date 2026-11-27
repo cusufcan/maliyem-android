@@ -44,3 +44,35 @@ fun buildSlices(rows: List<TransactionWithCategory>, type: TransactionType): Lis
             Slice(id, c.key, c.name, c.icon, items.sumOf { it.transaction.amountMinor.toBigInteger() })
         }
         .sortedWith(compareByDescending<Slice> { it.amountMinor }.thenBy { it.categoryId })
+
+internal data class DonutSlice(
+    val category: Slice?,
+    val amountMinor: BigInteger,
+    val percent: Int,
+    val startDegrees: Float,
+    val sweepDegrees: Float,
+) {
+    fun visibleArc(gapDegrees: Float): DonutArc {
+        val gap = minOf(gapDegrees, sweepDegrees / 2)
+        return DonutArc(startDegrees + gap / 2, sweepDegrees - gap)
+    }
+}
+
+internal data class DonutArc(val startDegrees: Float, val sweepDegrees: Float) {
+    fun contains(degrees: Float): Boolean = degrees >= startDegrees && degrees < startDegrees + sweepDegrees
+}
+
+/** Angles run clockwise from twelve o'clock. A null category groups the remaining categories. */
+internal fun donutSlices(categories: List<Slice>): List<DonutSlice> {
+    val ranked = categories.filter { it.amountMinor.signum() > 0 }
+        .sortedWith(compareByDescending<Slice> { it.amountMinor }.thenBy { it.categoryId })
+    val total = ranked.sumOf { it.amountMinor }
+    val portions = ranked.take(5).map { it to it.amountMinor }.toMutableList<Pair<Slice?, BigInteger>>()
+    if (ranked.size > 5) portions.add(null to ranked.drop(5).sumOf { it.amountMinor })
+    var start = 0.0
+    return portions.map { (category, amount) ->
+        val sweep = 360.0 * (amount.toDouble() / total.toDouble())
+        DonutSlice(category, amount, roundedPercent(amount, total).toInt(), start.toFloat(), sweep.toFloat())
+            .also { start += sweep }
+    }
+}

@@ -2,8 +2,9 @@ package com.mercan.maliyem.ui.add
 
 import com.mercan.maliyem.data.local.CategoryEntity
 import com.mercan.maliyem.data.local.DefaultAccounts
-import com.mercan.maliyem.util.parseMoney
 import com.mercan.maliyem.data.local.TransactionType
+import com.mercan.maliyem.data.receipt.ReceiptSuggestion
+import com.mercan.maliyem.util.parseMoney
 import java.time.LocalDate
 import java.util.Locale
 import org.junit.Assert.assertEquals
@@ -124,4 +125,43 @@ class AddTransactionLogicTest {
             }
         }
     }
+
+    private val receiptToday = LocalDate.of(2026, 11, 27)
+    private val firstReceipt = ReceiptSuggestion(1250L, receiptToday.minusDays(2), "First merchant")
+    private val secondReceipt = ReceiptSuggestion(2345L, receiptToday.minusDays(1), "Second merchant")
+
+    private fun ReceiptFields.applyReceipt(suggestion: ReceiptSuggestion, touched: Int = 0): ReceiptFields =
+        withSuggestion(suggestion, touched, receiptToday, Locale.US)
+
+    @Test fun replacementReceiptUpdatesAllFieldsFilledByFirstReceipt() {
+        val first = ReceiptFields("", null, "").applyReceipt(firstReceipt)
+        val second = first.applyReceipt(secondReceipt)
+
+        assertEquals(ReceiptFields("23.45", "2026-11-26", "Second merchant", 7), second)
+    }
+
+    @Test fun replacementReceiptPreservesUserEditsEvenWhenTheUserClearsAField() {
+        val first = ReceiptFields("", null, "").applyReceipt(firstReceipt)
+        val userEdited = first.copy(amount = "", filled = first.filled and RECEIPT_AMOUNT.inv())
+        val second = userEdited.applyReceipt(secondReceipt, touched = RECEIPT_AMOUNT)
+
+        assertEquals(ReceiptFields("", "2026-11-26", "Second merchant", RECEIPT_DATE or RECEIPT_NOTE), second)
+    }
+
+    @Test fun replacementReceiptWithoutMerchantClearsPreviouslyFilledNote() {
+        val first = ReceiptFields("", null, "").applyReceipt(firstReceipt)
+        val second = first.applyReceipt(secondReceipt.copy(merchant = null))
+
+        assertEquals(ReceiptFields("23.45", "2026-11-26", "", RECEIPT_AMOUNT or RECEIPT_DATE), second)
+    }
+
+    @Test fun undoAfterReplacementClearsOnlyFieldsFilledBySecondReceipt() {
+        val first = ReceiptFields("", null, "").applyReceipt(firstReceipt)
+        val userEdited = first.copy(note = "My note", filled = first.filled and RECEIPT_NOTE.inv())
+        val second = userEdited.applyReceipt(secondReceipt.copy(date = receiptToday.plusDays(1)), touched = RECEIPT_NOTE)
+
+        assertEquals(ReceiptFields("23.45", null, "My note", RECEIPT_AMOUNT), second)
+        assertEquals(ReceiptFields("", null, "My note"), second.withoutSuggestion())
+    }
+
 }
