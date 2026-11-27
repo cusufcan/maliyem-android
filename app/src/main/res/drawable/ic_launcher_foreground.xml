@@ -1,9 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <!-- Geçici ikon: madeni para ve üç çizgi. Gerçek ikon ayrı iş. -->
-    <path android:pathData="M54,32a22,22 0,1 1,0 44a22,22 0,1 1,0 -44Z"
-        android:strokeColor="#6200EE" android:strokeWidth="4" />
-    <path android:pathData="M45,46h18M45,54h18M45,62h11"
-        android:strokeColor="#6200EE" android:strokeWidth="4" android:strokeLineCap="round" />
+    <group
+        android:pivotX="55" android:pivotY="52"
+        android:scaleX="0.825" android:scaleY="0.825"
+        android:translateX="-1" android:translateY="1">
+        <path android:pathData="M33,41 L32.5,39 Q31.8,36.6 34.6,35.8 L64,28.4 Q70,26.8 72.5,32.5 L76,41 Q73,40.5 70,40.5 H38 Q36,40.5 35,41 Z" android:fillColor="#E8664A" android:fillType="nonZero" />
+        <path android:pathData="M38,45 H70 Q81,45 81,55 V66 Q81,76 70,76 H38 Q27,76 27,65 V56 Q27,45 38,45 Z" android:fillColor="#FFFFFF" android:fillType="nonZero" />
+        <path android:pathData="M79,52.5 Q83,52.5 83,56.5 V64.5 Q83,68.5 79,68.5 H70 A8,8 0,0 1,70 52.5 Z" android:fillColor="#6A3DE8" android:fillType="nonZero" />
+        <path android:pathData="M70,57.5 A3,3 0,1 1,70,63.5 A3,3 0,1 1,70,57.5 Z" android:fillColor="#FFFFFF" android:fillType="nonZero" />
+    </group>
 </vector>
