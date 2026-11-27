@@ -447,4 +447,19 @@
     <string name="budgets_empty_body">Tüm harcamalar veya bir kategori için aylık limit belirle.</string>
     <string name="yearly_empty_title">Bu yıl kayıt yok</string>
     <string name="yearly_empty_body">Bu yılın gelir ve giderleri burada görünecek.</string>
+
+    <!-- Onboarding -->
+    <string name="settings_show_intro">Tanıtımı tekrar göster</string>
+    <string name="intro_welcome_title">Maliyem’e hoş geldin</string>
+    <string name="intro_welcome_body">Paranı takip etmek için hesap açmana veya internete bağlanmana gerek yok, tüm kayıtların cihazında kalır.</string>
+    <string name="intro_quick_add_title">Saniyeler içinde kayıt ekle</string>
+    <string name="intro_quick_add_body">Kaydını kendin gir ya da Maliyem fiş fotoğrafını cihazında okuyup alanları doldursun.</string>
+    <string name="intro_breakdown_title">Paranın nereye gittiğini gör</string>
+    <string name="intro_breakdown_body">Aylık özetine bak, harcamalarını halka grafikte gör ve bütçe uyarıları al.</string>
+    <string name="intro_goals_title">Hedef koy, alışkanlık kazan</string>
+    <string name="intro_goals_body">Birikim hedefi koy, düzenli kayıtlarını yinele ve ayın durumunu widget’tan takip et.</string>
+    <string name="intro_skip">Atla</string>
+    <string name="intro_next">Devam</string>
+    <string name="intro_start">Başla</string>
+    <string name="intro_page_number">Sayfa %1$d/%2$d</string>
 </resources>

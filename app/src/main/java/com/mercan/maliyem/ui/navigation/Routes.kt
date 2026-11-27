@@ -4,6 +4,7 @@ import com.mercan.maliyem.data.local.TransactionType
 import kotlinx.serialization.Serializable
 
 @Serializable data object Summary
+@Serializable data object Intro
 @Serializable data object YearlyReport
 @Serializable data object Transactions
 @Serializable data class BudgetTransactions(

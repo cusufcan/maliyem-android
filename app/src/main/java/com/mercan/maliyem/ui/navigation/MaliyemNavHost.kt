@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -65,6 +66,7 @@ import com.mercan.maliyem.ui.csvimport.CsvImportScreen
 import com.mercan.maliyem.ui.detail.TransactionDetailScreen
 import com.mercan.maliyem.ui.goals.GoalDetailScreen
 import com.mercan.maliyem.ui.goals.GoalsScreen
+import com.mercan.maliyem.ui.onboarding.OnboardingScreen
 import com.mercan.maliyem.ui.recurring.RecurringRuleScreen
 import com.mercan.maliyem.ui.recurring.RecurringScreen
 import com.mercan.maliyem.ui.settings.SettingsScreen
@@ -97,6 +99,8 @@ private fun tabIndexOf(destination: androidx.navigation.NavDestination?): Int =
 
 @Composable
 fun MaliyemNavHost(
+    showFirstRunIntro: Boolean,
+    onFinishFirstRunIntro: () -> Unit,
     quickEntry: TransactionType?,
     onQuickEntryConsumed: () -> Unit,
     securityCard: @Composable () -> Unit,
@@ -105,11 +109,17 @@ fun MaliyemNavHost(
     add: AddTransactionViewModel,
     onReceiptCamera: () -> Unit,
     onReceiptGallery: () -> Unit,
-    app: AppViewModel = hiltViewModel(),
 ) {
+    // Keep Summary as the tab graph's start destination and defer quick entry until the intro ends.
+    if (showFirstRunIntro) {
+        OnboardingScreen(onExit = onFinishFirstRunIntro)
+        return
+    }
+    val app: AppViewModel = hiltViewModel()
     val nav = rememberNavController()
     val backStackEntry by nav.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
+    val showingIntro = destination?.hasRoute(Intro::class) == true
     val activeTab = when {
         destination?.hasRoute(YearlyReport::class) == true ->
             tabIndexOf(nav.previousBackStackEntry?.destination).coerceAtLeast(0)
@@ -187,8 +197,8 @@ fun MaliyemNavHost(
         sheetOpen = true
     }
 
-    LaunchedEffect(quickEntry) {
-        if (quickEntry == null) return@LaunchedEffect
+    LaunchedEffect(quickEntry, showingIntro) {
+        if (quickEntry == null || showingIntro) return@LaunchedEffect
         // Sürmekte olan kaydın sonucu işlendikten sonra yeni taslağı aç.
         add.saving.first { !it }
         add.saved.first { it == null }
@@ -209,7 +219,7 @@ fun MaliyemNavHost(
             }
         },
         bottomBar = bottomBar@{
-            if (destination?.hasRoute(CsvImport::class) == true) return@bottomBar
+            if (showingIntro || destination?.hasRoute(CsvImport::class) == true) return@bottomBar
             val colors = MaterialTheme.colorScheme
             Column(Modifier.background(colors.surfaceContainerHigh).navigationBarsPadding()) {
                 HorizontalDivider(color = colors.outlineVariant)
@@ -294,6 +304,7 @@ fun MaliyemNavHost(
                 }
                 composable<Settings> {
                     SettingsScreen(
+                        onShowIntro = { nav.navigate(Intro) { launchSingleTop = true } },
                         onCategories = { nav.navigate(Categories) },
                         onAccounts = { nav.navigate(Accounts) },
                         onRecurring = { nav.navigate(Recurring) },
@@ -305,6 +316,12 @@ fun MaliyemNavHost(
                         restoreWithUndoCleared = app::restoreWithUndoCleared,
                         securityCard = securityCard,
                         notificationsCard = notificationsCard,
+                    )
+                }
+                composable<Intro> {
+                    OnboardingScreen(
+                        onExit = { if (nav.currentDestination?.hasRoute(Intro::class) == true) nav.popBackStack() },
+                        modifier = Modifier.consumeWindowInsets(padding),
                     )
                 }
                 composable<CsvImport> {

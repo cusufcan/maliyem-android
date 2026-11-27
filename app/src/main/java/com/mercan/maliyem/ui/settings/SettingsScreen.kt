@@ -42,6 +42,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
+    onShowIntro: () -> Unit,
     onCategories: () -> Unit,
     onAccounts: () -> Unit,
     onRecurring: () -> Unit,
@@ -192,6 +193,9 @@ fun SettingsScreen(
             )
             HorizontalDivider(Modifier.padding(horizontal = Spacing.lg), color = divider)
             SettingRow(null, stringResource(R.string.settings_version), value = version)
+        }
+        SeyirCard(padding = rows) {
+            SettingRow(R.drawable.ic_seyir_play, stringResource(R.string.settings_show_intro), onClick = onShowIntro)
         }
     }
     pendingBackup?.let { pending ->

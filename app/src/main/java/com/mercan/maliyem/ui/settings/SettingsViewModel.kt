@@ -108,6 +108,7 @@ class SettingsViewModel @Inject constructor(
             try {
                 restoreWithUndoCleared {
                     withContext(Dispatchers.IO) { backupRepository.replaceAll(backup) }
+                    settings.setOnboardingCompleted(true)
                 }
                 settings.setLastAccountId(null)
                 recurring.generateDue()

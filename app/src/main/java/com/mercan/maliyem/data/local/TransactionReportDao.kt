@@ -24,6 +24,16 @@ data class ReportCategoryTotal(
 
 @Dao
 interface TransactionReportDao {
+    @Query("""
+        SELECT EXISTS(SELECT 1 FROM transactions)
+            OR EXISTS(SELECT 1 FROM transfers)
+            OR EXISTS(SELECT 1 FROM recurring_rules)
+            OR EXISTS(SELECT 1 FROM budgets)
+            OR EXISTS(SELECT 1 FROM overall_budget)
+            OR EXISTS(SELECT 1 FROM savings_goals)
+    """)
+    suspend fun hasUserRecords(): Boolean
+
     @Query("SELECT * FROM transactions WHERE date IN (:dates)")
     suspend fun transactionsOnDates(dates: List<LocalDate>): List<TransactionEntity>
 

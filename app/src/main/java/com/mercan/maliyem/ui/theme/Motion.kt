@@ -11,10 +11,13 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -53,6 +56,10 @@ object Motion {
     fun <T> fast(): FiniteAnimationSpec<T> = tween(FAST, easing = FastOutSlowInEasing)
     fun <T> medium(): FiniteAnimationSpec<T> = tween(MEDIUM, easing = FastOutSlowInEasing)
     fun <T> enter(): FiniteAnimationSpec<T> = tween(ENTER, easing = FastOutSlowInEasing)
+
+    fun introIllustration(): FiniteAnimationSpec<Float> = tween(760, easing = FastOutSlowInEasing)
+    fun introText(): FiniteAnimationSpec<Float> = tween(280, delayMillis = 440, easing = FastOutSlowInEasing)
+    fun introFloat() = infiniteRepeatable(tween<Float>(3_200, easing = LinearEasing), RepeatMode.Restart)
 
     fun itemPlacement(): FiniteAnimationSpec<IntOffset> = spring(
         stiffness = Spring.StiffnessMediumLow,

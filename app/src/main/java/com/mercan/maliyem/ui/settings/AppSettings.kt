@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.edit
 import androidx.core.os.LocaleListCompat
+import com.mercan.maliyem.data.local.MaliyemDatabase
 import com.mercan.maliyem.ui.lock.LockTimeout
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -36,12 +37,27 @@ enum class AppLanguage(val tag: String) {
 }
 
 /**
- * Tema ve uygulama kilidi SharedPreferences'ta, dil AppCompat'ta tutulur. İlk karede gereken
+ * Tema, uygulama kilidi ve tanıtım SharedPreferences'ta, dil AppCompat'ta tutulur. İlk karede gereken
  * ayarlar eşzamanlı okunur (ADR-0013, ADR-0025).
  */
 @Singleton
 class AppSettings @Inject constructor(@ApplicationContext context: Context) {
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+
+    // Capture this before startup jobs can open Room and seed a fresh database.
+    internal val hadDatabaseAtStartup = context.getDatabasePath(MaliyemDatabase.NAME).exists()
+
+    internal val onboardingCompleted: Boolean?
+        get() = if (prefs.contains(KEY_ONBOARDING_COMPLETED)) prefs.getBoolean(KEY_ONBOARDING_COMPLETED, false) else null
+
+    internal fun setOnboardingCompleted(completed: Boolean) {
+        prefs.edit { putBoolean(KEY_ONBOARDING_COMPLETED, completed) }
+    }
+
+    init {
+        // Preserve eligibility if a background startup initializes Room before the first Activity.
+        if (!hadDatabaseAtStartup && onboardingCompleted == null) setOnboardingCompleted(false)
+    }
 
     private val _theme = MutableStateFlow(
         prefs.getString(KEY_THEME, null)?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM,
@@ -116,6 +132,7 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
     }
 
     private companion object {
+        const val KEY_ONBOARDING_COMPLETED = "onboardingCompleted"
         const val KEY_AUTO_READ_RECEIPTS = "autoReadReceipts"
         const val KEY_BUDGET_ALERTS = "budgetAlerts"
         const val KEY_RECURRING_REMINDERS = "recurringReminders"

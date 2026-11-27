@@ -38,7 +38,9 @@ import com.mercan.maliyem.ui.lock.AppLockAuthentication
 import com.mercan.maliyem.ui.lock.AppLockViewModel
 import com.mercan.maliyem.ui.lock.SeyirLockedScreen
 import com.mercan.maliyem.ui.lock.SeyirSecurityCard
+import com.mercan.maliyem.ui.components.ScreenLoading
 import com.mercan.maliyem.ui.navigation.MaliyemNavHost
+import com.mercan.maliyem.ui.onboarding.OnboardingViewModel
 import com.mercan.maliyem.ui.settings.AppSettings
 import com.mercan.maliyem.ui.settings.NotificationsCard
 import com.mercan.maliyem.ui.theme.MaliyemTheme
@@ -58,6 +60,7 @@ class MainActivity : AppCompatActivity() {
 
     private val addTransaction: AddTransactionViewModel by viewModels()
     private val appLock: AppLockViewModel by viewModels()
+    private val onboarding: OnboardingViewModel by viewModels()
     private lateinit var authentication: AppLockAuthentication
     private var authenticationAvailable by mutableStateOf(false)
     private var pendingQuickEntry by mutableStateOf<TransactionType?>(null)
@@ -117,13 +120,18 @@ class MainActivity : AppCompatActivity() {
         setContent {
             val screenState = rememberSaveableStateHolder()
             val lockEnabled by appLock.enabled.collectAsState()
+            val showIntro by onboarding.showIntro.collectAsStateWithLifecycle()
             MaliyemTheme {
                 Surface(Modifier.fillMaxSize()) {
                     if (lockEnabled && appLock.locked) {
                         SeyirLockedScreen(authenticationAvailable, appLock.authenticating, ::authenticate)
+                    } else if (showIntro == null) {
+                        ScreenLoading()
                     } else {
                         screenState.SaveableStateProvider("app") {
                             MaliyemNavHost(
+                                showFirstRunIntro = showIntro == true,
+                                onFinishFirstRunIntro = onboarding::finishIntro,
                                 quickEntry = pendingQuickEntry,
                                 onQuickEntryConsumed = { pendingQuickEntry = null },
                                 securityCard = { SecurityCard(lockEnabled) },

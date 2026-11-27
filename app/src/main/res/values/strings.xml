@@ -449,4 +449,19 @@
     <string name="budgets_empty_body">Set a monthly limit for all spending or for a category.</string>
     <string name="yearly_empty_title">No records this year</string>
     <string name="yearly_empty_body">Income and expenses for this year will appear here.</string>
+
+    <!-- Onboarding -->
+    <string name="settings_show_intro">Show intro again</string>
+    <string name="intro_welcome_title">Welcome to Maliyem</string>
+    <string name="intro_welcome_body">Track your money simply, with everything on your device and no need for an account or internet.</string>
+    <string name="intro_quick_add_title">Add a record in seconds</string>
+    <string name="intro_quick_add_body">Enter it yourself or let Maliyem read a receipt photo on your device and fill it in.</string>
+    <string name="intro_breakdown_title">See where your money goes</string>
+    <string name="intro_breakdown_body">Check your monthly summary, see spending in a donut chart, and get budget alerts.</string>
+    <string name="intro_goals_title">Build habits that stick</string>
+    <string name="intro_goals_body">Set savings goals, repeat regular entries, and keep your month in view with a widget.</string>
+    <string name="intro_skip">Skip</string>
+    <string name="intro_next">Next</string>
+    <string name="intro_start">Get started</string>
+    <string name="intro_page_number">Page %1$d of %2$d</string>
 </resources>
