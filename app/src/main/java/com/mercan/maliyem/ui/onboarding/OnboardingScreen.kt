@@ -17,9 +17,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -31,15 +31,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
 import com.mercan.maliyem.R
 import com.mercan.maliyem.ui.components.SeyirBackdrop
@@ -48,6 +51,9 @@ import com.mercan.maliyem.ui.components.SeyirTextButton
 import com.mercan.maliyem.ui.theme.LocalReducedMotion
 import com.mercan.maliyem.ui.theme.Motion
 import com.mercan.maliyem.ui.theme.Spacing
+import kotlin.math.abs
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 internal enum class IntroPage(val title: Int, val body: Int) {
@@ -69,7 +75,7 @@ internal fun OnboardingScreen(onExit: () -> Unit, modifier: Modifier = Modifier)
     fun goTo(index: Int) {
         scope.launch {
             if (reducedMotion) pager.scrollToPage(index)
-            else pager.animateScrollToPage(index, animationSpec = Motion.enter())
+            else pager.animateScrollToPage(index, animationSpec = Motion.introPageScroll())
         }
     }
 
@@ -101,8 +107,8 @@ internal fun OnboardingScreen(onExit: () -> Unit, modifier: Modifier = Modifier)
             ) { index ->
                 IntroPageContent(
                     page = pages[index],
-                    active = index == settledPage,
-                    offset = { pager.getOffsetDistanceInPages(index).coerceIn(-1f, 1f) },
+                    pager = pager,
+                    index = index,
                 )
             }
 
@@ -139,38 +145,52 @@ private fun PageDots(selected: Int, count: Int) {
                 animationSpec = if (reducedMotion) snap() else Motion.medium(),
                 label = "Intro dot width",
             )
-            Box(Modifier.width(width).height(Spacing.sm).background(
-                if (active) colors.primary else colors.outline,
-                CircleShape,
-            ))
+            Box(
+                Modifier.layout { measurable, constraints ->
+                    val widthPx = constraints.constrainWidth(width.roundToPx())
+                    val dot = measurable.measure(constraints.copy(minWidth = widthPx, maxWidth = widthPx))
+                    layout(dot.width, dot.height) { dot.placeRelative(0, 0) }
+                }.height(Spacing.sm).background(
+                    if (active) colors.primary else colors.outline,
+                    CircleShape,
+                ),
+            )
         }
     }
 }
 
 @Composable
-private fun IntroPageContent(page: IntroPage, active: Boolean, offset: () -> Float) {
+private fun IntroPageContent(page: IntroPage, pager: PagerState, index: Int) {
     val reducedMotion = LocalReducedMotion.current
-    val initialProgress = if (active && !reducedMotion) 0f else 1f
-    val art = remember { Animatable(initialProgress) }
-    val copy = remember { Animatable(initialProgress) }
+    val art = remember { Animatable(0f) }
+    val copy = remember { Animatable(0f) }
     val float = remember { Animatable(0f) }
 
-    LaunchedEffect(active, reducedMotion) {
-        if (reducedMotion || !active) {
+    LaunchedEffect(pager, index, reducedMotion) {
+        if (reducedMotion) {
             art.snapTo(1f)
             copy.snapTo(1f)
-        } else {
-            art.snapTo(0f)
-            copy.snapTo(0f)
-            launch { art.animateTo(1f, Motion.introIllustration()) }
-            launch { copy.animateTo(1f, Motion.introText()) }
+            float.snapTo(0f)
+            return@LaunchedEffect
         }
-    }
-    LaunchedEffect(active, reducedMotion, page) {
-        float.snapTo(0f)
-        if (active && !reducedMotion && page == IntroPage.Welcome) {
-            float.animateTo(1f, Motion.introFloat())
-        }
+
+        // Pager pages occupy the full viewport. Reset only after a page has left it.
+        snapshotFlow { abs(pager.getOffsetDistanceInPages(index)) < 1f }
+            .collectLatest { visible ->
+                if (visible) {
+                    coroutineScope {
+                        launch { art.animateTo(1f, Motion.introIllustration()) }
+                        launch { copy.animateTo(1f, Motion.introText()) }
+                        if (page == IntroPage.Welcome) {
+                            launch { float.animateTo(1f, Motion.introFloat()) }
+                        }
+                    }
+                } else {
+                    art.snapTo(0f)
+                    copy.snapTo(0f)
+                    float.snapTo(0f)
+                }
+            }
     }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -179,7 +199,7 @@ private fun IntroPageContent(page: IntroPage, active: Boolean, offset: () -> Flo
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).heightIn(min = viewportHeight)
                 .padding(horizontal = Spacing.lg, vertical = Spacing.sm)
-                .semantics { if (!active) hideFromAccessibility() },
+                .semantics { if (index != pager.settledPage) hideFromAccessibility() },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.lg, Alignment.CenterVertically),
         ) {
@@ -189,7 +209,8 @@ private fun IntroPageContent(page: IntroPage, active: Boolean, offset: () -> Flo
                 phase = { if (reducedMotion) 0f else float.value },
                 modifier = Modifier.graphicsLayer {
                     if (!reducedMotion) {
-                        translationX = offset() * Spacing.xl.toPx()
+                        val offset = pager.getOffsetDistanceInPages(index).coerceIn(-1f, 1f)
+                        translationX = offset * Spacing.xl.toPx()
                         val scale = .96f + .04f * art.value
                         scaleX = scale
                         scaleY = scale

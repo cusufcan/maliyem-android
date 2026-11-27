@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,7 +27,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import com.mercan.maliyem.R
 import com.mercan.maliyem.ui.theme.SeyirIcon
 import com.mercan.maliyem.util.formatMoney
@@ -72,24 +76,33 @@ internal fun IntroIllustration(
             IntroPage.QuickAdd -> {
                 val density = LocalDensity.current
                 val locale = LocalConfiguration.current.locales[0]
-                val p = progress()
-                val cardShift = recordShift(p)
-                val amount = (24_500 * ((p - .18f) / .65f).coerceIn(0f, 1f)).roundToInt().toLong()
+                val textMeasurer = rememberTextMeasurer()
+                val amountStyle = MaterialTheme.typography.titleLarge.copy(
+                    fontSize = with(density) { (unit * 21f).toSp() },
+                    lineHeight = with(density) { (unit * 27f).toSp() },
+                    fontFeatureSettings = "tnum",
+                    color = colors.onSurface,
+                )
                 ArtIcon(
                     R.drawable.ic_seyir_plus, colors.onPrimaryContainer, unit, 66f, 115f, 18f,
                     Modifier.graphicsLayer { translationX = unit.toPx() * recordShift(progress()) },
                 )
-                Text(
-                    formatMoney(amount, locale),
-                    Modifier.align(Alignment.CenterStart).offset(x = unit * (90f + cardShift), y = unit * -25f),
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontSize = with(density) { (unit * 21f).toSp() },
-                        lineHeight = with(density) { (unit * 27f).toSp() },
-                        fontFeatureSettings = "tnum",
-                    ),
-                    color = colors.onSurface,
-                    maxLines = 1,
-                )
+                Canvas(Modifier.fillMaxSize()) {
+                    val p = progress()
+                    val amount = (24_500 * ((p - .18f) / .65f).coerceIn(0f, 1f)).roundToInt().toLong()
+                    val bounds = IntSize(size.width.roundToInt(), size.height.roundToInt())
+                    val text = textMeasurer.measure(
+                        text = formatMoney(amount, locale),
+                        style = amountStyle,
+                        maxLines = 1,
+                        constraints = Constraints(maxWidth = bounds.width, maxHeight = bounds.height),
+                    )
+                    val position = Alignment.CenterStart.align(text.size, bounds, layoutDirection)
+                    val shift = (unit * (90f + recordShift(p))).roundToPx()
+                    val x = position.x + if (layoutDirection == LayoutDirection.Ltr) shift else -shift
+                    val y = position.y + (unit * -25f).roundToPx()
+                    drawText(text, topLeft = Offset(x.toFloat(), y.toFloat()))
+                }
                 ArtIcon(R.drawable.ic_seyir_receipt, colors.onSecondaryContainer, unit, 211f, 170f, 43f)
                 Canvas(Modifier.fillMaxSize()) {
                     val factor = size.minDimension / ArtSize

@@ -57,6 +57,7 @@ object Motion {
     fun <T> medium(): FiniteAnimationSpec<T> = tween(MEDIUM, easing = FastOutSlowInEasing)
     fun <T> enter(): FiniteAnimationSpec<T> = tween(ENTER, easing = FastOutSlowInEasing)
 
+    fun introPageScroll(): FiniteAnimationSpec<Float> = tween(320, easing = FastOutSlowInEasing)
     fun introIllustration(): FiniteAnimationSpec<Float> = tween(760, easing = FastOutSlowInEasing)
     fun introText(): FiniteAnimationSpec<Float> = tween(280, delayMillis = 440, easing = FastOutSlowInEasing)
     fun introFloat() = infiniteRepeatable(tween<Float>(3_200, easing = LinearEasing), RepeatMode.Restart)
