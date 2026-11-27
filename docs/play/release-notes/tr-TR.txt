@@ -1,0 +1,9 @@
+Maliyem 1.2.0 ile gelenler:
+• Fiş fotoğrafından tutar, tarih ve yer cihazında okunur
+• Hesaplar ve hesaplar arası transfer
+• Aylık bütçeler, uyarılar ve tasarruf hedefleri
+• Tekrarlayan kayıtlar ve hatırlatmalar
+• Arama, filtreler, 6 aylık trend ve yıllık rapor
+• Yedekleme, geri yükleme, CSV içe ve dışa aktarma
+• Ana ekran widget'ı ve uygulama kilidi
+• Yeni ikon, ilk açılış tanıtımı ve daha canlı tasarım
