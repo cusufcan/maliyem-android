@@ -52,7 +52,10 @@ internal fun CsvImportScreen(onExit: () -> Unit, viewModel: CsvImportViewModel =
     val state by viewModel.state.collectAsStateWithLifecycle()
     val writing = (state as? CsvImportState.Preview)?.writing == true
     BackHandler(enabled = writing) { }
-    Column(Modifier.fillMaxSize().padding(horizontal = Spacing.lg)) {
+    Column(
+        Modifier.fillMaxSize().padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
         val title = when (state) {
             is CsvImportState.Mapping -> R.string.csv_map_title
             is CsvImportState.Preview -> R.string.csv_preview
@@ -99,10 +102,10 @@ private fun MappingContent(
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             SubText(stringResource(R.string.csv_map_hint))
-            SeyirCard {
+            SeyirCard(padding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.xs)) {
                 CsvSwitch(stringResource(R.string.csv_header), state.mapping.hasHeader, onHeader)
             }
-            SeyirCard {
+            SeyirCard(padding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.sm)) {
                 for (field in CsvField.entries) {
                     val selected = state.mapping.columns[field]
                     SettingRow(

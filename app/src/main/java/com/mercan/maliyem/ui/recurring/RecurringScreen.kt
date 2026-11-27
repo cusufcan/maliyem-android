@@ -229,14 +229,16 @@ private fun RuleForm(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             singleLine = true, enabled = !busy, isError = minor == null,
         )
-        SubText(stringResource(R.string.detail_category))
-        FlowRow(
-            Modifier.selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            for (item in categories) {
-                SeyirChip(categoryName(item.key, item.name), item.id == categoryId, { category = item.id }, enabled = !busy)
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            SubText(stringResource(R.string.detail_category))
+            FlowRow(
+                Modifier.selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                for (item in categories) {
+                    SeyirChip(categoryName(item.key, item.name), item.id == categoryId, { category = item.id }, enabled = !busy)
+                }
             }
         }
         AccountPicker(

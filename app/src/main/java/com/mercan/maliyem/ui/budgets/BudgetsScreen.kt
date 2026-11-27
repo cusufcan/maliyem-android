@@ -139,15 +139,17 @@ fun BudgetsScreen(
             onDismiss = { adding = false },
             dismissText = stringResource(R.string.add_cancel),
         ) {
-            if (canAddOverall) {
-                SettingRow(R.drawable.ic_seyir_wallet, overallTitle, onClick = { pick(OVERALL_BUDGET) })
-            }
-            availableCategories.forEach { category ->
-                key(category.id) {
-                    SettingRow(
-                        categoryIcon(category.icon), categoryName(category.key, category.name),
-                        onClick = { pick(category.id) },
-                    )
+            Column {
+                if (canAddOverall) {
+                    SettingRow(R.drawable.ic_seyir_wallet, overallTitle, onClick = { pick(OVERALL_BUDGET) })
+                }
+                availableCategories.forEach { category ->
+                    key(category.id) {
+                        SettingRow(
+                            categoryIcon(category.icon), categoryName(category.key, category.name),
+                            onClick = { pick(category.id) },
+                        )
+                    }
                 }
             }
         }

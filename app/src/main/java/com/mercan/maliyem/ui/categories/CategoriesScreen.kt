@@ -90,7 +90,7 @@ fun CategoriesScreen(onBack: () -> Unit, viewModel: CategoriesViewModel = hiltVi
             Modifier.fillMaxSize().padding(top = Spacing.sm),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            Column(Modifier.padding(horizontal = Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Column(Modifier.padding(horizontal = Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 BackHeader(stringResource(R.string.settings_categories), onBack)
                 SeyirSegmented(
                     listOf(stringResource(R.string.add_expense), stringResource(R.string.add_income)),

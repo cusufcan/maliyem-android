@@ -233,8 +233,10 @@ private fun AccountDialog(
                 }
             }
         }
-        SubText(stringResource(R.string.categories_icon))
-        CategoryIconPicker(icon) { icon = it }
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            SubText(stringResource(R.string.categories_icon))
+            CategoryIconPicker(icon) { icon = it }
+        }
     }
 }
 

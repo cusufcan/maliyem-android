@@ -88,7 +88,9 @@ import com.mercan.maliyem.ui.components.ReceiptThumbnail
 import com.mercan.maliyem.ui.components.ReceiptViewer
 import com.mercan.maliyem.ui.components.SettingRow
 import com.mercan.maliyem.ui.components.SeyirActionButton
+import com.mercan.maliyem.ui.components.SeyirButtonHeight
 import com.mercan.maliyem.ui.components.SeyirChip
+import com.mercan.maliyem.ui.components.SeyirCompactControl
 import com.mercan.maliyem.ui.components.SeyirSegmented
 import com.mercan.maliyem.ui.components.SubText
 import com.mercan.maliyem.ui.components.categoryName
@@ -97,6 +99,7 @@ import com.mercan.maliyem.ui.theme.LocalMoneyColors
 import com.mercan.maliyem.ui.theme.MoneyInputValue
 import com.mercan.maliyem.ui.theme.Motion
 import com.mercan.maliyem.ui.theme.SeyirIcon
+import com.mercan.maliyem.ui.theme.SeyirIconSize
 import com.mercan.maliyem.ui.theme.Spacing
 import com.mercan.maliyem.ui.theme.categoryIcon
 import com.mercan.maliyem.ui.theme.countSlide
@@ -216,101 +219,113 @@ private fun AddTransactionContent(
             if (state.editId == null || !state.transfer) {
                 TypeSelector(state, { viewModel.setType(it) }, viewModel::selectTransfer)
             }
-            AmountField(
-                form.amountText,
-                form.type.takeUnless { state.transfer },
-                { viewModel.setAmount(it, locale) },
-                modifier = Modifier.bringIntoViewRequester(amountField),
-                error = state.error?.takeUnless { it == AddFormError.CATEGORY_MISSING || it == AddFormError.ACCOUNT_MISSING },
-            )
-            val selected = state.accounts.firstOrNull { it.id == form.accountId }
-            if (state.transfer) {
-                Column(Modifier.bringIntoViewRequester(accountField), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    if (state.canTransfer) {
-                        AccountPicker(
-                            R.string.transfer_from, selected, state.activeAccounts,
-                            viewModel::setAccount,
-                        )
-                        AccountPicker(
-                            R.string.transfer_to, state.accounts.firstOrNull { it.id == state.toAccountId },
-                            state.activeAccounts.filter { it.id != form.accountId }, viewModel::setToAccount,
-                        )
-                    } else {
-                        SubText(stringResource(R.string.transfer_need_accounts))
-                    }
-                }
-            } else {
-                Column(Modifier.bringIntoViewRequester(categoryField)) {
-                    CategoryChips(
-                        form.type, form.categoryId, state.categories, state.error == AddFormError.CATEGORY_MISSING,
-                        viewModel::setCategory, viewModel::addCategory,
-                    )
-                }
-                if (state.activeAccounts.size > 1 || selected?.archived == true || state.error == AddFormError.ACCOUNT_MISSING) {
-                    Column(Modifier.bringIntoViewRequester(accountField)) {
-                        AccountPicker(R.string.account_label, selected, state.activeAccounts, viewModel::setAccount)
-                        if (state.error == AddFormError.ACCOUNT_MISSING) SubText(stringResource(R.string.account_choose))
-                    }
-                }
-            }
             Column {
-                if (state.editId == null && !state.transfer) {
-                    FrequencyPicker(state.frequency, viewModel::setFrequency, includeNone = true, enabled = !saving)
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                }
-                DateRow(form.date, state.today, locale, allowFuture = state.frequency != null, onPick = viewModel::setDate)
-                QuickDates(form.date, state.today, viewModel::setDate)
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                NoteRow(form.note, viewModel::setNote)
-                if (!state.transfer) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    ReceiptField(
-                        receipt, futureRule, saving, importing, photoFailed,
-                        onReceiptCamera, onReceiptGallery, viewModel::removeReceipt,
-                    )
-                }
-            }
-        }
-        // Tutar geçerliyse düğme ne kaydedileceğini söyler: "Kaydet · 412,85 ₺".
-        val amountMinor = state.amountMinor?.takeIf { it > 0 }
-        if (receiptReading) {
-            val reading = stringResource(R.string.receipt_reading)
-            SubText(
-                reading,
-                Modifier.clearAndSetSemantics {
-                    contentDescription = reading
-                    liveRegion = LiveRegionMode.Polite
-                },
-            )
-        }
-        if (receiptFilled != 0) {
-            FlowRow(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                itemVerticalAlignment = Alignment.CenterVertically,
-            ) {
-                SubText(
-                    stringResource(R.string.receipt_filled),
-                    Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                AmountField(
+                    form.amountText,
+                    form.type.takeUnless { state.transfer },
+                    { viewModel.setAmount(it, locale) },
+                    modifier = Modifier.bringIntoViewRequester(amountField),
+                    error = state.error?.takeUnless { it == AddFormError.CATEGORY_MISSING || it == AddFormError.ACCOUNT_MISSING },
                 )
-                SeyirActionButton(stringResource(R.string.add_undo), viewModel::undoReceiptSuggestion, enabled = !saving)
+                val selected = state.accounts.firstOrNull { it.id == form.accountId }
+                if (state.transfer) {
+                    Column(
+                        Modifier.bringIntoViewRequester(accountField).padding(vertical = Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        if (state.canTransfer) {
+                            AccountPicker(
+                                R.string.transfer_from, selected, state.activeAccounts,
+                                viewModel::setAccount,
+                            )
+                            AccountPicker(
+                                R.string.transfer_to, state.accounts.firstOrNull { it.id == state.toAccountId },
+                                state.activeAccounts.filter { it.id != form.accountId }, viewModel::setToAccount,
+                            )
+                        } else {
+                            SubText(stringResource(R.string.transfer_need_accounts))
+                        }
+                    }
+                } else {
+                    Column(Modifier.bringIntoViewRequester(categoryField)) {
+                        CategoryChips(
+                            form.type, form.categoryId, state.categories, state.error == AddFormError.CATEGORY_MISSING,
+                            viewModel::setCategory, viewModel::addCategory,
+                        )
+                    }
+                    if (state.activeAccounts.size > 1 || selected?.archived == true || state.error == AddFormError.ACCOUNT_MISSING) {
+                        Column(Modifier.bringIntoViewRequester(accountField).padding(bottom = Spacing.md)) {
+                            AccountPicker(R.string.account_label, selected, state.activeAccounts, viewModel::setAccount)
+                            if (state.error == AddFormError.ACCOUNT_MISSING) SubText(stringResource(R.string.account_choose))
+                        }
+                    }
+                }
+                Column {
+                    if (state.editId == null && !state.transfer) {
+                        FrequencyPicker(state.frequency, viewModel::setFrequency, includeNone = true, enabled = !saving)
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+                    DateRow(form.date, state.today, locale, allowFuture = state.frequency != null, onPick = viewModel::setDate)
+                    QuickDates(form.date, state.today, viewModel::setDate)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    NoteRow(form.note, viewModel::setNote)
+                    if (!state.transfer) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        ReceiptField(
+                            receipt, futureRule, saving, importing, photoFailed,
+                            onReceiptCamera, onReceiptGallery, viewModel::removeReceipt,
+                        )
+                    }
+                }
             }
         }
-        if (writeFailed) WriteError()
-        Button(
-            onClick = {
-                saveAttempts++
-                viewModel.save()
-            },
-            modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.lg).heightIn(min = 44.dp),
-            enabled = !saving && !importing && (!state.transfer || state.canTransfer) && !(futureRule && receipt != null),
+        Column(
+            Modifier.fillMaxWidth().padding(bottom = Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            AnimatedContent(amountMinor, transitionSpec = { crossFade() }, label = "saveLabel") { minor ->
-                Text(
-                    if (minor != null) stringResource(R.string.add_save_amount, formatMoney(minor, locale)) else stringResource(R.string.add_save),
-                    fontWeight = FontWeight.SemiBold,
+            // Tutar geçerliyse düğme ne kaydedileceğini söyler: "Kaydet · 412,85 ₺".
+            val amountMinor = state.amountMinor?.takeIf { it > 0 }
+            if (receiptReading) {
+                val reading = stringResource(R.string.receipt_reading)
+                SubText(
+                    reading,
+                    Modifier.clearAndSetSemantics {
+                        contentDescription = reading
+                        liveRegion = LiveRegionMode.Polite
+                    },
                 )
+            }
+            if (receiptFilled != 0) {
+                FlowRow(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    itemVerticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SubText(
+                        stringResource(R.string.receipt_filled),
+                        Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                    SeyirActionButton(stringResource(R.string.add_undo), viewModel::undoReceiptSuggestion, enabled = !saving)
+                }
+            }
+            if (writeFailed) WriteError()
+            SeyirCompactControl {
+                Button(
+                    onClick = {
+                        saveAttempts++
+                        viewModel.save()
+                    },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = SeyirButtonHeight),
+                    enabled = !saving && !importing && (!state.transfer || state.canTransfer) && !(futureRule && receipt != null),
+                ) {
+                    AnimatedContent(amountMinor, transitionSpec = { crossFade() }, label = "saveLabel") { minor ->
+                        Text(
+                            if (minor != null) stringResource(R.string.add_save_amount, formatMoney(minor, locale)) else stringResource(R.string.add_save),
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
             }
         }
     }
@@ -514,7 +529,9 @@ private fun CategoryChips(
         label = "addCategories",
     ) { shown ->
         FlowRow(
-            Modifier.fillMaxWidth().selectableGroup().animateContentSize(Motion.enter()),
+            // Keep the section gaps inside the animation clip so the outer rows can use them for touch.
+            Modifier.fillMaxWidth().animateContentSize(Motion.enter()).padding(vertical = Spacing.md)
+                .selectableGroup(),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
@@ -560,7 +577,8 @@ private fun CategoryChips(
 private fun QuickDates(date: LocalDate, today: LocalDate, onPick: (LocalDate) -> Unit) {
     val yesterday = today.minusDays(1)
     FlowRow(
-        Modifier.fillMaxWidth().selectableGroup().padding(start = 24.dp + Spacing.md, bottom = Spacing.sm),
+        Modifier.fillMaxWidth().selectableGroup()
+            .padding(start = SeyirIconSize + Spacing.md, top = Spacing.sm, bottom = Spacing.sm),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
@@ -572,7 +590,7 @@ private fun QuickDates(date: LocalDate, today: LocalDate, onPick: (LocalDate) ->
 @Composable
 private fun SheetRow(icon: Int, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
     Row(
-        modifier.fillMaxWidth().heightIn(min = 56.dp),
+        modifier.fillMaxWidth().heightIn(min = 48.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {

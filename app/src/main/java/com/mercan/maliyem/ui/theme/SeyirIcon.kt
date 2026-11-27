@@ -11,12 +11,14 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+internal val SeyirIconSize = 20.dp
+
 @Composable
 internal fun SeyirIcon(
     @DrawableRes glyph: Int,
     modifier: Modifier = Modifier,
     description: String? = null,
-    size: Dp = 20.dp,
+    size: Dp = SeyirIconSize,
     tint: Color = LocalContentColor.current,
 ) {
     Icon(painterResource(glyph), description, modifier.size(size), tint)

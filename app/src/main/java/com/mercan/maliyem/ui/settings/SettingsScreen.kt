@@ -26,7 +26,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mercan.maliyem.R
@@ -137,7 +136,7 @@ fun SettingsScreen(
                 listOf(R.string.settings_system, R.string.settings_theme_light, R.string.settings_theme_dark).map { stringResource(it) },
                 theme.ordinal,
                 { viewModel.setTheme(ThemeMode.entries[it]) },
-                Modifier.padding(top = 10.dp),
+                Modifier.padding(top = Spacing.sm),
             )
         }
         SeyirCard {
@@ -147,7 +146,7 @@ fun SettingsScreen(
                 listOf(stringResource(R.string.settings_system), "English", "Türkçe"),
                 language.ordinal,
                 { viewModel.setLanguage(AppLanguage.entries[it]) },
-                Modifier.padding(top = 10.dp),
+                Modifier.padding(top = Spacing.sm),
             )
         }
         SeyirCard(padding = rows) {

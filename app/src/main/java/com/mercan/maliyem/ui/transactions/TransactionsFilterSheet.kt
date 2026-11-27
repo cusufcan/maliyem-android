@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -19,7 +18,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -44,6 +42,7 @@ import com.mercan.maliyem.ui.components.Eyebrow
 import com.mercan.maliyem.ui.components.SettingRow
 import com.mercan.maliyem.ui.components.SeyirButton
 import com.mercan.maliyem.ui.components.SeyirChip
+import com.mercan.maliyem.ui.components.SeyirTextButton
 import com.mercan.maliyem.ui.components.categoryName
 import com.mercan.maliyem.ui.theme.Spacing
 import com.mercan.maliyem.ui.theme.categoryIcon
@@ -83,76 +82,82 @@ internal fun TransactionsFilterSheet(
     ) {
         Column(Modifier.fillMaxWidth().imePadding().padding(horizontal = Spacing.lg)) {
             Column(
-                Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                Modifier.weight(1f, fill = false).fillMaxWidth().verticalScroll(rememberScrollState())
+                    .padding(bottom = Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
                 Text(
                     stringResource(R.string.transactions_filters), Modifier.semantics { heading() },
                     style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
                 )
-                Eyebrow(stringResource(R.string.transactions_filter_type))
-                FilterOptions(Modifier.selectableGroup()) {
-                    TransactionFilter.entries.forEach { type ->
-                        SeyirChip(stringResource(type.labelRes), draft.type == type, {
-                            val ids = options.categories.filter { type.transactionType == null || it.type == type.transactionType }
-                                .map { it.id }.toSet()
-                            draft = draft.copy(
-                                type = type,
-                                categoryIds = if (type == TransactionFilter.TRANSFER) emptySet() else draft.categoryIds.intersect(ids),
-                            )
-                        })
+                FilterSection(R.string.transactions_filter_type) {
+                    FilterOptions(Modifier.selectableGroup()) {
+                        TransactionFilter.entries.forEach { type ->
+                            SeyirChip(stringResource(type.labelRes), draft.type == type, {
+                                val ids = options.categories.filter { type.transactionType == null || it.type == type.transactionType }
+                                    .map { it.id }.toSet()
+                                draft = draft.copy(
+                                    type = type,
+                                    categoryIds = if (type == TransactionFilter.TRANSFER) emptySet() else draft.categoryIds.intersect(ids),
+                                )
+                            })
+                        }
                     }
                 }
                 if (draft.type != TransactionFilter.TRANSFER) {
-                    Eyebrow(stringResource(R.string.settings_categories))
-                    FilterOptions {
-                        options.categories.filter { draft.type.transactionType == null || it.type == draft.type.transactionType }.forEach { category ->
-                            SeyirChip(
-                                categoryName(category.key, category.name), category.id in draft.categoryIds,
-                                { draft = draft.copy(categoryIds = draft.categoryIds.toggle(category.id)) },
-                                icon = categoryIcon(category.icon), role = Role.Checkbox,
-                            )
+                    FilterSection(R.string.settings_categories) {
+                        FilterOptions {
+                            options.categories.filter { draft.type.transactionType == null || it.type == draft.type.transactionType }.forEach { category ->
+                                SeyirChip(
+                                    categoryName(category.key, category.name), category.id in draft.categoryIds,
+                                    { draft = draft.copy(categoryIds = draft.categoryIds.toggle(category.id)) },
+                                    icon = categoryIcon(category.icon), role = Role.Checkbox,
+                                )
+                            }
                         }
                     }
                 }
                 if (options.accounts.size >= 2) {
-                    Eyebrow(stringResource(R.string.settings_accounts))
-                    FilterOptions {
-                        options.accounts.forEach { account ->
-                            SeyirChip(
-                                accountName(account), account.id in draft.accountIds,
-                                { draft = draft.copy(accountIds = draft.accountIds.toggle(account.id)) },
-                                icon = categoryIcon(account.icon), role = Role.Checkbox,
-                            )
+                    FilterSection(R.string.settings_accounts) {
+                        FilterOptions {
+                            options.accounts.forEach { account ->
+                                SeyirChip(
+                                    accountName(account), account.id in draft.accountIds,
+                                    { draft = draft.copy(accountIds = draft.accountIds.toggle(account.id)) },
+                                    icon = categoryIcon(account.icon), role = Role.Checkbox,
+                                )
+                            }
                         }
                     }
                 }
-                Eyebrow(stringResource(R.string.transactions_filter_date))
-                FilterOptions(Modifier.selectableGroup()) {
-                    TransactionsRange.entries.forEach { range ->
-                        SeyirChip(stringResource(range.labelRes), draft.range == range, { draft = draft.copy(range = range) })
+                FilterSection(R.string.transactions_filter_date) {
+                    FilterOptions(Modifier.selectableGroup()) {
+                        TransactionsRange.entries.forEach { range ->
+                            SeyirChip(stringResource(range.labelRes), draft.range == range, { draft = draft.copy(range = range) })
+                        }
+                    }
+                    if (draft.range == TransactionsRange.CUSTOM) {
+                        SettingRow(
+                            R.drawable.ic_seyir_calendar, stringResource(R.string.transactions_date_start),
+                            value = start.format(dateFormat), onClick = { datePicker = R.string.transactions_date_start }, horizontalPadding = 0.dp,
+                        )
+                        SettingRow(
+                            R.drawable.ic_seyir_calendar, stringResource(R.string.transactions_date_end),
+                            value = end.format(dateFormat), onClick = { datePicker = R.string.transactions_date_end }, horizontalPadding = 0.dp,
+                        )
                     }
                 }
-                if (draft.range == TransactionsRange.CUSTOM) {
-                    SettingRow(
-                        R.drawable.ic_seyir_calendar, stringResource(R.string.transactions_date_start),
-                        value = start.format(dateFormat), onClick = { datePicker = R.string.transactions_date_start }, horizontalPadding = 0.dp,
-                    )
-                    SettingRow(
-                        R.drawable.ic_seyir_calendar, stringResource(R.string.transactions_date_end),
-                        value = end.format(dateFormat), onClick = { datePicker = R.string.transactions_date_end }, horizontalPadding = 0.dp,
-                    )
+                FilterSection(R.string.add_amount) {
+                    AmountBoundField(minimum, { minimum = it }, R.string.transactions_amount_min, invalidMin)
+                    AmountBoundField(maximum, { maximum = it }, R.string.transactions_amount_max, invalidMax, reversed)
                 }
-                Eyebrow(stringResource(R.string.add_amount))
-                AmountBoundField(minimum, { minimum = it }, R.string.transactions_amount_min, invalidMin)
-                AmountBoundField(maximum, { maximum = it }, R.string.transactions_amount_max, invalidMax, reversed)
             }
             Row(
-                Modifier.fillMaxWidth().padding(vertical = Spacing.md),
+                Modifier.fillMaxWidth().padding(bottom = Spacing.sm),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = { onApply(TransactionsFilters()) }, Modifier.heightIn(min = 44.dp)) {
+                SeyirTextButton(onClick = { onApply(TransactionsFilters()) }) {
                     Text(stringResource(R.string.transactions_filter_clear))
                 }
                 SeyirButton(
@@ -182,6 +187,14 @@ internal fun TransactionsFilterSheet(
                 latest = end.takeIf { pickingStart },
             )
         }
+    }
+}
+
+@Composable
+private fun FilterSection(@StringRes title: Int, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        Eyebrow(stringResource(title))
+        content()
     }
 }
 

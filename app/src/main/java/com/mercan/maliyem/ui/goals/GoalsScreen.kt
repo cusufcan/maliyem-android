@@ -37,6 +37,7 @@ import com.mercan.maliyem.ui.components.EmptyState
 import com.mercan.maliyem.ui.components.ScreenLoading
 import com.mercan.maliyem.ui.components.SeyirActionButton
 import com.mercan.maliyem.ui.components.SeyirButton
+import com.mercan.maliyem.ui.components.SeyirButtonHeight
 import com.mercan.maliyem.ui.components.SeyirCard
 import com.mercan.maliyem.ui.components.SeyirFabClearance
 import com.mercan.maliyem.ui.components.SeyirListScaffold
@@ -92,7 +93,7 @@ fun GoalsScreen(onBack: () -> Unit, onOpen: (Long) -> Unit, viewModel: GoalsView
                             start = Spacing.lg, top = Spacing.md, end = Spacing.lg,
                             bottom = if (showArchived) Spacing.md else SeyirFabClearance,
                         ),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
                         items(shown, key = { it.goal.id }) { balance ->
                             GoalStatusCard(balance, today, seyirAnimateItem(), onClick = { onOpen(balance.goal.id) })
@@ -160,7 +161,7 @@ fun GoalDetailScreen(onBack: () -> Unit, viewModel: GoalsViewModel = hiltViewMod
                 LazyColumn(contentPadding = GoalPagePadding, verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                     item(key = "goal-status") { GoalStatusCard(detail.balance, today, seyirAnimateItem()) }
                     item(key = "goal-actions") {
-                        Column(seyirAnimateItem(), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                        Column(seyirAnimateItem(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                             if (goal.archived) {
                                 SubText(stringResource(R.string.goal_archived_hint))
                             } else {
@@ -168,7 +169,8 @@ fun GoalDetailScreen(onBack: () -> Unit, viewModel: GoalsViewModel = hiltViewMod
                                     SeyirButton(stringResource(R.string.goal_deposit), { open(GoalDialog.DEPOSIT) },
                                         enabled = !write.busy, icon = R.drawable.ic_seyir_plus)
                                     SeyirActionButton(stringResource(R.string.goal_withdraw), { open(GoalDialog.WITHDRAW) },
-                                        icon = R.drawable.ic_seyir_arrow_out, enabled = !write.busy && detail.balance.savedMinor > 0)
+                                        icon = R.drawable.ic_seyir_arrow_out, enabled = !write.busy && detail.balance.savedMinor > 0,
+                                        minHeight = SeyirButtonHeight)
                                 }
                                 SubText(stringResource(R.string.goal_balance_hint))
                             }

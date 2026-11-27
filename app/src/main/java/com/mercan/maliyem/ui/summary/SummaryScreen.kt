@@ -210,7 +210,7 @@ private fun EmptyMonth(
                     monthsIn[state.month.monthValue - 1],
                 ),
                 stringResource(R.string.empty_month_body),
-                Modifier.padding(top = Spacing.lg),
+                Modifier.padding(vertical = Spacing.sm),
             ) {
                 SeyirButton(stringResource(R.string.add_open), onAdd, icon = R.drawable.ic_seyir_plus)
                 if (state.hasTransfers) SeyirButton(stringResource(R.string.nav_transactions), onSeeAll, tonal = true)
@@ -291,7 +291,7 @@ fun SummaryContent(
 private fun Hero(state: SummaryUiState, locale: Locale) {
     val colors = MaterialTheme.colorScheme
     Column(
-        Modifier.fillMaxWidth().background(colors.primaryContainer, MaterialTheme.shapes.extraLarge).padding(20.dp),
+        Modifier.fillMaxWidth().background(colors.primaryContainer, MaterialTheme.shapes.extraLarge).padding(Spacing.lg),
         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
         Eyebrow(stringResource(R.string.summary_net, monthTitle("LLLL", state.month, locale)), color = colors.onPrimaryContainer)
@@ -329,10 +329,10 @@ private fun heroAmount(formatted: String, locale: Locale): AnnotatedString {
 @Composable
 private fun Tile(icon: Int, label: String, amount: String, background: Color, content: Color, modifier: Modifier) {
     Column(
-        modifier.background(background, MaterialTheme.shapes.large).padding(horizontal = Spacing.lg, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier.background(background, MaterialTheme.shapes.large).padding(horizontal = Spacing.lg, vertical = Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             SeyirIcon(icon, size = 16.dp, tint = content)
             Text(label, color = content, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
         }

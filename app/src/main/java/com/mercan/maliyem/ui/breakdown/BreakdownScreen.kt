@@ -90,7 +90,7 @@ fun BreakdownScreen(
         val empty = current.slices.isEmpty()
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight)
-                .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.xl),
+                .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.lg),
             verticalArrangement = if (empty) Arrangement.SpaceBetween else Arrangement.spacedBy(Spacing.md),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
@@ -192,7 +192,7 @@ private fun BreakdownBody(current: BreakdownUiState, locale: Locale, onOpenCateg
                                 }
                             }
                             Row(
-                                Modifier.padding(top = 6.dp),
+                                Modifier.padding(top = Spacing.xs),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                             ) {

@@ -37,13 +37,15 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +75,9 @@ import com.mercan.maliyem.ui.theme.Spacing
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+
+internal val SeyirButtonHeight = 44.dp
+private val SeyirActionHeight = 40.dp
 
 /** Kategori adı: kullanıcının verdiği ad önce, yoksa hazır kategorinin çevirisi (ADR-0011). */
 @Composable
@@ -152,7 +157,7 @@ fun SeyirSegmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit
     // Seçili kapsül seçenekler arasında kayar (ADR-0016).
     val position by animateFloatAsState(selected.toFloat(), Motion.fast(), label = "segment")
     Row(
-        modifier.fillMaxWidth().background(colors.surfaceContainerHigh, RoundedCornerShape(24.dp)).padding(4.dp)
+        modifier.fillMaxWidth().background(colors.surfaceContainerHigh, RoundedCornerShape(24.dp)).padding(Spacing.xs)
             .drawBehind {
                 if (selected < 0) return@drawBehind
                 val width = size.width / options.size
@@ -170,8 +175,8 @@ fun SeyirSegmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit
             val on = index == selected
             val content by animateColorAsState(if (on) sel.content else colors.onSurfaceVariant, Motion.fast(), label = "segmentText")
             Box(
-                Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(20.dp))
-                    .selectable(on, role = Role.Tab) { onSelect(index) }
+                Modifier.weight(1f).heightIn(min = SeyirActionHeight).clip(RoundedCornerShape(20.dp))
+                    .seyirTouchTarget(Role.Tab, on, enabled = true) { onSelect(index) }
                     .padding(horizontal = Spacing.sm),
                 contentAlignment = Alignment.Center,
             ) {
@@ -202,18 +207,30 @@ fun SeyirChip(
     val background by animateColorAsState(if (selected) sel.container else Color.Transparent, Motion.fast(), label = "chipBg")
     val border by animateColorAsState(if (selected) sel.container else colors.outline, Motion.fast(), label = "chipBorder")
     val content by animateColorAsState(if (selected) sel.content else colors.onSurfaceVariant, Motion.fast(), label = "chipText")
-    val action = if (role == Role.Button) Modifier.clickable(enabled = enabled, role = role, onClick = onClick)
-        else Modifier.selectable(selected, enabled = enabled, role = role, onClick = onClick)
     Row(
-        modifier.minimumInteractiveComponentSize().heightIn(min = 36.dp).clip(shape).background(background).border(1.dp, border, shape)
-            .then(action)
+        modifier.heightIn(min = 36.dp).clip(shape).background(background).border(1.dp, border, shape)
+            .seyirTouchTarget(role, selected, enabled, onClick)
             .padding(start = if (icon != null) Spacing.md else Spacing.lg, end = Spacing.lg),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         icon?.let { SeyirIcon(it, size = 18.dp, tint = content) }
         Text(label, color = content, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyMedium)
     }
+}
+
+// Compose expands clickable and selectable hit bounds to the 48 dp touch minimum without
+// affecting measurement. Keep the stock handlers so focus, semantics and nearest-hit routing
+// still work when the expanded bounds of adjacent chip rows meet in the gap.
+private fun Modifier.seyirTouchTarget(
+    role: Role,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+): Modifier = if (role == Role.Button) {
+    clickable(enabled = enabled, role = role, onClick = onClick)
+} else {
+    selectable(selected, enabled = enabled, role = role, onClick = onClick)
 }
 
 /** Pano .card: dolgu 16, köşe 20. */
@@ -297,6 +314,25 @@ fun SettingRow(
     }
 }
 
+// Material3 reserves layout space separately from Compose's touch hit testing. Opt out only
+// around compact controls so the drawn surface measures at its intended height.
+@Composable
+internal fun SeyirCompactControl(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified, content = content)
+}
+
+@Composable
+internal fun SeyirTextButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable RowScope.() -> Unit,
+) {
+    SeyirCompactControl {
+        TextButton(onClick, modifier.heightIn(min = SeyirButtonHeight), enabled = enabled, content = content)
+    }
+}
+
 /** Pano .btn: 44 dp hap; [tonal] ikincil dolgu (.btn.t). */
 @Composable
 fun SeyirButton(
@@ -308,14 +344,16 @@ fun SeyirButton(
     enabled: Boolean = true,
 ) {
     val colors = MaterialTheme.colorScheme
-    Button(
-        onClick, modifier.heightIn(min = 44.dp),
-        enabled = enabled,
-        shape = RoundedCornerShape(24.dp),
-        colors = if (tonal) ButtonDefaults.buttonColors(colors.secondaryContainer, colors.onSecondaryContainer) else ButtonDefaults.buttonColors(),
-        contentPadding = PaddingValues(horizontal = Spacing.xl),
-    ) {
-        ButtonContent(text, icon)
+    SeyirCompactControl {
+        Button(
+            onClick, modifier.heightIn(min = SeyirButtonHeight),
+            enabled = enabled,
+            shape = RoundedCornerShape(24.dp),
+            colors = if (tonal) ButtonDefaults.buttonColors(colors.secondaryContainer, colors.onSecondaryContainer) else ButtonDefaults.buttonColors(),
+            contentPadding = PaddingValues(horizontal = Spacing.xl),
+        ) {
+            ButtonContent(text, icon)
+        }
     }
 }
 
@@ -335,25 +373,28 @@ fun SeyirActionButton(
     tone: ActionTone = ActionTone.Neutral,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    minHeight: Dp = SeyirActionHeight,
 ) {
     val colors = MaterialTheme.colorScheme
     val danger = tone == ActionTone.Danger
-    OutlinedButton(
-        onClick = onClick,
-        modifier = modifier,
-        enabled = enabled,
-        shape = CircleShape,
-        colors = if (danger) ButtonDefaults.outlinedButtonColors(contentColor = colors.error)
-            else ButtonDefaults.outlinedButtonColors(),
-        border = if (danger && enabled) BorderStroke(1.dp, colors.error)
-            else ButtonDefaults.outlinedButtonBorder(enabled),
-        contentPadding = PaddingValues(horizontal = Spacing.lg),
-    ) {
-        icon?.let {
-            SeyirIcon(it, size = 18.dp, tint = LocalContentColor.current)
-            Box(Modifier.size(Spacing.sm))
+    SeyirCompactControl {
+        OutlinedButton(
+            onClick = onClick,
+            modifier = modifier.heightIn(min = minHeight),
+            enabled = enabled,
+            shape = CircleShape,
+            colors = if (danger) ButtonDefaults.outlinedButtonColors(contentColor = colors.error)
+                else ButtonDefaults.outlinedButtonColors(),
+            border = if (danger && enabled) BorderStroke(1.dp, colors.error)
+                else ButtonDefaults.outlinedButtonBorder(enabled),
+            contentPadding = PaddingValues(horizontal = Spacing.lg),
+        ) {
+            icon?.let {
+                SeyirIcon(it, size = 18.dp, tint = LocalContentColor.current)
+                Box(Modifier.size(Spacing.sm))
+            }
+            Text(text, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelLarge)
         }
-        Text(text, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelLarge)
     }
 }
 

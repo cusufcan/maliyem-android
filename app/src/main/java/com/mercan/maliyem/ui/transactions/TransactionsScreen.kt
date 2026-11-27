@@ -195,7 +195,7 @@ private fun TransactionsList(
                 item(key = "header-${day.date}", contentType = "day") {
                     Row(
                         seyirAnimateItem().fillMaxWidth()
-                            .padding(start = Spacing.xs, end = Spacing.xs, top = Spacing.md + Spacing.sm, bottom = Spacing.md),
+                            .padding(start = Spacing.xs, end = Spacing.xs, top = Spacing.md, bottom = Spacing.sm),
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

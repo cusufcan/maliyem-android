@@ -164,7 +164,7 @@ fun TransactionDetailScreen(
 private fun DetailAmount(icon: Int, label: String, amount: String) {
     val locale = LocalConfiguration.current.locales[0]
     Column(
-        Modifier.fillMaxWidth().padding(top = Spacing.lg, bottom = Spacing.sm),
+        Modifier.fillMaxWidth().padding(vertical = Spacing.sm),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
