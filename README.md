@@ -23,6 +23,11 @@ A simple, private income and expense tracker for Android. Log what comes in and 
 
 No account, ads or analytics, and no internet permission: receipt text is read by a model bundled with the app, and backups go only to files you choose. See the [privacy policy](https://cusufcan.github.io/maliyem/privacy.html).
 
+## Screenshots
+
+![Maliyem in light theme](.github/images/screens-light.png)
+![Maliyem in dark theme](.github/images/screens-dark.png)
+
 ## Stack
 
 - Kotlin, Jetpack Compose (Material 3)

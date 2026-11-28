@@ -10,6 +10,7 @@ import com.mercan.maliyem.data.local.CategoryDao
 import com.mercan.maliyem.data.local.DefaultAccounts
 import com.mercan.maliyem.data.local.TransactionDao
 import com.mercan.maliyem.data.local.TransactionEntity
+import com.mercan.maliyem.data.local.TransactionType
 import dagger.hilt.android.AndroidEntryPoint
 import java.time.Clock
 import java.time.YearMonth
@@ -21,6 +22,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Panodaki Kasım örneğini içinde bulunulan aya (ya da `--ei monthOffset -3` ile 3 ay öncesine) ekler.
+ * `--ei expensePercent 85` giderleri yüzde olarak ölçekler (grafikte aylar farklı görünsün diye).
  * Yalnız debug derlemesinde var.
  */
 @AndroidEntryPoint
@@ -38,11 +40,12 @@ class DebugSeedReceiver : BroadcastReceiver() {
                 val byKey = categories.observeAll().first().associateBy { it.key }
                 val month = YearMonth.now(clock).plusMonths(intent.getIntExtra("monthOffset", 0).toLong())
                 val now = clock.millis()
+                val expensePercent = intent.getIntExtra("expensePercent", 100)
                 val rows = SAMPLE.mapIndexedNotNull { index, (day, key, note, amount) ->
                     val category = byKey[key] ?: return@mapIndexedNotNull null
                     TransactionEntity(
                         type = category.type,
-                        amountMinor = amount,
+                        amountMinor = if (category.type == TransactionType.EXPENSE) amount * expensePercent / 100 else amount,
                         categoryId = category.id,
                         date = month.atDay(day.coerceAtMost(month.lengthOfMonth())),
                         note = note,
